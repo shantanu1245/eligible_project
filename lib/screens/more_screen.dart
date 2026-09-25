@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
+import 'campaigns_screen.dart';
+import 'team_screen.dart';
+import 'tasks_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -37,23 +41,43 @@ class MoreScreen extends StatelessWidget {
             _MenuItem(
               icon: Icons.campaign_outlined,
               title: 'Campaigns',
-              subtitle:
-                  'Manage your advertising campaigns',
-              onTap: () {},
+              subtitle: 'Manage your advertising campaigns',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CampaignsScreen(),
+                  ),
+                );
+              },
             ),
+
             _MenuItem(
               icon: Icons.people_outline,
               title: 'Team',
-              subtitle:
-                  'Manage team members and assignments',
-              onTap: () {},
+              subtitle: 'Manage team members and assignments',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TeamScreen(),
+                  ),
+                );
+              },
             ),
+
             _MenuItem(
               icon: Icons.task_alt_outlined,
               title: 'Tasks',
-              subtitle:
-                  'Manage your CRM tasks',
-              onTap: () {},
+              subtitle: 'Manage your CRM tasks',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TasksScreen(),
+                  ),
+                );
+              },
             ),
           ]),
 
@@ -65,25 +89,24 @@ class MoreScreen extends StatelessWidget {
             _MenuItem(
               icon: Icons.facebook,
               title: 'Meta Ads',
-              subtitle:
-                  'Connect Facebook and Instagram',
+              subtitle: 'Connect Facebook and Instagram',
               trailing: _connectedBadge(
                 'Not connected',
               ),
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.chat_outlined,
               title: 'WhatsApp',
-              subtitle:
-                  'Connect WhatsApp Business',
+              subtitle: 'Connect WhatsApp Business',
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.email_outlined,
               title: 'Email',
-              subtitle:
-                  'Connect your email service',
+              subtitle: 'Connect your email service',
               onTap: () {},
             ),
           ]),
@@ -96,29 +119,28 @@ class MoreScreen extends StatelessWidget {
             _MenuItem(
               icon: Icons.person_outline,
               title: 'Profile',
-              subtitle:
-                  'Manage your account',
+              subtitle: 'Manage your account',
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.notifications_none_outlined,
               title: 'Notifications',
-              subtitle:
-                  'Manage notification preferences',
+              subtitle: 'Manage notification preferences',
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.security_outlined,
               title: 'Security',
-              subtitle:
-                  'Password and security settings',
+              subtitle: 'Password and security settings',
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.settings_outlined,
               title: 'Settings',
-              subtitle:
-                  'Application preferences',
+              subtitle: 'Application preferences',
               onTap: () {},
             ),
           ]),
@@ -131,22 +153,21 @@ class MoreScreen extends StatelessWidget {
             _MenuItem(
               icon: Icons.file_upload_outlined,
               title: 'Import Leads',
-              subtitle:
-                  'Import leads from CSV',
+              subtitle: 'Import leads from CSV',
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.file_download_outlined,
               title: 'Export Leads',
-              subtitle:
-                  'Export your CRM data',
+              subtitle: 'Export your CRM data',
               onTap: () {},
             ),
+
             _MenuItem(
               icon: Icons.history_outlined,
               title: 'Activity Log',
-              subtitle:
-                  'View account activity',
+              subtitle: 'View account activity',
               onTap: () {},
             ),
           ]),
@@ -169,14 +190,15 @@ class MoreScreen extends StatelessWidget {
               ),
             ),
             style: OutlinedButton.styleFrom(
-              minimumSize:
-                  const Size(double.infinity, 52),
+              minimumSize: const Size(
+                double.infinity,
+                52,
+              ),
               side: const BorderSide(
                 color: Color(0xFFFECACA),
               ),
               shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(13),
               ),
             ),
           ),
@@ -226,8 +248,7 @@ class MoreScreen extends StatelessWidget {
 
           const Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Shantanu',
@@ -241,8 +262,7 @@ class MoreScreen extends StatelessWidget {
                   'Administrator',
                   style: TextStyle(
                     fontSize: 12,
-                    color:
-                        AppTheme.textSecondary,
+                    color: AppTheme.textSecondary,
                   ),
                 ),
               ],
@@ -297,19 +317,17 @@ class MoreScreen extends StatelessWidget {
             return Column(
               children: [
                 ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 3,
                   ),
+
                   leading: Container(
                     height: 40,
                     width: 40,
                     decoration: BoxDecoration(
-                      color:
-                          const Color(0xFFEFF6FF),
-                      borderRadius:
-                          BorderRadius.circular(11),
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(11),
                     ),
                     child: Icon(
                       item.icon,
@@ -317,6 +335,7 @@ class MoreScreen extends StatelessWidget {
                       color: AppTheme.primary,
                     ),
                   ),
+
                   title: Text(
                     item.title,
                     style: const TextStyle(
@@ -324,21 +343,21 @@ class MoreScreen extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+
                   subtitle: Text(
                     item.subtitle,
                     style: const TextStyle(
                       fontSize: 10,
-                      color:
-                          AppTheme.textSecondary,
+                      color: AppTheme.textSecondary,
                     ),
                   ),
-                  trailing:
-                      item.trailing ??
+
+                  trailing: item.trailing ??
                       const Icon(
                         Icons.chevron_right_rounded,
-                        color:
-                            AppTheme.textSecondary,
+                        color: AppTheme.textSecondary,
                       ),
+
                   onTap: item.onTap,
                 ),
 
@@ -400,6 +419,7 @@ class MoreScreen extends StatelessWidget {
               },
               child: const Text('Cancel'),
             ),
+
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -407,8 +427,7 @@ class MoreScreen extends StatelessWidget {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        const LoginScreen(),
+                    builder: (_) => const LoginScreen(),
                   ),
                   (route) => false,
                 );
