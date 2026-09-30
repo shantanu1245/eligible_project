@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import 'campaigns_screen.dart';
 import 'integrations_screen.dart';
 import 'meta_setup_screen.dart';
+import 'notifications_screen.dart';
 import 'lead_allotment_screen.dart';
 import 'login_screen.dart';
 import 'tasks_screen.dart';
@@ -128,6 +129,25 @@ class MoreScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const TasksScreen(),
+                  ),
+                );
+              },
+            ),
+
+            // Notifications Center
+            _MenuItem(
+              icon: Icons.notifications_active_outlined,
+              title: 'Notifications & Alerts',
+              subtitle: 'New lead alerts for Admin & Sales',
+              trailing: _connectedBadge('Live'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => NotificationsScreen(
+                      leads: leads,
+                      onLeadsUpdated: onLeadsUpdated,
+                    ),
                   ),
                 );
               },

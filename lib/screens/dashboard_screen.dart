@@ -11,6 +11,7 @@ import 'followups_screen.dart';
 import 'lead_allotment_screen.dart';
 import 'lead_screen.dart';
 import 'more_screen.dart';
+import 'notifications_screen.dart';
 import '../services/backend_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -28,12 +29,23 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int currentIndex = 0;
   late List<Lead> leads;
+  int _unreadNotifCount = 0;
 
   @override
   void initState() {
     super.initState();
     leads = List.from(_demoLeads);
     _fetchLeadsFromBackend();
+    _fetchUnreadNotificationCount();
+  }
+
+  Future<void> _fetchUnreadNotificationCount() async {
+    final res = await BackendService().getNotifications();
+    if (mounted) {
+      setState(() {
+        _unreadNotifCount = res['unreadCount'] ?? 0;
+      });
+    }
   }
 
   Future<void> _fetchLeadsFromBackend() async {
@@ -231,13 +243,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
 
-          // Notification button
+          // Notification button with badge
           IconButton(
-            tooltip: 'Notifications',
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: AppTheme.textPrimary,
+            tooltip: 'Notifications ($_unreadNotifCount unread)',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => NotificationsScreen(
+                    leads: leads,
+                    onLeadsUpdated: _handleLeadsListUpdated,
+                  ),
+                ),
+              );
+              _fetchUnreadNotificationCount();
+            },
+            icon: Badge(
+              isLabelVisible: _unreadNotifCount > 0,
+              label: Text('$_unreadNotifCount'),
+              backgroundColor: const Color(0xFFDC2626),
+              child: const Icon(
+                Icons.notifications_none_rounded,
+                color: AppTheme.textPrimary,
+              ),
             ),
           ),
 

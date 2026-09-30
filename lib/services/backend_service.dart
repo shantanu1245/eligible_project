@@ -339,4 +339,110 @@ class BackendService {
     }
     return {};
   }
+
+  // ===================== NOTIFICATIONS (ADMIN & SALES) =====================
+
+  /// Get notifications list from Firebase RTDB with unread count
+  Future<Map<String, dynamic>> getNotifications({String? role, int limit = 50}) async {
+    try {
+      final qParams = <String, String>{'limit': limit.toString()};
+      if (role != null) qParams['role'] = role;
+
+      final uri = Uri.parse('$_baseUrl/notifications').replace(
+        queryParameters: qParams,
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getNotifications error: $e');
+    }
+    return {'success': false, 'count': 0, 'unreadCount': 0, 'data': []};
+  }
+
+  /// Mark a notification as read
+  Future<bool> markNotificationRead(String id) async {
+    try {
+      final res = await http
+          .patch(Uri.parse('$_baseUrl/notifications/$id/read'))
+          .timeout(const Duration(seconds: 4));
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[BackendService] markNotificationRead error: $e');
+      return false;
+    }
+  }
+
+  /// Mark all notifications as read
+  Future<bool> markAllNotificationsRead({String? role}) async {
+    try {
+      final body = <String, dynamic>{};
+      if (role != null) body['role'] = role;
+
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/notifications/read-all'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 4));
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[BackendService] markAllNotificationsRead error: $e');
+      return false;
+    }
+  }
+
+  /// Trigger a test notification to verify setup for Admin & Sales Agents
+  Future<Map<String, dynamic>> sendTestNotification({
+    String? customTitle,
+    String? customBody,
+    String role = 'both',
+  }) async {
+    try {
+      final body = <String, dynamic>{'role': role};
+      if (customTitle != null) body['customTitle'] = customTitle;
+      if (customBody != null) body['customBody'] = customBody;
+
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/notifications/test'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 6));
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('[BackendService] sendTestNotification error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Register an FCM device token for push notifications
+  Future<Map<String, dynamic>> registerFcmToken({
+    required String userId,
+    required String token,
+    String role = 'sales_agent',
+    String name = 'App User',
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/notifications/register-token'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'token': token,
+              'role': role,
+              'name': name,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('[BackendService] registerFcmToken error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
 }

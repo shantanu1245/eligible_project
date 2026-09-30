@@ -17,6 +17,8 @@ let localStore = {
   team: [...dummyData.team],
   webhook_logs: [],
   settings: {},
+  notifications: [],
+  fcm_tokens: {},
 };
 
 function ensureLocalDb() {
@@ -34,6 +36,8 @@ function ensureLocalDb() {
         team: parsed.team || [...dummyData.team],
         webhook_logs: parsed.webhook_logs || [],
         settings: parsed.settings || {},
+        notifications: parsed.notifications || [],
+        fcm_tokens: parsed.fcm_tokens || {},
       };
     } catch (e) {
       console.warn('⚠️  Could not parse local_db.json, re-seeding dummy dataset.');
@@ -107,6 +111,7 @@ initializeFirebase();
 
 const FirebaseService = {
   isConfigured: () => isLiveFirebase,
+  getRtdb: () => rtdb,
 
   getStatus: () => ({
     connected: isLiveFirebase,
@@ -212,6 +217,15 @@ const FirebaseService = {
       localStore.leads[existingIdx] = { ...localStore.leads[existingIdx], ...record };
     } else {
       localStore.leads.unshift(record);
+      // Trigger instant notifications to Admin & Sales Agents
+      try {
+        const notificationService = require('./notificationService');
+        notificationService.notifyNewLead(record).catch((err) => {
+          console.warn('⚠️ [Notification] Auto-alert dispatch note:', err.message);
+        });
+      } catch (err) {
+        console.warn('⚠️ [Notification] Could not load notificationService:', err.message);
+      }
     }
     persistLocalDb();
 
@@ -436,6 +450,144 @@ const FirebaseService = {
     }
     return updated;
   },
+
+  // ===================== NOTIFICATIONS (ADMIN & SALES AGENTS) =====================
+  async saveNotification(notification) {
+    ensureLocalDb();
+    localStore.notifications.unshift(notification);
+    if (localStore.notifications.length > 100) localStore.notifications.pop();
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      rtdb.ref(`notifications/${notification.id}`).set(notification).catch((err) => {
+        console.warn('⚠️ RTDB saveNotification note:', err.message);
+      });
+    }
+    return notification;
+  },
+
+  async getNotifications({ limit = 50, role, leadId } = {}) {
+    ensureLocalDb();
+    let list = [];
+
+    if (isLiveFirebase && rtdb) {
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('RTDB query timeout')), 1500)
+        );
+        const fetchPromise = rtdb.ref('notifications').limitToLast(limit).once('value');
+        const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
+        const val = snapshot.val();
+        if (val) {
+          list = Object.values(val).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+      } catch (err) {
+        console.warn('⚠️ RTDB getNotifications fallback to local:', err.message);
+      }
+    }
+
+    if (list.length === 0) {
+      list = [...localStore.notifications];
+    }
+
+    if (role) {
+      list = list.filter((n) => !n.targetRole || n.targetRole === role || n.targetRole === 'all');
+    }
+    if (leadId) {
+      list = list.filter((n) => n.leadId === leadId);
+    }
+
+    return list.slice(0, limit);
+  },
+
+  async markNotificationRead(id) {
+    ensureLocalDb();
+    const item = localStore.notifications.find((n) => n.id === id);
+    if (item) item.read = true;
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      rtdb.ref(`notifications/${id}/read`).set(true).catch(() => {});
+    }
+    return true;
+  },
+
+  async markAllNotificationsRead(role) {
+    ensureLocalDb();
+    localStore.notifications.forEach((n) => {
+      if (!role || n.targetRole === role || n.targetRole === 'all') {
+        n.read = true;
+      }
+    });
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      try {
+        const snapshot = await rtdb.ref('notifications').once('value');
+        const val = snapshot.val();
+        if (val) {
+          const updates = {};
+          Object.keys(val).forEach((k) => {
+            if (!role || val[k].targetRole === role || val[k].targetRole === 'all') {
+              updates[`notifications/${k}/read`] = true;
+            }
+          });
+          await rtdb.ref().update(updates);
+        }
+      } catch (_) {}
+    }
+    return true;
+  },
+
+  // ===================== FCM DEVICE TOKENS =====================
+  async saveDeviceToken({ userId, token, role, name, updatedAt }) {
+    ensureLocalDb();
+    localStore.fcm_tokens[userId] = { token, role, name, updatedAt };
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      rtdb.ref(`fcm_tokens/${userId}`).set({ token, role, name, updatedAt }).catch(() => {});
+    }
+    return true;
+  },
+
+  async getDeviceTokens(role) {
+    ensureLocalDb();
+    let tokens = [];
+
+    if (isLiveFirebase && rtdb) {
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('RTDB token query timeout')), 1000)
+        );
+        const fetchPromise = rtdb.ref('fcm_tokens').once('value');
+        const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
+        const val = snapshot.val();
+        if (val) {
+          Object.values(val).forEach((item) => {
+            if (item && item.token) {
+              if (!role || item.role === role) {
+                tokens.push(item.token);
+              }
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    if (tokens.length === 0) {
+      Object.values(localStore.fcm_tokens).forEach((item) => {
+        if (item && item.token) {
+          if (!role || item.role === role) tokens.push(item.token);
+        }
+      });
+    }
+
+    return Array.from(new Set(tokens));
+  },
 };
+
+const notificationService = require('./notificationService');
+notificationService.setFirebaseService(FirebaseService);
 
 module.exports = FirebaseService;

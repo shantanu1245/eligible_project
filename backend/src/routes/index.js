@@ -7,6 +7,7 @@ const campaignRoutes = require('./campaignRoutes');
 const metaRoutes = require('./metaRoutes');
 const taskRoutes = require('./taskRoutes');
 const teamRoutes = require('./teamRoutes');
+const notificationRoutes = require('./notificationRoutes');
 const firebaseService = require('../services/firebase');
 
 // Root health check
@@ -36,5 +37,6 @@ router.use('/campaigns', campaignRoutes);
 router.use('/meta', metaRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/team', teamRoutes);
+router.use('/notifications', notificationRoutes);
 
 module.exports = router;

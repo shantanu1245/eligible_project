@@ -192,6 +192,38 @@ async function runTests() {
     }
   });
 
+  // 13. Firebase Notifications & FCM for Admin and Sales Agents
+  await testStep('13. Notifications & FCM Alerts (GET, POST & PATCH /api/notifications)', async () => {
+    // 13a. Trigger test notification
+    const testRes = await axios.post(`${BASE_URL}/notifications/test`, {
+      customTitle: 'Ananya Deshmukh',
+      customBody: 'VTP Sierra 2BHK Baner • ₹95 Lakhs',
+    });
+    if (!testRes.data.success) throw new Error('Failed to trigger test notification');
+
+    // 13b. Register FCM token
+    const tokenRes = await axios.post(`${BASE_URL}/notifications/register-token`, {
+      userId: 'agent_priya',
+      token: 'fcm_sample_priya_token_998877',
+      role: 'sales_agent',
+      name: 'Priya Nair',
+    });
+    if (!tokenRes.data.success || !tokenRes.data.data.topicSubscribed) {
+      throw new Error('Failed to register FCM device token');
+    }
+
+    // 13c. Fetch notifications
+    const getNotifs = await axios.get(`${BASE_URL}/notifications`);
+    if (!getNotifs.data.success || getNotifs.data.count === 0) {
+      throw new Error('No notifications returned');
+    }
+
+    // 13d. Mark first as read
+    const firstNotifId = getNotifs.data.data[0].id;
+    const markRes = await axios.patch(`${BASE_URL}/notifications/${firstNotifId}/read`);
+    if (!markRes.data.success) throw new Error('Failed to mark notification as read');
+  });
+
   console.log('\n======================================================');
   console.log(`🏁 TEST RESULTS: ${passCount} PASSED, ${failCount} FAILED`);
   console.log('======================================================\n');

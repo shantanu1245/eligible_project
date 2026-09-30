@@ -68,6 +68,7 @@ const server = app.listen(config.port, () => {
   console.log(`📡 Health Check:      http://localhost:${config.port}/api/health`);
   console.log(`🔗 Meta Status:       http://localhost:${config.port}/api/meta/status`);
   console.log(`📥 Meta Webhook URL:  http://localhost:${config.port}/api/webhooks/meta`);
+  console.log(`🔔 Notifications:     http://localhost:${config.port}/api/notifications`);
   console.log(`🔑 Webhook Verify:    "${config.meta.webhookVerifyToken}"`);
   console.log('======================================================\n');
 
@@ -80,6 +81,31 @@ const server = app.listen(config.port, () => {
   }).catch((err) => {
     console.warn('Could not load dynamic Meta credentials:', err.message);
   });
+
+  // Setup Real-time Firebase RTDB listener for incoming leads
+  const serverStartTime = Date.now();
+  const rtdb = firebaseService.getRtdb();
+  if (rtdb) {
+    const notificationService = require('./services/notificationService');
+    const processedLeadIds = new Set();
+
+    rtdb.ref('leads').limitToLast(5).on('child_added', (snapshot) => {
+      const lead = snapshot.val();
+      if (!lead || !lead.id) return;
+      if (processedLeadIds.has(lead.id)) return;
+      processedLeadIds.add(lead.id);
+
+      const leadCreatedAt = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
+      // Only fire real-time alert for leads created after this server instance started
+      if (leadCreatedAt >= serverStartTime - 3000) {
+        console.log(`📡 [Realtime DB Event] New lead detected in Firebase RTDB: ${lead.name}`);
+        notificationService.notifyNewLead(lead).catch((err) => {
+          console.warn('⚠️ Realtime lead alert note:', err.message);
+        });
+      }
+    });
+    console.log('🔔 [Realtime Listener] Active for incoming leads in Firebase Realtime Database.');
+  }
 });
 
 // Graceful shutdown
