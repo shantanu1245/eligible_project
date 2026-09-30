@@ -45,17 +45,31 @@ const LeadController = {
   async createLead(req, res) {
     try {
       const leadData = req.body;
+      console.log(`📥 [LeadController:createLead] Incoming lead: "${leadData.name}" (Phone: ${leadData.phone}, AssignedTo: "${leadData.assignedTo || 'Unassigned'}")`);
+
       const created = await firebaseService.saveLead(leadData, { autoNotify: false });
+      console.log(`💾 [LeadController:createLead] Saved in DB with ID: ${created.id}`);
 
       // Trigger targeted or broadcast notifications
-      if (leadData.assignedTo && leadData.assignedTo.trim().length > 0) {
-        notificationService.notifyLeadAllotment(created, leadData.assignedTo, leadData.addedBy || 'Admin').catch(() => {});
-      } else {
-        notificationService.notifyNewLeadAddedByAdmin(created, leadData.addedBy || 'Admin').catch(() => {});
+      let notificationResult = null;
+      try {
+        if (leadData.assignedTo && leadData.assignedTo.trim().length > 0) {
+          notificationResult = await notificationService.notifyLeadAllotment(created, leadData.assignedTo, leadData.addedBy || 'Admin');
+        } else {
+          notificationResult = await notificationService.notifyNewLeadAddedByAdmin(created, leadData.addedBy || 'Admin');
+        }
+      } catch (notifErr) {
+        console.error(`❌ [LeadController:createLead] Notification dispatch error: ${notifErr.message}`);
+        notificationResult = { success: false, error: notifErr.message };
       }
 
-      res.status(201).json({ success: true, data: created });
+      res.status(201).json({
+        success: true,
+        data: created,
+        notification: notificationResult,
+      });
     } catch (err) {
+      console.error(`❌ [LeadController:createLead] Error creating lead: ${err.message}`);
       res.status(500).json({ success: false, error: err.message });
     }
   },
@@ -94,6 +108,8 @@ const LeadController = {
   async allotLead(req, res) {
     try {
       const { assignedTo, allottedBy = 'Admin' } = req.body;
+      console.log(`📥 [LeadController:allotLead] Alloting Lead "${req.params.id}" to "${assignedTo}" by "${allottedBy}"`);
+
       if (!assignedTo) {
         return res.status(400).json({ success: false, error: 'assignedTo is required' });
       }
@@ -107,12 +123,14 @@ const LeadController = {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
 
+      console.log(`💾 [LeadController:allotLead] Lead "${updated.name}" updated. Triggering allotment notification...`);
       // Notify THAT respective user only across all his logged-in devices
       const alertResult = await notificationService.notifyLeadAllotment(
         updated,
         assignedTo,
         allottedBy
       );
+      console.log(`📋 [LeadController:allotLead] Allotment notification result:`, JSON.stringify(alertResult, null, 2));
 
       res.json({
         success: true,
@@ -121,6 +139,7 @@ const LeadController = {
         notification: alertResult,
       });
     } catch (err) {
+      console.error(`❌ [LeadController:allotLead] Error: ${err.message}`);
       res.status(500).json({ success: false, error: err.message });
     }
   },

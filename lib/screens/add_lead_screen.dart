@@ -96,6 +96,10 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
         addedBy: widget.currentUser.name,
       );
 
+      debugPrint('[AddLeadScreen] Lead creation response: $res');
+      final notifData = res['notification'] as Map<String, dynamic>?;
+      debugPrint('[AddLeadScreen] Notification dispatch details: $notifData');
+
       final createdMap = res['data'] ?? res;
       final leadId = createdMap['id']?.toString() ??
           'lead_${DateTime.now().millisecondsSinceEpoch}';
@@ -116,9 +120,13 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
       widget.onLeadAdded?.call(createdLead);
 
       if (mounted) {
+        final devicesCount = notifData?['devicesNotified'] ??
+            notifData?['fcm']?['multicast']?['successCount'] ??
+            0;
+
         final notifMsg = assigned.isEmpty
-            ? '📢 Broadcast alert sent to all executives & admins!'
-            : '🎯 Targeted alert sent exclusively to $assigned!';
+            ? '📢 Broadcast alert dispatched to all executives & admins! ($devicesCount active devices reached)'
+            : '🎯 Targeted alert dispatched exclusively to $assigned! ($devicesCount devices reached)';
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

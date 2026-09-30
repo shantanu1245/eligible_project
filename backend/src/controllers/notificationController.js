@@ -110,6 +110,41 @@ const NotificationController = {
       res.status(500).json({ success: false, error: err.message });
     }
   },
+
+  /**
+   * GET /api/notifications/logs
+   * View live audit log of recent notification deliveries, successes, and FCM errors
+   */
+  async getNotificationLogs(req, res) {
+    try {
+      const { limit = 50 } = req.query;
+      const logs = firebaseService.getNotificationLogs(parseInt(limit, 10) || 50);
+      res.json({
+        success: true,
+        count: logs.length,
+        data: logs,
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  /**
+   * GET /api/notifications/devices
+   * View all devices registered for push alerts with their status
+   */
+  async getRegisteredDevices(req, res) {
+    try {
+      const devices = await firebaseService.getAllRegisteredDevices();
+      res.json({
+        success: true,
+        count: devices.length,
+        data: devices,
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
 };
 
 module.exports = NotificationController;

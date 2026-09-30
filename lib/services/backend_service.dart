@@ -164,6 +164,9 @@ class BackendService {
     String addedBy = 'Admin',
   }) async {
     try {
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('[BackendService:createLead] Sending request: "$name" ($phone), assignedTo="${assignedTo.isEmpty ? "Unassigned (Broadcast)" : assignedTo}"');
+
       final res = await http
           .post(
             Uri.parse('$_baseUrl/leads'),
@@ -183,10 +186,14 @@ class BackendService {
           )
           .timeout(const Duration(seconds: 10));
 
+      debugPrint('[BackendService:createLead] Status: ${res.statusCode}');
+      debugPrint('[BackendService:createLead] Body: ${res.body}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
       final data = jsonDecode(res.body);
       return data is Map<String, dynamic> ? data : {'success': true, 'data': data};
     } catch (e) {
-      debugPrint('[BackendService] createLead error: $e');
+      debugPrint('❌ [BackendService:createLead] Error: $e');
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -467,6 +474,9 @@ class BackendService {
     String allottedBy = 'Admin',
   }) async {
     try {
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('[BackendService:allotLead] Alloting lead $leadId -> assignedTo: "$assignedTo" by "$allottedBy"');
+
       final res = await http
           .post(
             Uri.parse('$_baseUrl/leads/$leadId/allot'),
@@ -476,10 +486,15 @@ class BackendService {
               'allottedBy': allottedBy,
             }),
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 8));
+
+      debugPrint('[BackendService:allotLead] Status: ${res.statusCode}');
+      debugPrint('[BackendService:allotLead] Body: ${res.body}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
       return jsonDecode(res.body);
     } catch (e) {
-      debugPrint('[BackendService] allotLead error: $e');
+      debugPrint('❌ [BackendService:allotLead] Error: $e');
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -494,6 +509,8 @@ class BackendService {
     String platform = 'android',
   }) async {
     try {
+      debugPrint('[BackendService:registerFcmToken] Registering token for $name (ID: $userId, Role: $role, Device: $deviceName)...');
+
       final res = await http
           .post(
             Uri.parse('$_baseUrl/notifications/register-token'),
@@ -507,11 +524,32 @@ class BackendService {
               'platform': platform,
             }),
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 6));
+
+      debugPrint('[BackendService:registerFcmToken] Status: ${res.statusCode} | Response: ${res.body}');
       return jsonDecode(res.body);
     } catch (e) {
-      debugPrint('[BackendService] registerFcmToken error: $e');
+      debugPrint('❌ [BackendService:registerFcmToken] Error: $e');
       return {'success': false, 'error': e.toString()};
     }
+  }
+
+  /// Fetch live notification dispatch logs
+  Future<List<Map<String, dynamic>>> getNotificationLogs({int limit = 50}) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$_baseUrl/notifications/logs?limit=$limit'))
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = data['data'] as List<dynamic>?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [BackendService:getNotificationLogs] Error: $e');
+    }
+    return [];
   }
 }

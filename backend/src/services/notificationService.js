@@ -175,22 +175,31 @@ class NotificationService {
   /**
    * Registers an FCM Device Token for a user and subscribes to role-based topics
    */
-  async registerToken({ userId, token, role = 'sales_agent', name = 'App User' }) {
+  async registerToken({ userId, token, role = 'sales_agent', name = 'App User', deviceName = 'Mobile Device', platform = 'android' }) {
     if (!token) throw new Error('FCM token is required');
 
     const cleanRole = role.toLowerCase().includes('admin') ? 'admin' : 'sales_agent';
     const targetTopic = cleanRole === 'admin' ? 'admin_leads' : 'sales_agents';
 
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📲 [FCM REGISTRATION] User: "${name}" (ID: ${userId}, Role: ${cleanRole})`);
+    console.log(`   ├─ Device: ${deviceName} [${platform}]`);
+    console.log(`   ├─ Token Preview: ${token.substring(0, 24)}...`);
+
     // 1. Subscribe token to the relevant topic in Firebase Cloud Messaging
     let topicSubscribed = false;
+    let topicError = null;
     if (admin && admin.apps && admin.apps.length > 0) {
       try {
         await withTimeout(admin.messaging().subscribeToTopic([token], targetTopic), 2500);
         topicSubscribed = true;
-        console.log(`✅ [FCM] Token for ${name} (${cleanRole}) subscribed to topic '${targetTopic}'`);
+        console.log(`   ├─ Topic Subscription: ✅ Subscribed to '${targetTopic}'`);
       } catch (err) {
-        console.warn(`⚠️ [FCM] Failed to subscribe token to topic: ${err.message}`);
+        topicError = err.message;
+        console.warn(`   ├─ Topic Subscription: ⚠️ ${err.message}`);
       }
+    } else {
+      console.warn(`   ├─ Topic Subscription: ⚠️ Firebase Admin SDK not live. Local storage registration only.`);
     }
 
     // 2. Persist token in Firebase Realtime Database
@@ -200,9 +209,13 @@ class NotificationService {
         token,
         role: cleanRole,
         name,
+        deviceName,
+        platform,
         updatedAt: new Date().toISOString(),
       });
+      console.log(`   └─ Status: ✅ Registered in Multi-Device Map for user ${userId}`);
     }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     return {
       success: true,
@@ -210,6 +223,7 @@ class NotificationService {
       role: cleanRole,
       topic: targetTopic,
       topicSubscribed,
+      topicError,
     };
   }
 
@@ -226,7 +240,7 @@ class NotificationService {
     const timestamp = new Date().toISOString();
     const notifId = `notif_new_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const leadName = lead.name || 'New Lead';
-    const propertyInterest = lead.propertyInterest || lead.campaign || 'Property Inquiry';
+    const propertyInterest = lead.propertyInterest || lead.campaign || 'General Inquiry';
     const budget = lead.budget || 'Flexible Budget';
     const phone = lead.phone || '';
 
@@ -246,48 +260,105 @@ class NotificationService {
       createdAt: timestamp,
     };
 
-    console.log(`📢 [Broadcast Alert] Admin added new lead: "${leadName}". Notifying ALL users.`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📢 [NOTIFICATION: NEW LEAD BROADCAST]`);
+    console.log(`   ├─ Lead: "${leadName}" (ID: ${lead.id || 'N/A'}, Phone: ${phone})`);
+    console.log(`   ├─ Added By: "${addedBy}" | Status: Unassigned (Alerting ALL Users)`);
 
     // 1. Save in Firebase Realtime Database
     if (this.firebaseService) {
       await this.firebaseService.saveNotification(notification);
+      console.log(`   ├─ In-App Alert: 💾 Saved to database (ID: ${notification.id})`);
     }
 
     // 2. Push to all topics & all user device tokens
-    let fcmSuccessCount = 0;
-    if (admin && admin.apps && admin.apps.length > 0) {
+    const topicResults = {};
+    let multicastResult = { totalTokens: 0, successCount: 0, failureCount: 0, errors: [] };
+
+    if (!admin || !admin.apps || admin.apps.length === 0) {
+      console.warn(`   ├─ FCM Push: ⚠️ Firebase Admin SDK is NOT initialized (Local mode active). Push not sent to Google FCM.`);
+    } else {
+      // 2a. Broadcast to FCM Topics
       const topics = ['all_leads', 'admin_leads', 'sales_agents'];
       for (const topic of topics) {
         try {
-          await withTimeout(
+          const res = await withTimeout(
             admin.messaging().send({
               topic,
               notification: { title: notification.title, body: notification.body },
               data: { type: 'NEW_LEAD', leadId: String(lead.id || ''), role: 'all', click_action: 'FLUTTER_NOTIFICATION_CLICK' },
             }),
-            2000
+            2500
           );
-        } catch (_) {}
+          topicResults[topic] = { success: true, messageId: res };
+          console.log(`   ├─ FCM Topic [${topic}]: ✅ SENT (Message ID: ${res})`);
+        } catch (err) {
+          topicResults[topic] = { success: false, error: err.message, code: err.code || 'UNKNOWN' };
+          console.error(`   ├─ FCM Topic [${topic}]: ❌ FAILED (${err.code || 'ERR'}: ${err.message})`);
+        }
       }
 
+      // 2b. Direct Push to all registered device tokens across all users
       try {
         const allTokens = await this.getRegisteredTokens();
-        if (allTokens.length > 0) {
+        multicastResult.totalTokens = allTokens.length;
+
+        if (allTokens.length === 0) {
+          console.warn(`   ├─ Direct Device Push: ⚠️ 0 registered device tokens found in database!`);
+          console.info(`   │   ℹ️ No mobile devices have registered their FCM token yet. Tokens register automatically when users open the app.`);
+        } else {
+          console.log(`   ├─ Direct Device Push: Sending multicast to ${allTokens.length} active device token(s)...`);
           const directMessage = {
             notification: { title: notification.title, body: notification.body },
             data: { leadId: String(lead.id || ''), type: 'NEW_LEAD' },
             tokens: allTokens,
           };
-          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 2500);
-          fcmSuccessCount = res.successCount || 0;
-          console.log(`📱 [FCM] Broadcast delivered to ${fcmSuccessCount} active user devices`);
+          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 3500);
+          multicastResult.successCount = res.successCount || 0;
+          multicastResult.failureCount = res.failureCount || 0;
+
+          console.log(`   ├─ Direct Multicast Result: ${res.successCount} delivered, ${res.failureCount} failed`);
+          if (res.responses) {
+            res.responses.forEach((resp, i) => {
+              const preview = allTokens[i] ? `${allTokens[i].substring(0, 16)}...` : `Device #${i + 1}`;
+              if (resp.success) {
+                console.log(`   │   ├─ ${preview}: ✅ DELIVERED (ID: ${resp.messageId})`);
+              } else {
+                const errDetail = `${resp.error?.code || 'UNKNOWN'}: ${resp.error?.message}`;
+                multicastResult.errors.push({ tokenPreview: preview, error: errDetail });
+                console.error(`   │   ├─ ${preview}: ❌ FAILED (${errDetail})`);
+              }
+            });
+          }
         }
       } catch (err) {
-        console.warn(`⚠️ [FCM] Broadcast device push note: ${err.message}`);
+        console.error(`   ├─ Direct Device Push Error: ❌ ${err.message}`);
+        multicastResult.errors.push({ error: err.message });
       }
     }
 
-    return { success: true, notification, devicesNotified: fcmSuccessCount };
+    // 3. Log event into audit buffer
+    if (this.firebaseService && this.firebaseService.logNotificationEvent) {
+      this.firebaseService.logNotificationEvent({
+        type: 'NEW_LEAD_BROADCAST',
+        leadId: lead.id,
+        leadName,
+        addedBy,
+        topicResults,
+        multicastResult,
+      });
+    }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    return {
+      success: true,
+      notification,
+      fcm: {
+        topics: topicResults,
+        multicast: multicastResult,
+      },
+    };
   }
 
   /**
@@ -321,11 +392,15 @@ class NotificationService {
       createdAt: timestamp,
     };
 
-    console.log(`🎯 [Targeted Alert] Lead "${leadName}" allotted to "${assignedTo}". Notifying that respective user only.`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🎯 [NOTIFICATION: TARGETED LEAD ALLOTMENT]`);
+    console.log(`   ├─ Lead: "${leadName}" (ID: ${lead.id || 'N/A'})`);
+    console.log(`   ├─ Allotted To: "${assignedTo}" | Allotted By: "${allottedBy}"`);
 
     // 1. Save in Firebase Realtime Database
     if (this.firebaseService) {
       await this.firebaseService.saveNotification(notification);
+      console.log(`   ├─ In-App Alert: 💾 Saved to database for user "${assignedTo}" (ID: ${notification.id})`);
     }
 
     // 2. Look up ALL devices where THIS user is logged in
@@ -334,8 +409,15 @@ class NotificationService {
       userTokens = await this.firebaseService.getUserDeviceTokens(assignedTo);
     }
 
+    console.log(`   ├─ Device Lookup: Found ${userTokens.length} active device token(s) registered for "${assignedTo}"`);
+
     let devicesNotified = 0;
-    if (admin && admin.apps && admin.apps.length > 0) {
+    const directErrors = [];
+    let topicResult = null;
+
+    if (!admin || !admin.apps || admin.apps.length === 0) {
+      console.warn(`   ├─ FCM Push: ⚠️ Firebase Admin SDK is NOT initialized (Local mode active).`);
+    } else {
       if (userTokens.length > 0) {
         try {
           const directMessage = {
@@ -348,28 +430,66 @@ class NotificationService {
             },
             tokens: userTokens,
           };
-          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 2500);
+          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 3500);
           devicesNotified = res.successCount || 0;
-          console.log(`📱 [FCM] Allotment notification delivered to ${devicesNotified} devices of "${assignedTo}"`);
+          console.log(`   ├─ Direct Multicast: ${res.successCount} delivered, ${res.failureCount} failed`);
+
+          if (res.responses) {
+            res.responses.forEach((resp, i) => {
+              const preview = userTokens[i] ? `${userTokens[i].substring(0, 16)}...` : `Device #${i + 1}`;
+              if (resp.success) {
+                console.log(`   │   ├─ ${preview} [${assignedTo}]: ✅ DELIVERED (ID: ${resp.messageId})`);
+              } else {
+                const errDetail = `${resp.error?.code || 'UNKNOWN'}: ${resp.error?.message}`;
+                directErrors.push({ tokenPreview: preview, error: errDetail });
+                console.error(`   │   ├─ ${preview} [${assignedTo}]: ❌ FAILED (${errDetail})`);
+              }
+            });
+          }
         } catch (err) {
-          console.warn(`⚠️ [FCM] Targeted device push error: ${err.message}`);
+          console.error(`   ├─ Targeted Device Push Error: ❌ ${err.message}`);
+          directErrors.push({ error: err.message });
         }
       } else {
-        console.log(`ℹ️ [FCM] No active device tokens currently found for user "${assignedTo}". Notification saved in database.`);
+        console.warn(`   ├─ Direct Device Push: ⚠️ User "${assignedTo}" has NO registered device tokens!`);
+        console.info(`   │   ℹ️ When "${assignedTo}" logs into the app, their device token will be added to the registry.`);
       }
 
+      // Also dispatch to user-specific topic (e.g. user_amit_patil)
       const cleanUserTopic = `user_${assignedTo.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
       try {
-        await withTimeout(
+        const topicRes = await withTimeout(
           admin.messaging().send({
             topic: cleanUserTopic,
             notification: { title: notification.title, body: notification.body },
             data: { type: 'LEAD_ALLOTTED', leadId: String(lead.id || ''), assignedTo: String(assignedTo) },
           }),
-          2000
+          2500
         );
-      } catch (_) {}
+        topicResult = { success: true, messageId: topicRes };
+        console.log(`   ├─ User Topic [${cleanUserTopic}]: ✅ SENT (Message ID: ${topicRes})`);
+      } catch (err) {
+        topicResult = { success: false, error: err.message };
+        console.log(`   ├─ User Topic [${cleanUserTopic}]: ℹ️ Note: ${err.message}`);
+      }
     }
+
+    // 3. Log event into audit buffer
+    if (this.firebaseService && this.firebaseService.logNotificationEvent) {
+      this.firebaseService.logNotificationEvent({
+        type: 'LEAD_ALLOTTED',
+        leadId: lead.id,
+        leadName,
+        assignedTo,
+        allottedBy,
+        deviceTokensFound: userTokens.length,
+        devicesNotified,
+        errors: directErrors,
+        topicResult,
+      });
+    }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     return {
       success: true,
@@ -377,6 +497,8 @@ class NotificationService {
       targetUser: assignedTo,
       deviceTokensFound: userTokens.length,
       devicesNotified,
+      directErrors,
+      topicResult,
     };
   }
 

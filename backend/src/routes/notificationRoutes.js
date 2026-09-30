@@ -17,4 +17,10 @@ router.post('/register-token', notificationController.registerToken);
 // POST /api/notifications/test - Trigger test notification for Admin/Sales Agents
 router.post('/test', notificationController.sendTest);
 
+// GET /api/notifications/logs - Live notification audit log
+router.get('/logs', notificationController.getNotificationLogs);
+
+// GET /api/notifications/devices - View registered devices
+router.get('/devices', notificationController.getRegisteredDevices);
+
 module.exports = router;

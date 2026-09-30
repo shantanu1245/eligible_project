@@ -18,6 +18,7 @@ let localStore = {
   webhook_logs: [],
   settings: {},
   notifications: [],
+  notification_logs: [],
   fcm_tokens: {},
 };
 
@@ -40,6 +41,7 @@ function ensureLocalDb() {
         webhook_logs: parsed.webhook_logs || [],
         settings: parsed.settings || {},
         notifications: parsed.notifications || [],
+        notification_logs: parsed.notification_logs || [],
         fcm_tokens: parsed.fcm_tokens || {},
       };
     } catch (e) {
@@ -685,6 +687,66 @@ const FirebaseService = {
     }
 
     return Array.from(new Set(tokens));
+  },
+
+  // ===================== NOTIFICATION LOGS & AUDIT =====================
+  logNotificationEvent(event) {
+    ensureLocalDb();
+    if (!localStore.notification_logs) {
+      localStore.notification_logs = [];
+    }
+    const logRecord = {
+      id: `notiflog_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      ...event,
+    };
+    localStore.notification_logs.unshift(logRecord);
+    if (localStore.notification_logs.length > 100) {
+      localStore.notification_logs.pop();
+    }
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      rtdb.ref('notification_logs').push(logRecord).catch(() => {});
+    }
+    return logRecord;
+  },
+
+  getNotificationLogs(limit = 50) {
+    ensureLocalDb();
+    return (localStore.notification_logs || []).slice(0, limit);
+  },
+
+  async getAllRegisteredDevices() {
+    ensureLocalDb();
+    const result = [];
+    const tokensObj = localStore.fcm_tokens || {};
+    Object.entries(tokensObj).forEach(([userId, userData]) => {
+      const devices = userData.devices || {};
+      Object.entries(devices).forEach(([deviceKey, dev]) => {
+        result.push({
+          userId,
+          userName: userData.name,
+          role: userData.role,
+          token: dev.token,
+          deviceName: dev.deviceName,
+          platform: dev.platform,
+          updatedAt: dev.updatedAt,
+        });
+      });
+      if (Object.keys(devices).length === 0 && userData.token) {
+        result.push({
+          userId,
+          userName: userData.name,
+          role: userData.role,
+          token: userData.token,
+          deviceName: 'Primary Device',
+          platform: 'mobile',
+          updatedAt: userData.updatedAt || new Date().toISOString(),
+        });
+      }
+    });
+    return result;
   },
 };
 
