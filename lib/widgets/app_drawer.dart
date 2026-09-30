@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
+import '../screens/add_lead_screen.dart';
 import '../screens/campaigns_screen.dart';
 import '../screens/lead_allotment_screen.dart';
 import '../screens/login_screen.dart';
@@ -159,6 +160,27 @@ class AppDrawer extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const TeamScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _drawerItem(
+                      context: context,
+                      icon: Icons.person_add_alt_1_outlined,
+                      selectedIcon: Icons.person_add_alt_1_rounded,
+                      title: 'Add New Lead',
+                      isSelected: false,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AddLeadScreen(
+                              currentUser: user,
+                              onLeadAdded: (newLead) {
+                                onLeadsUpdated([newLead, ...leads]);
+                              },
+                            ),
                           ),
                         );
                       },

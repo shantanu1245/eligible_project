@@ -45,7 +45,7 @@ const LeadController = {
   async createLead(req, res) {
     try {
       const leadData = req.body;
-      const created = await firebaseService.saveLead(leadData);
+      const created = await firebaseService.saveLead(leadData, { autoNotify: false });
 
       // Trigger targeted or broadcast notifications
       if (leadData.assignedTo && leadData.assignedTo.trim().length > 0) {

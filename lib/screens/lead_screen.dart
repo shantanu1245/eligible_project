@@ -4,12 +4,14 @@ import '../models/user.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/lead_card.dart';
+import 'add_lead_screen.dart';
 
 class LeadsScreen extends StatefulWidget {
   final List<Lead> leads;
   final ValueChanged<int>? onNavigationChanged;
   final UserModel? currentUser;
   final Function(Lead)? onLeadUpdated;
+  final Function(Lead)? onLeadAdded;
   final VoidCallback? onOpenAllotment;
 
   const LeadsScreen({
@@ -18,6 +20,7 @@ class LeadsScreen extends StatefulWidget {
     this.onNavigationChanged,
     this.currentUser,
     this.onLeadUpdated,
+    this.onLeadAdded,
     this.onOpenAllotment,
   });
 
@@ -101,6 +104,11 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     : AppTheme.primary,
               ),
             ),
+          IconButton(
+            tooltip: 'Add New Lead',
+            onPressed: _openAddLeadScreen,
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+          ),
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.tune_rounded),
@@ -215,7 +223,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: _openAddLeadScreen,
         backgroundColor: AppTheme.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
@@ -233,6 +241,24 @@ class _LeadsScreenState extends State<LeadsScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _openAddLeadScreen() async {
+    final newLead = await Navigator.push<Lead>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddLeadScreen(
+          currentUser: widget.currentUser ?? UserModel.admin,
+          onLeadAdded: (lead) {
+            widget.onLeadAdded?.call(lead);
+            if (mounted) setState(() {});
+          },
+        ),
+      ),
+    );
+    if (newLead != null && mounted) {
+      setState(() {});
+    }
   }
 
   Widget _buildFilters() {

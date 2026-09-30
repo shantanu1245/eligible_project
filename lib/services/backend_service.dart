@@ -150,6 +150,47 @@ class BackendService {
     return [];
   }
 
+  /// Create a new lead manually in the CRM (with instant targeted or broadcast notifications)
+  Future<Map<String, dynamic>> createLead({
+    required String name,
+    required String phone,
+    required String email,
+    String source = 'Manual Entry',
+    String campaign = 'Direct',
+    String? ad,
+    String status = 'newLead',
+    String assignedTo = '',
+    String note = '',
+    String addedBy = 'Admin',
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/leads'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'name': name,
+              'phone': phone,
+              'email': email,
+              'source': source,
+              'campaign': campaign,
+              'ad': ad,
+              'status': status,
+              'assignedTo': assignedTo,
+              'note': note,
+              'addedBy': addedBy,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(res.body);
+      return data is Map<String, dynamic> ? data : {'success': true, 'data': data};
+    } catch (e) {
+      debugPrint('[BackendService] createLead error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// Manually sync leads from Meta Form to Firebase
   Future<Map<String, dynamic>> syncMetaLeads({String? formId}) async {
     try {

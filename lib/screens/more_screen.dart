@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
 import '../theme/app_theme.dart';
+import 'add_lead_screen.dart';
 import 'campaigns_screen.dart';
 import 'integrations_screen.dart';
 import 'meta_setup_screen.dart';
 import 'notifications_screen.dart';
 import 'lead_allotment_screen.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
 import 'tasks_screen.dart';
 import 'team_screen.dart';
 
@@ -42,13 +44,51 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
         children: [
-          _buildProfile(),
+          _buildProfile(context),
 
           const SizedBox(height: 18),
 
           _sectionTitle('Workspace'),
 
           _menuCard([
+            // Administrator-only Add New Lead
+            if (user.isAdmin)
+              _MenuItem(
+                icon: Icons.person_add_alt_1_outlined,
+                title: 'Add New Lead',
+                subtitle: 'Manually add and allot or broadcast a new lead',
+                trailing: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Text(
+                    'New',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AddLeadScreen(
+                        currentUser: user,
+                        onLeadAdded: (newLead) {
+                          onLeadsUpdated([newLead, ...leads]);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+
             // Administrator-only Lead Allotment
             if (user.isAdmin)
               _MenuItem(
@@ -264,88 +304,106 @@ class MoreScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfile() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.border,
+  Widget _buildProfile(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProfileScreen(user: user),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppTheme.border,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: user.isAdmin
-                ? const Color(0xFFDBEAFE)
-                : const Color(0xFFDCFCE7),
-            child: Text(
-              user.initial,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: user.isAdmin
-                    ? AppTheme.primary
-                    : const Color(0xFF16A34A),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: user.isAdmin
+                  ? const Color(0xFFDBEAFE)
+                  : const Color(0xFFDCFCE7),
+              child: Text(
+                user.initial,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: user.isAdmin
+                      ? AppTheme.primary
+                      : const Color(0xFF16A34A),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: user.isAdmin
-                            ? const Color(0xFFEFF6FF)
-                            : const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
                           color: user.isAdmin
-                              ? const Color(0xFFBFDBFE)
-                              : const Color(0xFFBBF7D0),
+                              ? const Color(0xFFEFF6FF)
+                              : const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: user.isAdmin
+                                ? const Color(0xFFBFDBFE)
+                                : const Color(0xFFBBF7D0),
+                          ),
+                        ),
+                        child: Text(
+                          user.roleDisplayName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: user.isAdmin
+                                ? AppTheme.primary
+                                : const Color(0xFF16A34A),
+                          ),
                         ),
                       ),
-                      child: Text(
-                        user.roleDisplayName,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: user.isAdmin
-                              ? AppTheme.primary
-                              : const Color(0xFF16A34A),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          user.email,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      user.email,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.textSecondary,
+            ),
+          ],
+        ),
       ),
     );
   }

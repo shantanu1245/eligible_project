@@ -12,6 +12,7 @@ import 'lead_allotment_screen.dart';
 import 'lead_screen.dart';
 import 'more_screen.dart';
 import 'notifications_screen.dart';
+import 'add_lead_screen.dart';
 import '../services/backend_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -83,6 +84,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _handleLeadAdded(Lead newLead) {
+    setState(() {
+      leads.insert(0, newLead);
+    });
+    _fetchLeadsFromBackend();
+  }
+
+  void _openAddLeadScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddLeadScreen(
+          currentUser: widget.user,
+          onLeadAdded: _handleLeadAdded,
+        ),
+      ),
+    );
+  }
+
   void _openAllotmentScreen() {
     Navigator.push(
       context,
@@ -122,6 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         currentUser: widget.user,
         onNavigationChanged: _handleNavigation,
         onLeadUpdated: _handleLeadUpdated,
+        onLeadAdded: _handleLeadAdded,
         onOpenAllotment: widget.user.isAdmin ? _openAllotmentScreen : null,
       );
     }
@@ -251,6 +272,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Icons.assignment_ind_outlined,
                   color: AppTheme.textPrimary,
                 ),
+              ),
+            ),
+
+          // If Admin, quick Add Lead button
+          if (widget.user.isAdmin)
+            IconButton(
+              tooltip: 'Add New Lead',
+              onPressed: _openAddLeadScreen,
+              icon: const Icon(
+                Icons.person_add_alt_1_rounded,
+                color: AppTheme.textPrimary,
               ),
             ),
 
@@ -393,6 +425,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+      floatingActionButton: widget.user.isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: _openAddLeadScreen,
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.person_add_rounded),
+              label: const Text(
+                'Add Lead',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          : null,
       bottomNavigationBar: AppBottomNavigation(
         currentIndex: currentIndex,
         onChanged: _handleNavigation,
@@ -417,24 +461,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ============================================================
 
   Future<void> _refreshDashboard() async {
-    // Temporary refresh logic.
-    //
-    // Later this will refresh:
-    // - Leads
-    // - Statistics
-    // - Follow-ups
-    // - Analytics
-    // from your backend/API.
-
-    await Future.delayed(
-      const Duration(
-        milliseconds: 700,
-      ),
-    );
-
-    if (!mounted) return;
-
-    setState(() {});
+    await Future.wait([
+      _fetchLeadsFromBackend(),
+      _fetchUnreadNotificationCount(),
+    ]);
+    if (mounted) setState(() {});
   }
 
   // ============================================================

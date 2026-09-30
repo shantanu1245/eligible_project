@@ -199,7 +199,7 @@ const FirebaseService = {
   },
 
   // ===================== LEADS =====================
-  async saveLead(leadData) {
+  async saveLead(leadData, options = {}) {
     const timestamp = new Date().toISOString();
     const id = leadData.id || `lead_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const record = {
@@ -222,13 +222,15 @@ const FirebaseService = {
     } else {
       localStore.leads.unshift(record);
       // Trigger instant notifications to Admin & Sales Agents
-      try {
-        const notificationService = require('./notificationService');
-        notificationService.notifyNewLead(record).catch((err) => {
-          console.warn('⚠️ [Notification] Auto-alert dispatch note:', err.message);
-        });
-      } catch (err) {
-        console.warn('⚠️ [Notification] Could not load notificationService:', err.message);
+      if (options.autoNotify !== false) {
+        try {
+          const notificationService = require('./notificationService');
+          notificationService.notifyNewLead(record).catch((err) => {
+            console.warn('⚠️ [Notification] Auto-alert dispatch note:', err.message);
+          });
+        } catch (err) {
+          console.warn('⚠️ [Notification] Could not load notificationService:', err.message);
+        }
       }
     }
     persistLocalDb();
