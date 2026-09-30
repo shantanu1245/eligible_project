@@ -63,12 +63,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (user != null) {
       // Register device for multi-device push notification delivery
+      final fcmToken = user.isAdmin
+          ? 'fcm_token_shantanu_admin_pixel_pro'
+          : (user.id == 'U-002'
+              ? 'fcm_token_amit_patil_galaxy_s23'
+              : (user.id == 'U-003'
+                  ? 'fcm_token_priya_shah_iphone_15'
+                  : 'fcm_device_${user.id}_${DateTime.now().millisecondsSinceEpoch}'));
+
+      final deviceTitle = user.isAdmin
+          ? 'Admin Pixel Pro (Mobile)'
+          : (user.id == 'U-002'
+              ? 'Samsung Galaxy S23 (Mobile)'
+              : (user.id == 'U-003'
+                  ? 'iPhone 15 Pro (Mobile)'
+                  : 'Eligible App Client'));
+
+      final platform = user.id == 'U-003' ? 'ios' : 'android';
+
       BackendService().registerFcmToken(
         userId: user.id,
         name: user.name,
         role: user.isAdmin ? 'admin' : 'sales_agent',
-        token: 'device_${user.id}_${DateTime.now().millisecondsSinceEpoch}',
-        deviceName: 'Eligible App Client',
+        token: fcmToken,
+        deviceName: deviceTitle,
+        platform: platform,
       );
 
       Navigator.pushReplacement(
@@ -92,6 +111,10 @@ class _LoginScreenState extends State<LoginScreen> {
     required String password,
     required String roleName,
     required String userName,
+    required String userId,
+    required String token,
+    required String deviceName,
+    String platform = 'android',
   }) {
     setState(() {
       emailController.text = email;
@@ -99,6 +122,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     Navigator.pop(context);
+
+    // Immediately register active device FCM token for push notifications
+    final role = roleName.toLowerCase().contains('admin') ? 'admin' : 'sales_agent';
+    BackendService().registerFcmToken(
+      userId: userId,
+      name: userName,
+      role: role,
+      token: token,
+      deviceName: deviceName,
+      platform: platform,
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -108,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Filled $roleName credentials ($userName)',
+                'Filled $roleName ($userName) • FCM Token Registered!',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -119,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -164,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Select a role below to automatically fill in the login credentials:',
+                  'Select a role below to fill login credentials & register the device FCM token:',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSecondary,
@@ -178,7 +212,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   userName: 'Shantanu',
                   email: 'admin@eligiblecrm.com',
                   password: 'admin123',
-                  badgeText: 'Full Access & Allotment',
+                  badgeText: 'Full Access & Allotment • FCM Push Ready',
+                  tokenPreview: 'fcm_token_shantanu_admin_pixel_pro',
                   icon: Icons.shield_outlined,
                   color: AppTheme.primary,
                   bgColor: const Color(0xFFEFF6FF),
@@ -187,6 +222,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     password: 'admin123',
                     roleName: 'Administrator',
                     userName: 'Shantanu',
+                    userId: 'U-001',
+                    token: 'fcm_token_shantanu_admin_pixel_pro',
+                    deviceName: 'Admin Pixel Pro (Mobile)',
+                    platform: 'android',
                   ),
                 ),
 
@@ -198,7 +237,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   userName: 'Amit Patil',
                   email: 'amit@eligiblecrm.com',
                   password: 'sales123',
-                  badgeText: 'Allotted Leads Only',
+                  badgeText: 'Allotted Leads Only • FCM Push Ready',
+                  tokenPreview: 'fcm_token_amit_patil_galaxy_s23',
                   icon: Icons.badge_outlined,
                   color: const Color(0xFF16A34A),
                   bgColor: const Color(0xFFF0FDF4),
@@ -207,6 +247,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     password: 'sales123',
                     roleName: 'Sales Executive 1',
                     userName: 'Amit Patil',
+                    userId: 'U-002',
+                    token: 'fcm_token_amit_patil_galaxy_s23',
+                    deviceName: 'Samsung Galaxy S23 (Mobile)',
+                    platform: 'android',
                   ),
                 ),
 
@@ -218,7 +262,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   userName: 'Priya Shah',
                   email: 'priya@eligiblecrm.com',
                   password: 'sales123',
-                  badgeText: 'Allotted Leads Only',
+                  badgeText: 'Allotted Leads Only • FCM Push Ready',
+                  tokenPreview: 'fcm_token_priya_shah_iphone_15',
                   icon: Icons.badge_outlined,
                   color: const Color(0xFF7C3AED),
                   bgColor: const Color(0xFFF5F3FF),
@@ -227,6 +272,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     password: 'sales123',
                     roleName: 'Sales Executive 2',
                     userName: 'Priya Shah',
+                    userId: 'U-003',
+                    token: 'fcm_token_priya_shah_iphone_15',
+                    deviceName: 'iPhone 15 Pro (Mobile)',
+                    platform: 'ios',
                   ),
                 ),
               ],
@@ -243,6 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
     required String email,
     required String password,
     required String badgeText,
+    required String tokenPreview,
     required IconData icon,
     required Color color,
     required Color bgColor,
@@ -343,6 +393,33 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontSize: 11,
                       fontFamily: 'monospace',
                       color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: color.withValues(alpha: 0.15)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cell_tower_rounded, size: 12, color: color),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'FCM Token: $tokenPreview',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: color.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

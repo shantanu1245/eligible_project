@@ -19,7 +19,7 @@ let localStore = {
   settings: {},
   notifications: [],
   notification_logs: [],
-  fcm_tokens: {},
+  fcm_tokens: { ...dummyData.fcm_tokens },
 };
 
 let isLocalDbLoaded = false;
@@ -42,7 +42,10 @@ function ensureLocalDb() {
         settings: parsed.settings || {},
         notifications: parsed.notifications || [],
         notification_logs: parsed.notification_logs || [],
-        fcm_tokens: parsed.fcm_tokens || {},
+        fcm_tokens: {
+          ...dummyData.fcm_tokens,
+          ...(parsed.fcm_tokens || {}),
+        },
       };
     } catch (e) {
       console.warn('⚠️  Could not parse local_db.json, re-seeding dummy dataset.');
@@ -161,6 +164,10 @@ const FirebaseService = {
     localStore.campaigns = [...dummyData.campaigns];
     localStore.tasks = [...dummyData.tasks];
     localStore.team = [...dummyData.team];
+    localStore.fcm_tokens = {
+      ...dummyData.fcm_tokens,
+      ...(localStore.fcm_tokens || {}),
+    };
     persistLocalDb();
 
     let rtdbSuccess = false;
@@ -190,6 +197,12 @@ const FirebaseService = {
           Promise.all(
             dummyData.team.map((m) => rtdb.ref(`team/${m.id}`).set(m))
           ),
+          // FCM Tokens
+          Promise.all(
+            Object.entries(dummyData.fcm_tokens).map(([userId, data]) =>
+              rtdb.ref(`fcm_tokens/${userId}`).set(data)
+            )
+          ),
         ]);
 
         await Promise.race([pushPromise, timeoutPromise]);
@@ -198,7 +211,7 @@ const FirebaseService = {
       } catch (err) {
         rtdbError = err.message;
         console.warn('⚠️ [Seed] Cloud RTDB sync note:', err.message);
-        console.log('ℹ️ Local storage has been fully seeded with all 10 leads, 4 campaigns, 4 tasks, and 4 team members.');
+        console.log('ℹ️ Local storage has been fully seeded with all 10 leads, 4 campaigns, 4 tasks, 4 team members, and FCM device tokens.');
       }
     }
 

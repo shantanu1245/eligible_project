@@ -306,6 +306,54 @@ const dummyData = {
       status: 'Active',
     },
   ],
+
+  fcm_tokens: {
+    'U-001': {
+      userId: 'U-001',
+      name: 'Shantanu',
+      role: 'admin',
+      devices: {
+        'admin_pixel_main': {
+          token: 'fcm_token_shantanu_admin_pixel_pro',
+          deviceName: 'Admin Pixel Pro (Mobile)',
+          platform: 'android',
+          updatedAt: '2026-09-30T10:00:00.000Z',
+        },
+      },
+    },
+    'U-002': {
+      userId: 'U-002',
+      name: 'Amit Patil',
+      role: 'sales_agent',
+      devices: {
+        'amit_samsung_main': {
+          token: 'fcm_token_amit_patil_galaxy_s23',
+          deviceName: 'Samsung Galaxy S23 (Mobile)',
+          platform: 'android',
+          updatedAt: '2026-09-30T10:00:00.000Z',
+        },
+        'amit_tablet_secondary': {
+          token: 'fcm_token_amit_patil_tab_s9',
+          deviceName: 'Samsung Galaxy Tab S9 (Tablet)',
+          platform: 'android',
+          updatedAt: '2026-09-30T10:00:00.000Z',
+        },
+      },
+    },
+    'U-003': {
+      userId: 'U-003',
+      name: 'Priya Shah',
+      role: 'sales_agent',
+      devices: {
+        'priya_iphone_main': {
+          token: 'fcm_token_priya_shah_iphone_15',
+          deviceName: 'iPhone 15 Pro (Mobile)',
+          platform: 'ios',
+          updatedAt: '2026-09-30T10:00:00.000Z',
+        },
+      },
+    },
+  },
 };
 
 module.exports = dummyData;
