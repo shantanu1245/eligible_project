@@ -37,6 +37,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     leads = List.from(_demoLeads);
     _fetchLeadsFromBackend();
     _fetchUnreadNotificationCount();
+    _registerDeviceToken();
+  }
+
+  Future<void> _registerDeviceToken() async {
+    await BackendService().registerFcmToken(
+      userId: widget.user.id,
+      name: widget.user.name,
+      role: widget.user.isAdmin ? 'admin' : 'sales_agent',
+      token: 'device_${widget.user.id}_client',
+      deviceName: 'Active Mobile Device',
+    );
   }
 
   Future<void> _fetchUnreadNotificationCount() async {

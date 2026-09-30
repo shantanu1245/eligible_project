@@ -219,6 +219,168 @@ class NotificationService {
   }
 
   /**
+   * 1. When a new lead is added by Admin (unassigned):
+   * Dispatches notifications to ALL users (Admins & all Sales Agents) across ALL their logged-in devices.
+   */
+  async notifyNewLeadAddedByAdmin(lead, addedBy = 'Admin') {
+    const timestamp = new Date().toISOString();
+    const notifId = `notif_new_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const leadName = lead.name || 'New Lead';
+    const propertyInterest = lead.propertyInterest || lead.campaign || 'Property Inquiry';
+    const budget = lead.budget || 'Flexible Budget';
+    const phone = lead.phone || '';
+
+    const notification = {
+      id: notifId,
+      type: 'NEW_LEAD_ALL_USERS',
+      title: `🎯 New Lead Added: ${leadName}`,
+      body: `${propertyInterest} • Budget: ${budget} • Added by ${addedBy}`,
+      leadId: lead.id,
+      leadName,
+      leadPhone: phone,
+      budget,
+      source: lead.source || 'Admin Created',
+      assignedTo: lead.assignedTo || 'Unassigned',
+      targetRole: 'all',
+      read: false,
+      createdAt: timestamp,
+    };
+
+    console.log(`📢 [Broadcast Alert] Admin added new lead: "${leadName}". Notifying ALL users.`);
+
+    // 1. Save in Firebase Realtime Database
+    if (this.firebaseService) {
+      await this.firebaseService.saveNotification(notification);
+    }
+
+    // 2. Push to all topics & all user device tokens
+    let fcmSuccessCount = 0;
+    if (admin && admin.apps && admin.apps.length > 0) {
+      const topics = ['all_leads', 'admin_leads', 'sales_agents'];
+      for (const topic of topics) {
+        try {
+          await withTimeout(
+            admin.messaging().send({
+              topic,
+              notification: { title: notification.title, body: notification.body },
+              data: { type: 'NEW_LEAD', leadId: String(lead.id || ''), role: 'all', click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+            }),
+            2000
+          );
+        } catch (_) {}
+      }
+
+      try {
+        const allTokens = await this.getRegisteredTokens();
+        if (allTokens.length > 0) {
+          const directMessage = {
+            notification: { title: notification.title, body: notification.body },
+            data: { leadId: String(lead.id || ''), type: 'NEW_LEAD' },
+            tokens: allTokens,
+          };
+          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 2500);
+          fcmSuccessCount = res.successCount || 0;
+          console.log(`📱 [FCM] Broadcast delivered to ${fcmSuccessCount} active user devices`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ [FCM] Broadcast device push note: ${err.message}`);
+      }
+    }
+
+    return { success: true, notification, devicesNotified: fcmSuccessCount };
+  }
+
+  /**
+   * 2. When Admin allots a lead to an executive:
+   * Dispatches notification ONLY to that respective user, delivered to ALL devices where he is logged in!
+   */
+  async notifyLeadAllotment(lead, assignedTo, allottedBy = 'Admin') {
+    if (!assignedTo) return { success: false, message: 'No assignee provided' };
+
+    const timestamp = new Date().toISOString();
+    const notifId = `notif_allot_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const leadName = lead.name || 'Assigned Lead';
+    const propertyInterest = lead.propertyInterest || lead.campaign || 'Property Inquiry';
+    const budget = lead.budget || 'Flexible Budget';
+
+    const notification = {
+      id: notifId,
+      type: 'LEAD_ALLOTTED_TO_YOU',
+      title: `⚡ Lead Allotted to You: ${leadName}`,
+      body: `Allotted by ${allottedBy}. ${propertyInterest} • Budget: ${budget} • Tap to view & contact`,
+      leadId: lead.id,
+      leadName,
+      leadPhone: lead.phone || '',
+      budget,
+      source: lead.source || 'Meta Ads',
+      assignedTo,
+      targetUserId: assignedTo,
+      targetUserName: assignedTo,
+      targetRole: 'sales_agent',
+      read: false,
+      createdAt: timestamp,
+    };
+
+    console.log(`🎯 [Targeted Alert] Lead "${leadName}" allotted to "${assignedTo}". Notifying that respective user only.`);
+
+    // 1. Save in Firebase Realtime Database
+    if (this.firebaseService) {
+      await this.firebaseService.saveNotification(notification);
+    }
+
+    // 2. Look up ALL devices where THIS user is logged in
+    let userTokens = [];
+    if (this.firebaseService) {
+      userTokens = await this.firebaseService.getUserDeviceTokens(assignedTo);
+    }
+
+    let devicesNotified = 0;
+    if (admin && admin.apps && admin.apps.length > 0) {
+      if (userTokens.length > 0) {
+        try {
+          const directMessage = {
+            notification: { title: notification.title, body: notification.body },
+            data: {
+              type: 'LEAD_ALLOTTED',
+              leadId: String(lead.id || ''),
+              assignedTo: String(assignedTo),
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            },
+            tokens: userTokens,
+          };
+          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 2500);
+          devicesNotified = res.successCount || 0;
+          console.log(`📱 [FCM] Allotment notification delivered to ${devicesNotified} devices of "${assignedTo}"`);
+        } catch (err) {
+          console.warn(`⚠️ [FCM] Targeted device push error: ${err.message}`);
+        }
+      } else {
+        console.log(`ℹ️ [FCM] No active device tokens currently found for user "${assignedTo}". Notification saved in database.`);
+      }
+
+      const cleanUserTopic = `user_${assignedTo.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
+      try {
+        await withTimeout(
+          admin.messaging().send({
+            topic: cleanUserTopic,
+            notification: { title: notification.title, body: notification.body },
+            data: { type: 'LEAD_ALLOTTED', leadId: String(lead.id || ''), assignedTo: String(assignedTo) },
+          }),
+          2000
+        );
+      } catch (_) {}
+    }
+
+    return {
+      success: true,
+      notification,
+      targetUser: assignedTo,
+      deviceTokensFound: userTokens.length,
+      devicesNotified,
+    };
+  }
+
+  /**
    * Send a test notification to verify setup for Admin and Sales Agents
    */
   async sendTestNotification({ role = 'both', customTitle, customBody } = {}) {

@@ -224,6 +224,55 @@ async function runTests() {
     if (!markRes.data.success) throw new Error('Failed to mark notification as read');
   });
 
+  // 14. Admin Lead Broadcast & Targeted Multi-Device Allotment
+  await testStep('14. Admin Lead Broadcast & Targeted Multi-Device Allotment', async () => {
+    // 14a. Register multiple devices for Amit Patil (e.g. Mobile 1 & Tablet 2)
+    await axios.post(`${BASE_URL}/notifications/register-token`, {
+      userId: 'U-002',
+      name: 'Amit Patil',
+      role: 'sales_agent',
+      token: 'fcm_amit_mobile_phone_1',
+      deviceName: 'Amit Pixel 8',
+      platform: 'android',
+    });
+
+    await axios.post(`${BASE_URL}/notifications/register-token`, {
+      userId: 'U-002',
+      name: 'Amit Patil',
+      role: 'sales_agent',
+      token: 'fcm_amit_tablet_device_2',
+      deviceName: 'Amit iPad Air',
+      platform: 'ios',
+    });
+
+    // 14b. Admin adds a new lead -> Broadcasts to ALL users
+    const newLeadRes = await axios.post(`${BASE_URL}/leads`, {
+      name: 'Dr. Suresh Kulkarni',
+      phone: '+91 99887 76655',
+      budget: '₹2.5 Cr',
+      propertyInterest: 'Panchshil Towers 4BHK Kharadi',
+      source: 'Admin Direct Entry',
+      addedBy: 'Admin Shantanu',
+    });
+    if (!newLeadRes.data.success || !newLeadRes.data.data.id) {
+      throw new Error('Admin lead creation failed');
+    }
+    const leadId = newLeadRes.data.data.id;
+
+    // 14c. Admin allots the lead to Amit Patil -> Targeted ONLY to Amit Patil on all his devices
+    const allotRes = await axios.post(`${BASE_URL}/leads/${leadId}/allot`, {
+      assignedTo: 'Amit Patil',
+      allottedBy: 'Admin Shantanu',
+    });
+    if (!allotRes.data.success || allotRes.data.notification?.targetUser !== 'Amit Patil') {
+      throw new Error('Targeted lead allotment notification failed');
+    }
+
+    if (allotRes.data.notification.deviceTokensFound < 2) {
+      throw new Error(`Expected at least 2 multi-device tokens for Amit Patil, found ${allotRes.data.notification.deviceTokensFound}`);
+    }
+  });
+
   console.log('\n======================================================');
   console.log(`🏁 TEST RESULTS: ${passCount} PASSED, ${failCount} FAILED`);
   console.log('======================================================\n');

@@ -1,10 +1,11 @@
 const firebaseService = require('../services/firebase');
 const metaService = require('../services/metaService');
+const notificationService = require('../services/notificationService');
 
 const LeadController = {
   /**
    * GET /api/leads
-   * Returns leads from Firebase Firestore
+   * Returns leads from Firebase Firestore / Realtime Database
    */
   async getLeads(req, res) {
     try {
@@ -37,11 +38,22 @@ const LeadController = {
 
   /**
    * POST /api/leads
+   * When an Admin adds a new lead:
+   * - If unassigned: broadcast notification to ALL users
+   * - If assigned on creation: notify that respective user only
    */
   async createLead(req, res) {
     try {
       const leadData = req.body;
       const created = await firebaseService.saveLead(leadData);
+
+      // Trigger targeted or broadcast notifications
+      if (leadData.assignedTo && leadData.assignedTo.trim().length > 0) {
+        notificationService.notifyLeadAllotment(created, leadData.assignedTo, leadData.addedBy || 'Admin').catch(() => {});
+      } else {
+        notificationService.notifyNewLeadAddedByAdmin(created, leadData.addedBy || 'Admin').catch(() => {});
+      }
+
       res.status(201).json({ success: true, data: created });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
@@ -50,14 +62,64 @@ const LeadController = {
 
   /**
    * PATCH /api/leads/:id
+   * Updates lead; if assignedTo changed, triggers allotment alert to that user only
    */
   async updateLead(req, res) {
     try {
+      const existing = await firebaseService.getLeadById(req.params.id);
       const updated = await firebaseService.updateLead(req.params.id, req.body);
       if (!updated) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
+
+      // Check if lead was newly allotted
+      if (req.body.assignedTo && (!existing || existing.assignedTo !== req.body.assignedTo)) {
+        notificationService.notifyLeadAllotment(
+          updated,
+          req.body.assignedTo,
+          req.body.allottedBy || 'Admin'
+        ).catch(() => {});
+      }
+
       res.json({ success: true, data: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  /**
+   * POST /api/leads/:id/allot
+   * Explicit endpoint for Admin to allot a lead to a sales executive
+   */
+  async allotLead(req, res) {
+    try {
+      const { assignedTo, allottedBy = 'Admin' } = req.body;
+      if (!assignedTo) {
+        return res.status(400).json({ success: false, error: 'assignedTo is required' });
+      }
+
+      const updated = await firebaseService.updateLead(req.params.id, {
+        assignedTo,
+        status: 'qualified',
+      });
+
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+
+      // Notify THAT respective user only across all his logged-in devices
+      const alertResult = await notificationService.notifyLeadAllotment(
+        updated,
+        assignedTo,
+        allottedBy
+      );
+
+      res.json({
+        success: true,
+        message: `Lead successfully allotted to ${assignedTo}`,
+        data: updated,
+        notification: alertResult,
+      });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }

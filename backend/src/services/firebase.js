@@ -21,7 +21,10 @@ let localStore = {
   fcm_tokens: {},
 };
 
+let isLocalDbLoaded = false;
+
 function ensureLocalDb() {
+  if (isLocalDbLoaded) return;
   const dir = path.dirname(localDbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -46,6 +49,7 @@ function ensureLocalDb() {
   } else {
     persistLocalDb();
   }
+  isLocalDbLoaded = true;
 }
 
 function persistLocalDb() {
@@ -539,16 +543,97 @@ const FirebaseService = {
     return true;
   },
 
-  // ===================== FCM DEVICE TOKENS =====================
-  async saveDeviceToken({ userId, token, role, name, updatedAt }) {
+  // ===================== MULTI-DEVICE FCM TOKENS =====================
+  async saveDeviceToken({ userId, token, role, name, deviceName = 'Mobile Device', platform = 'android', updatedAt }) {
     ensureLocalDb();
-    localStore.fcm_tokens[userId] = { token, role, name, updatedAt };
+    const tokenKey = Buffer.from(token).toString('base64').replace(/[^a-zA-Z0-9]/g, '_').slice(-32);
+
+    if (!localStore.fcm_tokens[userId]) {
+      localStore.fcm_tokens[userId] = {
+        userId,
+        name: name || 'App User',
+        role: role || 'sales_agent',
+        devices: {},
+      };
+    }
+    localStore.fcm_tokens[userId].name = name || localStore.fcm_tokens[userId].name;
+    localStore.fcm_tokens[userId].role = role || localStore.fcm_tokens[userId].role;
+    if (!localStore.fcm_tokens[userId].devices) {
+      localStore.fcm_tokens[userId].devices = {};
+    }
+    localStore.fcm_tokens[userId].devices[tokenKey] = {
+      token,
+      deviceName,
+      platform,
+      updatedAt: updatedAt || new Date().toISOString(),
+    };
     persistLocalDb();
 
     if (isLiveFirebase && rtdb) {
-      rtdb.ref(`fcm_tokens/${userId}`).set({ token, role, name, updatedAt }).catch(() => {});
+      const deviceRecord = {
+        token,
+        deviceName,
+        platform,
+        updatedAt: updatedAt || new Date().toISOString(),
+      };
+      rtdb.ref(`fcm_tokens/${userId}/devices/${tokenKey}`).set(deviceRecord).catch(() => {});
+      rtdb.ref(`fcm_tokens/${userId}/name`).set(name || 'App User').catch(() => {});
+      rtdb.ref(`fcm_tokens/${userId}/role`).set(role || 'sales_agent').catch(() => {});
     }
     return true;
+  },
+
+  async getUserDeviceTokens(userIdentifier) {
+    if (!userIdentifier) return [];
+    ensureLocalDb();
+    const cleanId = String(userIdentifier).toLowerCase().trim();
+    let tokens = [];
+
+    // Check RTDB first with timeout
+    if (isLiveFirebase && rtdb) {
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('RTDB token query timeout')), 1000)
+        );
+        const fetchPromise = rtdb.ref('fcm_tokens').once('value');
+        const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
+        const val = snapshot.val();
+        if (val) {
+          Object.entries(val).forEach(([uid, uData]) => {
+            const matchesId = uid.toLowerCase() === cleanId;
+            const matchesName = uData.name && uData.name.toLowerCase().includes(cleanId);
+            if (matchesId || matchesName) {
+              if (uData.devices) {
+                Object.values(uData.devices).forEach((d) => {
+                  if (d && d.token) tokens.push(d.token);
+                });
+              } else if (uData.token) {
+                tokens.push(uData.token);
+              }
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    // Fallback to localStore
+    if (tokens.length === 0) {
+      Object.entries(localStore.fcm_tokens).forEach(([uid, uData]) => {
+        const matchesId = uid.toLowerCase() === cleanId;
+        const matchesName = uData.name && uData.name.toLowerCase().includes(cleanId);
+        if (matchesId || matchesName) {
+          if (uData.devices) {
+            Object.values(uData.devices).forEach((d) => {
+              if (d && d.token) tokens.push(d.token);
+            });
+          } else if (uData.token) {
+            tokens.push(uData.token);
+          }
+        }
+      });
+    }
+
+    return Array.from(new Set(tokens));
   },
 
   async getDeviceTokens(role) {
@@ -565,9 +650,15 @@ const FirebaseService = {
         const val = snapshot.val();
         if (val) {
           Object.values(val).forEach((item) => {
-            if (item && item.token) {
+            if (item) {
               if (!role || item.role === role) {
-                tokens.push(item.token);
+                if (item.devices) {
+                  Object.values(item.devices).forEach((d) => {
+                    if (d && d.token) tokens.push(d.token);
+                  });
+                } else if (item.token) {
+                  tokens.push(item.token);
+                }
               }
             }
           });
@@ -577,8 +668,16 @@ const FirebaseService = {
 
     if (tokens.length === 0) {
       Object.values(localStore.fcm_tokens).forEach((item) => {
-        if (item && item.token) {
-          if (!role || item.role === role) tokens.push(item.token);
+        if (item) {
+          if (!role || item.role === role) {
+            if (item.devices) {
+              Object.values(item.devices).forEach((d) => {
+                if (d && d.token) tokens.push(d.token);
+              });
+            } else if (item.token) {
+              tokens.push(item.token);
+            }
+          }
         }
       });
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
 
@@ -61,6 +62,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (user != null) {
+      // Register device for multi-device push notification delivery
+      BackendService().registerFcmToken(
+        userId: user.id,
+        name: user.name,
+        role: user.isAdmin ? 'admin' : 'sales_agent',
+        token: 'device_${user.id}_${DateTime.now().millisecondsSinceEpoch}',
+        deviceName: 'Eligible App Client',
+      );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

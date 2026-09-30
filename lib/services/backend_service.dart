@@ -419,12 +419,38 @@ class BackendService {
     }
   }
 
-  /// Register an FCM device token for push notifications
+  /// Allot lead to a specific sales agent and trigger targeted multi-device notification
+  Future<Map<String, dynamic>> allotLead(
+    String leadId, {
+    required String assignedTo,
+    String allottedBy = 'Admin',
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/leads/$leadId/allot'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'assignedTo': assignedTo,
+              'allottedBy': allottedBy,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('[BackendService] allotLead error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Register an FCM device token for push notifications (multi-device login support)
   Future<Map<String, dynamic>> registerFcmToken({
     required String userId,
     required String token,
     String role = 'sales_agent',
     String name = 'App User',
+    String deviceName = 'Mobile App',
+    String platform = 'android',
   }) async {
     try {
       final res = await http
@@ -436,6 +462,8 @@ class BackendService {
               'token': token,
               'role': role,
               'name': name,
+              'deviceName': deviceName,
+              'platform': platform,
             }),
           )
           .timeout(const Duration(seconds: 5));

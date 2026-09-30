@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 
 class LeadAllotmentScreen extends StatefulWidget {
@@ -77,9 +78,12 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
       });
       widget.onLeadsUpdated(_currentLeads);
 
+      // Trigger targeted notification to this executive's devices
+      BackendService().allotLead(lead.id, assignedTo: executive.name);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lead "${lead.name}" allotted to ${executive.name}'),
+          content: Text('Lead "${lead.name}" allotted to ${executive.name} (Notification sent to their devices)'),
           backgroundColor: const Color(0xFF16A34A),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -95,6 +99,8 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
     if (_selectedLeadIds.isEmpty) return;
 
     final count = _selectedLeadIds.length;
+    final idsToAllot = List<String>.from(_selectedLeadIds);
+
     setState(() {
       for (int i = 0; i < _currentLeads.length; i++) {
         if (_selectedLeadIds.contains(_currentLeads[i].id)) {
@@ -107,9 +113,14 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
 
     widget.onLeadsUpdated(_currentLeads);
 
+    // Trigger targeted backend allotment notifications
+    for (final id in idsToAllot) {
+      BackendService().allotLead(id, assignedTo: executive.name);
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$count leads allotted to ${executive.name} successfully!'),
+        content: Text('$count leads allotted to ${executive.name} (Alert sent to their logged-in devices)'),
         backgroundColor: const Color(0xFF16A34A),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
