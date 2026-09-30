@@ -80,6 +80,21 @@ function initializeFirebase() {
       const serviceAccount = JSON.parse(fs.readFileSync(foundPath, 'utf8'));
       credential = admin.credential.cert(serviceAccount);
       projectId = serviceAccount.project_id || projectId;
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      console.log('🔑 Loading Firebase credentials from FIREBASE_SERVICE_ACCOUNT_JSON environment variable...');
+      let rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON.trim();
+      if ((rawJson.startsWith("'") && rawJson.endsWith("'")) || (rawJson.startsWith('"') && rawJson.endsWith('"'))) {
+        rawJson = rawJson.slice(1, -1);
+      }
+      const serviceAccount = JSON.parse(rawJson);
+      credential = admin.credential.cert(serviceAccount);
+      projectId = serviceAccount.project_id || projectId;
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      console.log('🔑 Loading Firebase credentials from FIREBASE_SERVICE_ACCOUNT_BASE64...');
+      const rawJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+      const serviceAccount = JSON.parse(rawJson);
+      credential = admin.credential.cert(serviceAccount);
+      projectId = serviceAccount.project_id || projectId;
     } else if (config.firebase.projectId && config.firebase.clientEmail && config.firebase.privateKey) {
       console.log('🔑 Loading Firebase credentials from environment variables...');
       credential = admin.credential.cert({
