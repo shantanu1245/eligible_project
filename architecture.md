@@ -1,8 +1,8 @@
-# LeadFlow CRM — Architecture & Technical Design
+# Eligible CRM — Architecture & Technical Design
 
 ## 1. Executive Overview
 
-**LeadFlow CRM** (`eligible_project`) is a cross-platform mobile Customer Relationship Management (CRM) application built using **Flutter** and **Dart**. The application enables sales representatives and business administrators to capture leads, track sales pipelines, schedule follow-ups, monitor ad campaigns (Meta / Google), manage tasks, and oversee team assignments.
+**Eligible CRM** (`eligible_project`) is a cross-platform mobile Customer Relationship Management (CRM) application built using **Flutter** and **Dart**. The application enables sales representatives and business administrators to capture leads, track sales pipelines, schedule follow-ups, monitor ad campaigns (Meta / Google), manage tasks, and oversee team assignments.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Component | Specification | Description |
 |---|---|---|
-| **Framework** | Flutter (SDK `^3.13.4`) | Multiplatform UI toolkit |
+| **Framework** | Flutter / Dart (SDK `^3.8.0`) | Multiplatform UI toolkit |
 | **Language** | Dart 3 | Sound null safety enabled |
 | **Design System** | Material Design 3 | Custom theme (`AppTheme`) with modern typography & clean shadows |
 | **Icons** | `cupertino_icons: ^1.0.8` & `Icons.*` | Material & Cupertino iconography |
@@ -35,16 +35,17 @@ eligible_project/
 ├── routes.md              # Complete navigation & routing map
 ├── memory.md              # Compact token-saving context & schema memory
 └── lib/
-    ├── main.dart          # Application entry point (`LeadFlowCRM`)
+    ├── main.dart          # Application entry point (`EligibleCRMApp`)
     │
     ├── models/            # Domain entities and data structures
-    │   └── lead.dart      # Lead, Activity, FollowUp classes & LeadStatus enum
+    │   ├── lead.dart      # Lead, Activity, FollowUp classes & LeadStatus enum
+    │   └── user.dart      # UserModel, UserRole enum & demo user configurations
     │
     ├── data/              # Mock databases & seed data
     │   └── mock_leads.dart # MockLeads.all list (independent seed dataset)
     │
     ├── services/          # Business logic and external communication
-    │   └── auth_service.dart # AuthService (mock delay, login/logout interface)
+    │   └── auth_service.dart # AuthService (singleton session & role login)
     │
     ├── theme/             # Design tokens and visual styling
     │   └── app_theme.dart # AppTheme (colors, lightTheme definition, inputs, buttons)
@@ -52,14 +53,15 @@ eligible_project/
     ├── widgets/           # Shared, reusable UI components
     │   ├── app_bottom_navigation.dart # 5-tab bottom navigation bar
     │   ├── stat_card.dart             # Metric card (count, percentage change, icon)
-    │   ├── lead_card.dart             # Lead summary card with navigation hook
-    │   └── app_drawer.dart            # DashboardSidebar (legacy prototype drawer)
+    │   ├── lead_card.dart             # Lead summary card with allotment badges
+    │   └── app_drawer.dart            # Eligible CRM Navigation Drawer (RBAC-aware)
     │
     └── screens/           # Full-page views
-        ├── login_screen.dart          # Authentication screen with form validation
-        ├── dashboard_screen.dart      # Main hub (holds tabs 0-4 and internal demo leads)
-        ├── lead_screen.dart           # Leads list, live search, status chips
-        ├── lead_detail.dart           # Full lead view, status updater, notes, actions
+        ├── login_screen.dart          # Form auth + 3 quick 1-tap demo logins
+        ├── dashboard_screen.dart      # Main hub (holds tabs 0-4, drawer, visibleLeads)
+        ├── lead_allotment_screen.dart # Lead distribution interface (single & bulk allot)
+        ├── lead_screen.dart           # Leads list (filtered for executive), search, chips
+        ├── lead_detail.dart           # Full lead view, Admin allotment dropdown, notes
         ├── followups_screen.dart      # Daily schedule, overdue indicators, add dialog
         ├── analytics_screen.dart      # KPI cards, funnel pipeline, conversion charts
         ├── campaigns_screen.dart      # Marketing campaign list & performance stats
@@ -69,7 +71,18 @@ eligible_project/
         ├── add_lead_screen.dart       # [Stub: 0 Bytes] Placeholder for lead creation
         ├── notifications_screen.dart  # [Stub: 0 Bytes] Placeholder for alerts
         ├── profile_screen.dart        # [Stub: 0 Bytes] Placeholder for user profile
-        └── integrations_screen.dart   # [Stub: 0 Bytes] Placeholder for integrations
+        └── integrations_screen.dart   # Meta & Firebase connection hub and webhook monitor
+backend/
+├── src/
+│   ├── config/config.js           # Environment & credential configuration
+│   ├── services/
+│   │   ├── firebase.js            # Firebase Admin SDK & Cloud Firestore repository
+│   │   └── metaService.js         # Meta Graph & Marketing API (Campaign/AdSet/Ad & Webhook)
+│   ├── controllers/               # Webhooks, Leads, Campaigns, and Meta controllers
+│   ├── routes/                    # Express API endpoints (/api/*)
+│   └── server.js                  # Express application entrypoint (:5000)
+├── .env.example                   # Full credential template
+└── README.md                      # Backend documentation & Meta App webhook guide
 ```
 
 ---
@@ -81,9 +94,10 @@ graph TD
     UI[Screens / Views] --> WIDGETS[Shared Widgets]
     UI --> THEME[AppTheme]
     UI --> MODELS[Domain Models]
-    UI --> SERVICES[Services / Future APIs]
-    SERVICES --> DATA[Local Data / Mock Sources]
-    SERVICES --> BACKEND[(Future Firebase / REST API)]
+    UI --> SERVICES[Services / BackendService]
+    SERVICES --> BACKEND[Node.js Express Backend :5000]
+    BACKEND --> FIREBASE[(Cloud Firestore / Firebase Admin)]
+    BACKEND --> META[Meta Marketing & Graph API]
 ```
 
 ### 4.1. Presentation Layer (`lib/screens/`, `lib/widgets/`)
@@ -129,13 +143,12 @@ When modifying or expanding the codebase, take note of the following findings:
    - `profile_screen.dart`
    - `integrations_screen.dart`
    - *Recommendation*: These are planned features; ensure any navigation to them is either stubbed with a dialog or implemented properly.
-3. **Legacy Prototype Drawer (`lib/widgets/app_drawer.dart`)**:
-   - Contains a `DashboardSidebar` component with pharmacy/medical terminology ("Medicines", "Inventory", "Sales", "New Medico").
-   - It is **not** imported or used anywhere in the current CRM screens.
-   - *Recommendation*: Refactor into a desktop/tablet responsive drawer matching LeadFlow CRM or safely remove.
-4. **Auth Flow Decoupling**:
-   - `LoginScreen` currently implements an inline `Future.delayed(800ms)` login instead of calling `AuthService.login()`.
-   - *Recommendation*: Inject and call `AuthService().login(...)` in `LoginScreen`.
+3. **Navigation Drawer Upgraded**:
+   - `lib/widgets/app_drawer.dart` was previously a legacy pharmacy sidebar; it has now been replaced with a role-aware `AppDrawer` integrated into `DashboardScreen` that provides direct access to `LeadAllotmentScreen` for Administrators.
+4. **Role-Based Allotment & Access Control**:
+   - `UserModel` and `UserRole` are defined in `lib/models/user.dart`.
+   - `AuthService` manages current user sessions and resolves roles.
+   - `visibleLeads` in `DashboardScreen` filters leads dynamically so Sales Executives only render their allotted leads.
 
 ---
 

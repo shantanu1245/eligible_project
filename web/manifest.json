@@ -1,6 +1,6 @@
 {
-    "name": "eligible_project",
-    "short_name": "eligible_project",
+    "name": "Eligible CRM",
+    "short_name": "Eligible CRM",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

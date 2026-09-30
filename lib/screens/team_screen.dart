@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 
 class TeamScreen extends StatefulWidget {
@@ -9,26 +10,51 @@ class TeamScreen extends StatefulWidget {
 }
 
 class _TeamScreenState extends State<TeamScreen> {
+  final BackendService _backend = BackendService();
   final List<Map<String, String>> _members = [
     {
       'name': 'Shantanu',
-      'email': 'admin@leadflow.com',
+      'email': 'admin@eligiblecrm.com',
       'role': 'Administrator',
       'initial': 'S',
     },
     {
       'name': 'Amit Patil',
-      'email': 'amit@leadflow.com',
+      'email': 'amit@eligiblecrm.com',
       'role': 'Sales Executive',
       'initial': 'A',
     },
     {
       'name': 'Priya Shah',
-      'email': 'priya@leadflow.com',
+      'email': 'priya@eligiblecrm.com',
       'role': 'Sales Executive',
       'initial': 'P',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeam();
+  }
+
+  Future<void> _loadTeam() async {
+    final raw = await _backend.getTeam();
+    if (mounted && raw.isNotEmpty) {
+      setState(() {
+        _members.clear();
+        for (final item in raw) {
+          _members.add({
+            'id': item['id']?.toString() ?? '',
+            'name': item['name']?.toString() ?? '',
+            'email': item['email']?.toString() ?? '',
+            'role': item['role']?.toString() ?? 'Sales Executive',
+            'initial': item['initial']?.toString() ?? (item['name'] != null ? item['name'][0].toUpperCase() : 'U'),
+          });
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +108,10 @@ class _TeamScreenState extends State<TeamScreen> {
                   onDelete: index == 0
                       ? null
                       : () {
+                          final memberId = member['id'] ?? member['name'] ?? '';
+                          if (memberId.isNotEmpty) {
+                            _backend.deleteTeamMember(memberId);
+                          }
                           setState(() {
                             _members.removeAt(index);
                           });
@@ -163,7 +193,7 @@ class _TeamScreenState extends State<TeamScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
+                      value: selectedRole,
                       decoration: const InputDecoration(
                         labelText: 'Role',
                         prefixIcon: Icon(Icons.badge_outlined),
@@ -208,15 +238,18 @@ class _TeamScreenState extends State<TeamScreen> {
                     }
 
                     final name = nameController.text.trim();
+                    final newMember = {
+                      'name': name,
+                      'email': emailController.text.trim(),
+                      'role': selectedRole,
+                      'initial': name.substring(0, 1).toUpperCase(),
+                    };
 
                     setState(() {
-                      _members.add({
-                        'name': name,
-                        'email': emailController.text.trim(),
-                        'role': selectedRole,
-                        'initial': name.substring(0, 1).toUpperCase(),
-                      });
+                      _members.add(newMember);
                     });
+
+                    _backend.saveTeamMember(newMember);
 
                     Navigator.pop(dialogContext);
                   },

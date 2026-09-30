@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -9,6 +10,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
+  final BackendService _backend = BackendService();
   final List<Map<String, dynamic>> _tasks = [
     {
       'title': 'Follow up with Rahul Patil',
@@ -43,6 +45,22 @@ class _TasksScreenState extends State<TasksScreen> {
   ];
 
   String _filter = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    final raw = await _backend.getTasks();
+    if (mounted && raw.isNotEmpty) {
+      setState(() {
+        _tasks.clear();
+        _tasks.addAll(raw);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -306,7 +324,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedMember,
+                      value: selectedMember,
                       decoration: const InputDecoration(
                         labelText: 'Assign to',
                         prefixIcon: Icon(
@@ -333,7 +351,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedPriority,
+                      value: selectedPriority,
                       decoration: const InputDecoration(
                         labelText: 'Priority',
                         prefixIcon: Icon(
@@ -398,25 +416,25 @@ class _TasksScreenState extends State<TasksScreen> {
                 ),
 
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (titleController.text.trim().isEmpty) {
                       return;
                     }
 
+                    final newTask = {
+                      'title': titleController.text.trim(),
+                      'description': descriptionController.text.trim(),
+                      'assignee': selectedMember,
+                      'priority': selectedPriority,
+                      'status': 'Pending',
+                      'dueDate': 'Today',
+                    };
+
                     setState(() {
-                      _tasks.insert(
-                        0,
-                        {
-                          'title': titleController.text.trim(),
-                          'description':
-                              descriptionController.text.trim(),
-                          'assignee': selectedMember,
-                          'priority': selectedPriority,
-                          'status': 'Pending',
-                          'dueDate': 'Today',
-                        },
-                      );
+                      _tasks.insert(0, newTask);
                     });
+
+                    _backend.saveTask(newTask);
 
                     Navigator.pop(dialogContext);
                   },

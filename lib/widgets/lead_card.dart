@@ -3,14 +3,20 @@ import '../models/lead.dart';
 import '../theme/app_theme.dart';
 import '../screens/lead_detail.dart';
 
+import '../models/user.dart';
+
 class LeadCard extends StatelessWidget {
   final Lead lead;
   final bool compact;
+  final UserModel? currentUser;
+  final Function(Lead)? onLeadUpdated;
 
   const LeadCard({
     super.key,
     required this.lead,
     this.compact = false,
+    this.currentUser,
+    this.onLeadUpdated,
   });
 
   @override
@@ -23,6 +29,8 @@ class LeadCard extends StatelessWidget {
           MaterialPageRoute(
             builder: (_) => LeadDetailsScreen(
               lead: lead,
+              currentUser: currentUser,
+              onLeadUpdated: onLeadUpdated,
             ),
           ),
         );
@@ -113,6 +121,35 @@ class LeadCard extends StatelessWidget {
                       label: 'Campaign',
                       value: lead.campaign,
                       icon: Icons.ads_click_outlined,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Icon(
+                    lead.assignedTo.trim().isEmpty
+                        ? Icons.warning_amber_rounded
+                        : Icons.assignment_ind_outlined,
+                    size: 14,
+                    color: lead.assignedTo.trim().isEmpty
+                        ? const Color(0xFFDC2626)
+                        : AppTheme.primary,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    lead.assignedTo.trim().isEmpty
+                        ? 'Unassigned Lead'
+                        : 'Assigned to: ${lead.assignedTo}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: lead.assignedTo.trim().isEmpty
+                          ? const Color(0xFFDC2626)
+                          : AppTheme.primary,
                     ),
                   ),
                 ],

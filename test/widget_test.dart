@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eligible_project/main.dart';
 
 void main() {
-  testWidgets('LeadFlow CRM loads', (WidgetTester tester) async {
-    await tester.pumpWidget(const LeadFlowCRM());
+  testWidgets('Eligible CRM loads', (WidgetTester tester) async {
+    await tester.pumpWidget(const EligibleCRMApp());
 
-    expect(find.text('LeadFlow CRM'), findsOneWidget);
+    expect(find.text('Eligible CRM'), findsWidgets);
   });
 }

@@ -1,25 +1,42 @@
+import '../models/user.dart';
+
 class AuthService {
-  Future<bool> login({
+  static final AuthService instance = AuthService._internal();
+  factory AuthService() => instance;
+  AuthService._internal();
+
+  UserModel? _currentUser = UserModel.admin;
+
+  UserModel? get currentUser => _currentUser;
+
+  Future<UserModel?> login({
     required String email,
     required String password,
   }) async {
-    // Temporary frontend authentication.
-    //
-    // Later this method can call:
-    // - Firebase Authentication
-    // - Your own secure backend API
-    // - OAuth
-    //
-    // Never store real passwords in the Flutter application.
+    await Future.delayed(const Duration(milliseconds: 600));
 
-    await Future.delayed(
-      const Duration(milliseconds: 800),
-    );
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty || password.length < 4) {
+      return null;
+    }
 
-    return email.trim().isNotEmpty && password.length >= 6;
+    if (cleanEmail.contains('amit')) {
+      _currentUser = UserModel.executiveAmit;
+    } else if (cleanEmail.contains('priya')) {
+      _currentUser = UserModel.executivePriya;
+    } else {
+      // Default to Administrator
+      _currentUser = UserModel.admin;
+    }
+
+    return _currentUser;
+  }
+
+  void loginAs(UserModel user) {
+    _currentUser = user;
   }
 
   Future<void> logout() async {
-    // Future backend/session logout can be added here.
+    _currentUser = null;
   }
 }

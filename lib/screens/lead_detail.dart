@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
+import '../models/user.dart';
 import '../theme/app_theme.dart';
 
 class LeadDetailsScreen extends StatefulWidget {
   final Lead lead;
+  final UserModel? currentUser;
+  final Function(Lead)? onLeadUpdated;
 
   const LeadDetailsScreen({
     super.key,
     required this.lead,
+    this.currentUser,
+    this.onLeadUpdated,
   });
 
   @override
@@ -18,6 +23,7 @@ class LeadDetailsScreen extends StatefulWidget {
 class _LeadDetailsScreenState
     extends State<LeadDetailsScreen> {
   late LeadStatus selectedStatus;
+  late String currentAssignedTo;
 
   final TextEditingController noteController =
       TextEditingController();
@@ -26,6 +32,7 @@ class _LeadDetailsScreenState
   void initState() {
     super.initState();
     selectedStatus = widget.lead.status;
+    currentAssignedTo = widget.lead.assignedTo;
   }
 
   @override
@@ -105,6 +112,10 @@ class _LeadDetailsScreenState
           const SizedBox(height: 16),
 
           _buildInformationCard(lead),
+
+          const SizedBox(height: 16),
+
+          _buildAssignmentCard(),
 
           const SizedBox(height: 16),
 
@@ -359,11 +370,122 @@ class _LeadDetailsScreenState
     );
   }
 
+  Widget _buildAssignmentCard() {
+    final isUnassigned = currentAssignedTo.trim().isEmpty;
+    final isAdmin = widget.currentUser?.isAdmin ?? true;
+
+    return _sectionCard(
+      title: 'Lead Allotment & Assignee',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: isUnassigned
+                    ? const Color(0xFFFEE2E2)
+                    : const Color(0xFFEFF6FF),
+                child: Icon(
+                  isUnassigned
+                      ? Icons.person_off_outlined
+                      : Icons.person_outline,
+                  size: 20,
+                  color: isUnassigned
+                      ? const Color(0xFFDC2626)
+                      : AppTheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isUnassigned
+                          ? 'Unassigned Lead'
+                          : 'Assigned to: $currentAssignedTo',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isUnassigned
+                            ? const Color(0xFFDC2626)
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isUnassigned
+                          ? 'This lead has not yet been allotted to an executive.'
+                          : 'Sales Executive managing this client.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isAdmin) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: AppTheme.border),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: isUnassigned ? '' : currentAssignedTo,
+              decoration: const InputDecoration(
+                labelText: 'Allot to Sales Executive',
+                prefixIcon: Icon(Icons.assignment_ind_outlined),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+              items: [
+                const DropdownMenuItem(
+                  value: '',
+                  child: Text('Unassigned'),
+                ),
+                ...UserModel.salesExecutives.map((exec) {
+                  return DropdownMenuItem(
+                    value: exec.name,
+                    child: Text('${exec.name} (Sales Executive)'),
+                  );
+                }),
+              ],
+              onChanged: (newAssignee) {
+                if (newAssignee != null) {
+                  setState(() {
+                    currentAssignedTo = newAssignee;
+                  });
+                  final updatedLead =
+                      widget.lead.copyWith(assignedTo: newAssignee);
+                  widget.onLeadUpdated?.call(updatedLead);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        newAssignee.isEmpty
+                            ? 'Lead marked as Unassigned'
+                            : 'Lead allotted to $newAssignee',
+                      ),
+                      backgroundColor: const Color(0xFF16A34A),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatusCard() {
     return _sectionCard(
       title: 'Lead Status',
       child: DropdownButtonFormField<LeadStatus>(
-        initialValue: selectedStatus,
+        value: selectedStatus,
         decoration: const InputDecoration(
           contentPadding: EdgeInsets.symmetric(
             horizontal: 14,

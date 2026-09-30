@@ -5,16 +5,16 @@ import 'theme/app_theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(const LeadFlowCRM());
+  runApp(const EligibleCRMApp());
 }
 
-class LeadFlowCRM extends StatelessWidget {
-  const LeadFlowCRM({super.key});
+class EligibleCRMApp extends StatelessWidget {
+  const EligibleCRMApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'LeadFlow CRM',
+      title: 'Eligible CRM',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const LoginScreen(),
