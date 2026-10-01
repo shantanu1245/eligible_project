@@ -9,6 +9,7 @@ const taskRoutes = require('./taskRoutes');
 const teamRoutes = require('./teamRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const firebaseService = require('../services/firebase');
+const keepAliveService = require('../services/keepAliveService');
 
 // Root health check
 router.get('/health', (req, res) => {
@@ -16,7 +17,37 @@ router.get('/health', (req, res) => {
     status: 'online',
     service: 'Eligible CRM Backend',
     timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime()),
     version: '1.0.0',
+  });
+});
+
+// Fast ping endpoint for keep-alive bots and heartbeat
+router.get('/ping', (req, res) => {
+  res.json({
+    status: 'awake',
+    service: 'Eligible CRM Render Service',
+    message: 'Instance kept active and awake',
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Keep-alive status & history
+router.get('/keep-alive', (req, res) => {
+  res.json({
+    success: true,
+    data: keepAliveService.getStatus(),
+  });
+});
+
+// Manual trigger for keep-alive ping
+router.post('/keep-alive/ping', async (req, res) => {
+  const result = await keepAliveService.ping();
+  res.json({
+    success: true,
+    message: 'Manual keep-alive ping executed',
+    data: result,
   });
 });
 

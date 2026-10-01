@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,58 @@ class BackendService {
   String get baseUrl => _baseUrl;
   set baseUrl(String url) {
     _baseUrl = url.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  Timer? _keepAliveTimer;
+
+  /// Start automatic live server pinger in Flutter
+  void startKeepAlivePinger({Duration interval = const Duration(minutes: 5)}) {
+    _keepAliveTimer?.cancel();
+    // Fire immediate ping to warm up backend on app launch
+    pingServer();
+    _keepAliveTimer = Timer.periodic(interval, (_) {
+      pingServer();
+    });
+    debugPrint('[BackendService] 💓 Live server keep-alive pinger started (${interval.inMinutes}m interval)');
+  }
+
+  /// Stop keep-alive pinger
+  void stopKeepAlivePinger() {
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = null;
+  }
+
+  /// Fast ping to Render instance to keep it active and awake
+  Future<Map<String, dynamic>> pingServer() async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$_baseUrl/ping'),
+            headers: {'X-Purpose': 'flutter-keep-alive'},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        debugPrint('[BackendService] 💓 Server Awake: ${data['message']} (uptime: ${data['uptimeSeconds']}s)');
+        return data;
+      }
+    } catch (e) {
+      debugPrint('[BackendService] ⚠️ Ping warning (server waking up): $e');
+    }
+    return {'status': 'error'};
+  }
+
+  /// Fetch keep-alive diagnostics from backend
+  Future<Map<String, dynamic>> getKeepAliveStatus() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$_baseUrl/keep-alive'))
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return {'success': false};
   }
 
   /// Check server health

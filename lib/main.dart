@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'services/backend_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Start live server pinger to prevent Render free instance from sleeping
+  BackendService().startKeepAlivePinger(interval: const Duration(minutes: 5));
 
   runApp(const EligibleCRMApp());
 }

@@ -13,6 +13,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'tasks_screen.dart';
 import 'team_screen.dart';
+import '../services/backend_service.dart';
 
 class MoreScreen extends StatelessWidget {
   final UserModel user;
@@ -226,6 +227,13 @@ class MoreScreen extends StatelessWidget {
                   ),
                 );
               },
+            ),
+            _MenuItem(
+              icon: Icons.bolt_rounded,
+              title: 'Server Keep-Alive (Render)',
+              subtitle: '24/7 Heartbeat Pinger • Prevents Sleep',
+              trailing: _connectedBadge('Awake'),
+              onTap: () => _showKeepAliveDialog(context),
             ),
             _MenuItem(
               icon: Icons.chat_outlined,
@@ -497,6 +505,156 @@ class MoreScreen extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+
+  void _showKeepAliveDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool isPinging = false;
+        String pingResult = '';
+
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.bolt_rounded, color: Color(0xFFF59E0B), size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'Render Live Pinger',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF86EFAC)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Keep-Alive Heartbeat Active: Server instance is automatically pinged to prevent sleep mode.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF166534),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Target URL:',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'https://eligible-backend.onrender.com/api/ping',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Heartbeat Schedule:',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    '• Flutter App: Every 5 minutes\n• Cloud Backend: Every 8 minutes',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+                  ),
+                  if (pingResult.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF93C5FD)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.speed_rounded, size: 16, color: Color(0xFF2563EB)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              pingResult,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1E40AF),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Close'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: isPinging
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isPinging = true;
+                            pingResult = 'Pinging Render server...';
+                          });
+                          final stopwatch = Stopwatch()..start();
+                          final res = await BackendService().pingServer();
+                          stopwatch.stop();
+
+                          if (dialogCtx.mounted) {
+                            setDialogState(() {
+                              isPinging = false;
+                              if (res['status'] == 'awake') {
+                                pingResult = '✅ Awake! (${stopwatch.elapsedMilliseconds}ms) • Uptime: ${res['uptimeSeconds']}s';
+                              } else {
+                                pingResult = '⚠️ Server responded in ${stopwatch.elapsedMilliseconds}ms';
+                              }
+                            });
+                          }
+                        },
+                  icon: isPinging
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.bolt_rounded, size: 16),
+                  label: const Text('Ping Now'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

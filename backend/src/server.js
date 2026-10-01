@@ -7,6 +7,7 @@ const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const firebaseService = require('./services/firebase');
 const metaService = require('./services/metaService');
+const keepAliveService = require('./services/keepAliveService');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -106,11 +107,15 @@ const server = app.listen(config.port, () => {
     });
     console.log('🔔 [Realtime Listener] Active for incoming leads in Firebase Realtime Database.');
   }
+
+  // Start Live Server Keep-Alive Pinger to keep Render instance awake
+  keepAliveService.start();
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nGracefully shutting down backend server...');
+  keepAliveService.stop();
   server.close(() => {
     console.log('Backend server closed.');
     process.exit(0);

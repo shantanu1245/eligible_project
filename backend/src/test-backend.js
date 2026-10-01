@@ -273,6 +273,19 @@ async function runTests() {
     }
   });
 
+  // 15. Keep-Alive Pinger & Health Endpoints
+  await testStep('15. Live Server Keep-Alive & Ping (GET /api/ping & GET /api/keep-alive)', async () => {
+    const pingRes = await axios.get(`${BASE_URL}/ping`);
+    if (pingRes.data.status !== 'awake' || !pingRes.data.uptimeSeconds) {
+      throw new Error('Ping endpoint returned unexpected payload');
+    }
+
+    const keepAliveRes = await axios.get(`${BASE_URL}/keep-alive`);
+    if (!keepAliveRes.data.success || !keepAliveRes.data.data.targetUrl) {
+      throw new Error('Keep-alive status endpoint failed');
+    }
+  });
+
   console.log('\n======================================================');
   console.log(`🏁 TEST RESULTS: ${passCount} PASSED, ${failCount} FAILED`);
   console.log('======================================================\n');
