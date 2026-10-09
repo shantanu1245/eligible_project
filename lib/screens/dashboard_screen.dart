@@ -14,6 +14,7 @@ import 'more_screen.dart';
 import 'notifications_screen.dart';
 import 'add_lead_screen.dart';
 import '../services/backend_service.dart';
+import '../widgets/skeleton_loading.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserModel user;
@@ -30,6 +31,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int currentIndex = 0;
   late List<Lead> leads;
+  bool _isLoading = true;
   int _unreadNotifCount = 0;
 
   @override
@@ -61,11 +63,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchLeadsFromBackend() async {
-    final rawList = await BackendService().getLeads();
-    if (mounted && rawList.isNotEmpty) {
-      setState(() {
-        leads = rawList.map((m) => Lead.fromJson(m)).toList();
-      });
+    try {
+      final rawList = await BackendService().getLeads();
+      if (mounted && rawList.isNotEmpty) {
+        setState(() {
+          leads = rawList.map((m) => Lead.fromJson(m)).toList();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -139,6 +149,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (currentIndex == 1) {
       return LeadsScreen(
         leads: visibleLeads,
+        isLoading: _isLoading,
         currentUser: widget.user,
         onNavigationChanged: _handleNavigation,
         onLeadUpdated: _handleLeadUpdated,
@@ -159,7 +170,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           leads: leads,
           onLeadsUpdated: _handleLeadsListUpdated,
         ),
-        body: const FollowupsScreen(),
+        body: FollowupsScreen(
+          leads: visibleLeads,
+          isLoading: _isLoading,
+          onLeadUpdated: _handleLeadUpdated,
+        ),
         bottomNavigationBar: AppBottomNavigation(
           currentIndex: currentIndex,
           onChanged: _handleNavigation,
@@ -179,7 +194,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           leads: leads,
           onLeadsUpdated: _handleLeadsListUpdated,
         ),
-        body: const AnalyticsScreen(),
+        body: AnalyticsScreen(
+          leads: visibleLeads,
+          isLoading: _isLoading,
+        ),
         bottomNavigationBar: AppBottomNavigation(
           currentIndex: currentIndex,
           onChanged: _handleNavigation,
@@ -259,21 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
-          // If Admin, quick allotment button with unassigned badge
-          if (widget.user.isAdmin)
-            IconButton(
-              tooltip: 'Lead Allotment ($unassignedCount unassigned)',
-              onPressed: _openAllotmentScreen,
-              icon: Badge(
-                isLabelVisible: unassignedCount > 0,
-                label: Text('$unassignedCount'),
-                backgroundColor: const Color(0xFFDC2626),
-                child: const Icon(
-                  Icons.assignment_ind_outlined,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ),
+
 
           // If Admin, quick Add Lead button
           if (widget.user.isAdmin)
@@ -295,6 +299,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 MaterialPageRoute(
                   builder: (_) => NotificationsScreen(
                     leads: leads,
+                    currentUser: widget.user,
                     onLeadsUpdated: _handleLeadsListUpdated,
                   ),
                 ),
@@ -312,43 +317,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          const SizedBox(width: 3),
-
-          // User avatar
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  currentIndex = 4;
-                });
-              },
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: widget.user.isAdmin
-                    ? const Color(0xFFDBEAFE)
-                    : const Color(0xFFDCFCE7),
-                child: Text(
-                  widget.user.initial,
-                  style: TextStyle(
-                    color: widget.user.isAdmin
-                        ? AppTheme.primary
-                        : const Color(0xFF16A34A),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: RefreshIndicator(
-        color: AppTheme.primary,
-        onRefresh: _refreshDashboard,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          children: [
+      body: _isLoading
+          ? const DashboardSkeleton()
+          : RefreshIndicator(
+              color: AppTheme.primary,
+              onRefresh: _refreshDashboard,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: [
             // Welcome banner
             _buildWelcome(),
 
@@ -740,7 +720,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             StatCard(
               title: widget.user.isAdmin ? 'Total Leads' : 'My Leads',
               value: '${visibleLeads.length}',
-              change: widget.user.isAdmin ? '+12.5%' : '+15%',
+              change: '${visibleLeads.length} in database',
               icon: Icons.people_alt_outlined,
               compactPadding: isCompact ? 12 : null,
               compactIconSize: isCompact ? 16 : null,
@@ -751,7 +731,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               value: widget.user.isAdmin
                   ? '$unassignedCount'
                   : '${visibleLeads.where((l) => l.status == LeadStatus.newLead).length}',
-              change: widget.user.isAdmin ? 'Require Allotment' : '+8.4%',
+              change: widget.user.isAdmin ? 'Require Allotment' : 'New inquiries',
               icon: widget.user.isAdmin
                   ? Icons.warning_amber_rounded
                   : Icons.person_add_alt_outlined,
@@ -763,7 +743,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: 'Qualified',
               value:
                   '${visibleLeads.where((l) => l.status == LeadStatus.qualified).length}',
-              change: '+6.2%',
+              change: 'Verified leads',
               icon: Icons.verified_outlined,
               compactPadding: isCompact ? 12 : null,
               compactIconSize: isCompact ? 16 : null,
@@ -773,7 +753,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: 'Converted',
               value:
                   '${visibleLeads.where((l) => l.status == LeadStatus.converted).length}',
-              change: '+14.1%',
+              change: 'Closed deals',
               icon: Icons.check_circle_outline,
               compactPadding: isCompact ? 12 : null,
               compactIconSize: isCompact ? 16 : null,
@@ -912,90 +892,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ============================================================
 
   Widget _buildTodaySummary() {
+    final now = DateTime.now();
+    final todayLeads = visibleLeads.where((l) {
+      return l.createdAt.year == now.year &&
+          l.createdAt.month == now.month &&
+          l.createdAt.day == now.day;
+    }).length;
+
+    final newLeadsCount = visibleLeads.where((l) => l.status == LeadStatus.newLead).length;
+    final contactedCount = visibleLeads.where((l) => l.status == LeadStatus.contacted).length;
+    final qualifiedCount = visibleLeads.where((l) => l.status == LeadStatus.qualified).length;
+    final convertedCount = visibleLeads.where((l) => l.status == LeadStatus.converted).length;
+
     return Container(
-      padding:
-          const EdgeInsets.all(17),
-
-      decoration:
-          BoxDecoration(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
         color: Colors.white,
-
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
-
-        border:
-            Border.all(
-          color:
-              AppTheme.border,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppTheme.border,
         ),
       ),
-
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Today's activity",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight:
-                  FontWeight.w800,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Today's activity",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (todayLeads > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                  ),
+                  child: Text(
+                    '+$todayLeads added today',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF16A34A),
+                    ),
+                  ),
+                ),
+            ],
           ),
 
           const SizedBox(height: 15),
 
           _activityRow(
-            icon:
-                Icons.person_add_outlined,
-            title:
-                'New leads',
-            value:
-                '18',
-            color:
-                AppTheme.primary,
+            icon: Icons.person_add_outlined,
+            title: 'New leads',
+            value: '$newLeadsCount',
+            color: AppTheme.primary,
           ),
 
           _activityRow(
-            icon:
-                Icons.phone_outlined,
-            title:
-                'Follow-ups',
-            value:
-                '12',
-            color:
-                const Color(
-              0xFFEA580C,
-            ),
+            icon: Icons.phone_outlined,
+            title: 'Follow-ups / Contacted',
+            value: '$contactedCount',
+            color: const Color(0xFFEA580C),
           ),
 
           _activityRow(
-            icon:
-                Icons.verified_outlined,
-            title:
-                'Qualified',
-            value:
-                '7',
-            color:
-                const Color(
-              0xFF16A34A,
-            ),
+            icon: Icons.verified_outlined,
+            title: 'Qualified',
+            value: '$qualifiedCount',
+            color: const Color(0xFF16A34A),
           ),
 
           _activityRow(
-            icon:
-                Icons.check_circle_outline,
-            title:
-                'Converted',
-            value:
-                '4',
-            color:
-                const Color(
-              0xFF0F766E,
-            ),
+            icon: Icons.check_circle_outline,
+            title: 'Converted',
+            value: '$convertedCount',
+            color: const Color(0xFF0F766E),
             isLast: true,
           ),
         ],
@@ -1204,7 +1182,7 @@ final List<Lead> _demoLeads = [
     estimatedLow: 420000,
     estimatedHigh: 550000,
     status: LeadStatus.contacted,
-    assignedTo: 'Amit Patil',
+    assignedTo: '',
     createdAt: DateTime.parse('2026-09-19T17:25:06.171Z'),
   ),
 ];

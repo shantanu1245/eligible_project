@@ -4,10 +4,12 @@ import '../models/user.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/lead_card.dart';
+import '../widgets/skeleton_loading.dart';
 import 'add_lead_screen.dart';
 
 class LeadsScreen extends StatefulWidget {
   final List<Lead> leads;
+  final bool isLoading;
   final ValueChanged<int>? onNavigationChanged;
   final UserModel? currentUser;
   final Function(Lead)? onLeadUpdated;
@@ -17,6 +19,7 @@ class LeadsScreen extends StatefulWidget {
   const LeadsScreen({
     super.key,
     required this.leads,
+    this.isLoading = false,
     this.onNavigationChanged,
     this.currentUser,
     this.onLeadUpdated,
@@ -74,7 +77,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
             Text(
               isAdmin ? 'All Leads' : 'My Leads',
               style: const TextStyle(
-                fontSize: 20,
+                fontSize: 19,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -203,22 +206,24 @@ class _LeadsScreenState extends State<LeadsScreen> {
           const SizedBox(height: 5),
 
           Expanded(
-            child: leads.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                    itemCount: leads.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: LeadCard(
-                          lead: leads[index],
-                          currentUser: widget.currentUser,
-                          onLeadUpdated: widget.onLeadUpdated,
-                        ),
-                      );
-                    },
-                  ),
+            child: widget.isLoading
+                ? const LeadsScreenSkeleton()
+                : leads.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        itemCount: leads.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: LeadCard(
+                              lead: leads[index],
+                              currentUser: widget.currentUser,
+                              onLeadUpdated: widget.onLeadUpdated,
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

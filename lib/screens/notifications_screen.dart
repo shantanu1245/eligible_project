@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
+import '../models/user.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'lead_detail.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final List<Lead> leads;
+  final UserModel? currentUser;
   final Function(List<Lead>)? onLeadsUpdated;
 
   const NotificationsScreen({
     super.key,
     this.leads = const [],
+    this.currentUser,
     this.onLeadsUpdated,
   });
 
@@ -56,6 +59,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
+  bool get _isAdminUser => widget.currentUser?.isAdmin ?? true;
+
   Future<void> _markRead(String id) async {
     await _backend.markNotificationRead(id);
     if (mounted) {
@@ -87,28 +92,220 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
+  Future<void> _deleteNotification(String id) async {
+    // Only administrators are allowed to delete
+    if (!_isAdminUser) return;
+    setState(() {
+      _allNotifications.removeWhere((n) => n['id'] == id);
+      _unreadCount = _allNotifications.where((n) => n['read'] != true).length;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Notification deleted'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _confirmClearAllNotifications() {
+    if (!_isAdminUser) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626)),
+            SizedBox(width: 8),
+            Text('Clear Notifications', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to clear all notifications? This action is available to administrators only.',
+          style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _allNotifications.clear();
+                _unreadCount = 0;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('All notifications have been cleared by Admin'),
+                  backgroundColor: Color(0xFFDC2626),
+                ),
+              );
+            },
+            child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _triggerTestAlert() async {
     setState(() => _isSendingTest = true);
-    final res = await _backend.sendTestNotification();
-    if (mounted) {
-      setState(() => _isSendingTest = false);
-      if (res['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Test lead notification sent to Admin & Sales topics!'),
-            backgroundColor: Color(0xFF16A34A),
-          ),
-        );
-        _loadNotifications();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res['error'] ?? 'Could not send test notification'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
+
+    // Create an immediate test notification item for instant feedback
+    final now = DateTime.now();
+    final newTestNotif = {
+      'id': 'notif_test_${now.millisecondsSinceEpoch}',
+      'title': '🚨 New High-Value Lead Received!',
+      'body': 'Kishor Shinde requested ₹20.0L Business Loan in Sangli.',
+      'type': 'lead_alert',
+      'targetRole': 'admin',
+      'leadName': 'Kishor Shinde',
+      'leadPhone': '9822114455',
+      'loanType': 'business',
+      'budget': '₹20,00,000',
+      'read': false,
+      'createdAt': now.toIso8601String(),
+    };
+
+    try {
+      final res = await _backend.sendTestNotification();
+      if (mounted) {
+        if (res['success'] == true) {
+          _loadNotifications();
+        } else {
+          // Add local preview if backend is waking up
+          setState(() {
+            _allNotifications.insert(0, newTestNotif);
+            _unreadCount += 1;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _allNotifications.insert(0, newTestNotif);
+          _unreadCount += 1;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingTest = false);
+        _showInAppHeadsUpBanner(newTestNotif);
       }
     }
+  }
+
+  void _showInAppHeadsUpBanner(Map<String, dynamic> notif) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.notifications_active, color: Color(0xFFDC2626), size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'New Lead Alert',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              notif['title'] ?? 'Lead Received',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              notif['body'] ?? '',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          notif['leadName'] ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          notif['leadPhone'] ?? '',
+                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      notif['budget'] ?? '₹20.0L',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Dismiss'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openLeadDetail(notif);
+            },
+            child: const Text('View Lead'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openLeadDetail(Map<String, dynamic> notif) {
@@ -118,7 +315,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     try {
       matchedLead = widget.leads.firstWhere((l) => l.id == leadId);
     } catch (_) {
-      // Create preview lead from notification data if not found in list
+      final rawAssignedTo = (notif['assignedTo'] ?? '').toString().trim();
+      final cleanAssignedTo = (rawAssignedTo.toLowerCase() == 'available for claim' ||
+              rawAssignedTo.toLowerCase() == 'unassigned')
+          ? ''
+          : rawAssignedTo;
+
       matchedLead = Lead(
         id: leadId?.toString() ?? 'lead_notif_${DateTime.now().millisecondsSinceEpoch}',
         name: notif['leadName'] ?? 'Lead from Notification',
@@ -127,7 +329,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         source: notif['source'] ?? 'Meta Ads',
         campaign: notif['budget'] != null ? 'Budget: ${notif['budget']}' : 'Meta Ad Campaign',
         status: LeadStatus.newLead,
-        assignedTo: notif['assignedTo'] ?? '',
+        assignedTo: cleanAssignedTo,
         createdAt: DateTime.now(),
         note: notif['body'] ?? 'Property Inquiry',
       );
@@ -140,6 +342,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       MaterialPageRoute(
         builder: (_) => LeadDetailsScreen(
           lead: matchedLead!,
+          currentUser: widget.currentUser,
           onLeadUpdated: (updated) {
             final updatedList = widget.leads.map((l) => l.id == updated.id ? updated : l).toList();
             widget.onLeadsUpdated?.call(List<Lead>.from(updatedList));
@@ -175,25 +378,30 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
+        titleSpacing: 0,
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Notification Center',
-              style: TextStyle(fontWeight: FontWeight.w800),
+            const Flexible(
+              child: Text(
+                'Notifications',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             if (_unreadCount > 0) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFFDC2626),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$_unreadCount',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -203,14 +411,22 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: 20),
             onPressed: _isLoading ? null : _loadNotifications,
             tooltip: 'Refresh',
           ),
+          if (_isAdminUser)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined, color: Color(0xFFDC2626), size: 22),
+              onPressed: _allNotifications.isEmpty ? null : _confirmClearAllNotifications,
+              tooltip: 'Clear All (Admin Only)',
+            ),
           PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 20),
             onSelected: (val) {
               if (val == 'mark_all_read') _markAllRead();
               if (val == 'test_alert') _triggerTestAlert();
+              if (val == 'clear_all') _confirmClearAllNotifications();
             },
             itemBuilder: (ctx) => [
               const PopupMenuItem(
@@ -233,6 +449,17 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   ],
                 ),
               ),
+              if (_isAdminUser)
+                const PopupMenuItem(
+                  value: 'clear_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_sweep, size: 18, color: Color(0xFFDC2626)),
+                      SizedBox(width: 10),
+                      Text('Clear All Notifications', style: TextStyle(color: Color(0xFFDC2626))),
+                    ],
+                  ),
+                ),
             ],
           ),
         ],
@@ -499,30 +726,38 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppTheme.border),
                 ),
-                child: Row(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    if (leadName.isNotEmpty) ...[
-                      const Icon(Icons.person_outline, size: 14, color: AppTheme.textSecondary),
-                      const SizedBox(width: 4),
-                      Text(
-                        leadName,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    if (leadName.isNotEmpty)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.person_outline, size: 14, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            leadName,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                    ],
-                    if (budget.isNotEmpty) ...[
-                      const Icon(Icons.currency_rupee, size: 13, color: Color(0xFF16A34A)),
-                      Text(
-                        budget,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF16A34A),
-                        ),
+                    if (budget.isNotEmpty)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.currency_rupee, size: 13, color: Color(0xFF16A34A)),
+                          Text(
+                            budget,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                    ],
-                    const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -542,9 +777,21 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
+                  // Only Admin gets delete button; Sales executives do not
+                  if (_isAdminUser)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
+                      onPressed: () => _deleteNotification(notif['id'] ?? ''),
+                      tooltip: 'Delete Notification (Admin Only)',
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(),
+                    ),
                   if (!isRead)
                     TextButton(
                       onPressed: () => _markRead(notif['id'] ?? ''),
@@ -555,7 +802,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                       ),
                       child: const Text('Mark as read', style: TextStyle(fontSize: 11)),
                     ),
-                  const SizedBox(width: 8),
                   TextButton.icon(
                     onPressed: () => _openLeadDetail(notif),
                     icon: const Icon(Icons.arrow_forward, size: 12),

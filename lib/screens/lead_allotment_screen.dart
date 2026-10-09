@@ -350,7 +350,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
               'Lead Allotment',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 20,
+                fontSize: 19,
               ),
             ),
             Text(

@@ -32,7 +32,14 @@ class _LeadDetailsScreenState
   void initState() {
     super.initState();
     selectedStatus = widget.lead.status;
-    currentAssignedTo = widget.lead.assignedTo;
+    final initialAssigned = widget.lead.assignedTo.trim();
+    if (initialAssigned.isEmpty ||
+        initialAssigned.toLowerCase() == 'unassigned' ||
+        initialAssigned.toLowerCase() == 'available for claim') {
+      currentAssignedTo = '';
+    } else {
+      currentAssignedTo = initialAssigned;
+    }
   }
 
   @override
@@ -522,47 +529,69 @@ class _LeadDetailsScreenState
             const SizedBox(height: 14),
             const Divider(height: 1, color: AppTheme.border),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: isUnassigned ? '' : currentAssignedTo,
-              decoration: const InputDecoration(
-                labelText: 'Allot to Sales Executive',
-                prefixIcon: Icon(Icons.assignment_ind_outlined),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-              items: [
-                const DropdownMenuItem(
-                  value: '',
-                  child: Text('Unassigned'),
-                ),
-                ...UserModel.salesExecutives.map((exec) {
-                  return DropdownMenuItem(
-                    value: exec.name,
-                    child: Text('${exec.name} (Sales Executive)'),
-                  );
-                }),
-              ],
-              onChanged: (newAssignee) {
-                if (newAssignee != null) {
-                  setState(() {
-                    currentAssignedTo = newAssignee;
-                  });
-                  final updatedLead =
-                      widget.lead.copyWith(assignedTo: newAssignee);
-                  widget.onLeadUpdated?.call(updatedLead);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        newAssignee.isEmpty
-                            ? 'Lead marked as Unassigned'
-                            : 'Lead allotted to $newAssignee',
-                      ),
-                      backgroundColor: const Color(0xFF16A34A),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 2),
+            Builder(
+              builder: (context) {
+                // Determine valid items
+                final knownExecNames = UserModel.salesExecutives.map((e) => e.name).toSet();
+                final items = <DropdownMenuItem<String>>[
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Unassigned / Available for Claim'),
+                  ),
+                  ...UserModel.salesExecutives.map((exec) {
+                    return DropdownMenuItem(
+                      value: exec.name,
+                      child: Text('${exec.name} (Sales Executive)'),
+                    );
+                  }),
+                ];
+
+                // If current assignee is set to a custom or unknown name, add it dynamically so dropdown never throws
+                if (currentAssignedTo.isNotEmpty && !knownExecNames.contains(currentAssignedTo)) {
+                  items.add(
+                    DropdownMenuItem(
+                      value: currentAssignedTo,
+                      child: Text('$currentAssignedTo (Assigned)'),
                     ),
                   );
                 }
+
+                final selectedDropdownValue = isUnassigned
+                    ? ''
+                    : (items.any((item) => item.value == currentAssignedTo) ? currentAssignedTo : '');
+
+                return DropdownButtonFormField<String>(
+                  value: selectedDropdownValue,
+                  decoration: const InputDecoration(
+                    labelText: 'Allot to Sales Executive',
+                    prefixIcon: Icon(Icons.assignment_ind_outlined),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  items: items,
+                  onChanged: (newAssignee) {
+                    if (newAssignee != null) {
+                      setState(() {
+                        currentAssignedTo = newAssignee;
+                      });
+                      final updatedLead =
+                          widget.lead.copyWith(assignedTo: newAssignee);
+                      widget.onLeadUpdated?.call(updatedLead);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            newAssignee.isEmpty
+                                ? 'Lead marked as Unassigned'
+                                : 'Lead allotted to $newAssignee',
+                          ),
+                          backgroundColor: const Color(0xFF16A34A),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                );
               },
             ),
           ],

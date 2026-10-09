@@ -27,6 +27,12 @@ class AppTheme {
       foregroundColor: textPrimary,
       elevation: 0,
       centerTitle: false,
+      titleSpacing: 0,
+      titleTextStyle: TextStyle(
+        color: textPrimary,
+        fontSize: 19,
+        fontWeight: FontWeight.w800,
+      ),
     ),
 
     inputDecorationTheme: InputDecorationTheme(

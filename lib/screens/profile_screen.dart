@@ -20,7 +20,7 @@ class ProfileScreen extends StatelessWidget {
           'My Profile',
           style: TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 20,
+            fontSize: 19,
           ),
         ),
       ),
