@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
 import '../theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LeadDetailsScreen extends StatefulWidget {
   final Lead lead;
@@ -213,13 +214,15 @@ class _LeadDetailsScreenState
   }
 
   Widget _buildQuickActions() {
+    final lead = widget.lead;
+    
     return Row(
       children: [
         Expanded(
           child: _actionButton(
             icon: Icons.call_outlined,
             label: 'Call',
-            onTap: () {},
+            onTap: () => _makePhoneCall(lead.phone),
           ),
         ),
         const SizedBox(width: 10),
@@ -227,7 +230,7 @@ class _LeadDetailsScreenState
           child: _actionButton(
             icon: Icons.chat_outlined,
             label: 'WhatsApp',
-            onTap: () {},
+            onTap: () => _openWhatsApp(lead.phone),
           ),
         ),
         const SizedBox(width: 10),
@@ -235,11 +238,69 @@ class _LeadDetailsScreenState
           child: _actionButton(
             icon: Icons.email_outlined,
             label: 'Email',
-            onTap: () {},
+            onTap: () => _sendEmail(lead.email),
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _makePhoneCall(String phone) async {
+    String cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri phoneUri = Uri(scheme: 'tel', path: cleanPhone);
+    try {
+      await launchUrl(phoneUri);
+    } catch (e) {
+      _showError('Could not launch phone dialer');
+    }
+  }
+
+  Future<void> _openWhatsApp(String phone) async {
+    String cleanPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+    if (!cleanPhone.startsWith('91') && cleanPhone.length == 10) {
+      cleanPhone = '91$cleanPhone';
+    }
+    final Uri whatsappUri = Uri(
+      scheme: 'https',
+      host: 'wa.me',
+      path: cleanPhone,
+    );
+    try {
+      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      _showError('Could not open WhatsApp');
+    }
+  }
+
+  Future<void> _sendEmail(String email) async {
+    if (email.isEmpty) {
+      _showError('No email available');
+      return;
+    }
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: email,
+    );
+    try {
+      await launchUrl(emailUri);
+    } catch (e) {
+      _showError('Could not open email client');
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _actionButton({
@@ -561,12 +622,14 @@ class _LeadDetailsScreenState
                     : (items.any((item) => item.value == currentAssignedTo) ? currentAssignedTo : '');
 
                 return DropdownButtonFormField<String>(
-                  value: selectedDropdownValue,
+                  initialValue: selectedDropdownValue,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Allot to Sales Executive',
                     prefixIcon: Icon(Icons.assignment_ind_outlined),
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    isDense: true,
                   ),
                   items: items,
                   onChanged: (newAssignee) {
@@ -604,18 +667,21 @@ class _LeadDetailsScreenState
     return _sectionCard(
       title: 'Lead Status',
       child: DropdownButtonFormField<LeadStatus>(
-        value: selectedStatus,
+        initialValue: selectedStatus,
+        isExpanded: true,
         decoration: const InputDecoration(
           contentPadding: EdgeInsets.symmetric(
             horizontal: 14,
             vertical: 13,
           ),
+          isDense: true,
         ),
         items: LeadStatus.values.map((status) {
           return DropdownMenuItem(
             value: status,
             child: Text(
               statusName(status),
+              overflow: TextOverflow.ellipsis,
             ),
           );
         }).toList(),

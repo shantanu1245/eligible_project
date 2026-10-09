@@ -606,7 +606,7 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _selectedPlatform,
+                      initialValue: _selectedPlatform,
                       decoration: const InputDecoration(
                         labelText: 'Target Platform',
                       ),
