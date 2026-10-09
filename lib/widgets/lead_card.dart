@@ -87,6 +87,47 @@ class LeadCard extends StatelessWidget {
                           color: AppTheme.textSecondary,
                         ),
                       ),
+                      if (lead.requiredLoan != null && lead.requiredLoan! > 0) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                (lead.loanType ?? 'Loan').toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '₹${lead.requiredLoan! >= 100000 ? "${(lead.requiredLoan! / 100000).toStringAsFixed(1)}L" : lead.requiredLoan!.toInt().toString()}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                            if (lead.city != null && lead.city!.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '• ${lead.city}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -110,17 +151,17 @@ class LeadCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _Info(
-                      label: 'Source',
-                      value: lead.source,
-                      icon: Icons.campaign_outlined,
+                      label: lead.salary != null ? 'Monthly Income' : 'Source',
+                      value: lead.salary != null ? '₹${lead.salary!.toInt()}' : lead.source,
+                      icon: lead.salary != null ? Icons.currency_rupee : Icons.campaign_outlined,
                     ),
                   ),
 
                   Expanded(
                     child: _Info(
-                      label: 'Campaign',
-                      value: lead.campaign,
-                      icon: Icons.ads_click_outlined,
+                      label: lead.cibil != null && lead.cibil! > 0 ? 'CIBIL Score' : 'Campaign',
+                      value: lead.cibil != null && lead.cibil! > 0 ? '${lead.cibil}' : lead.campaign,
+                      icon: lead.cibil != null && lead.cibil! > 0 ? Icons.speed : Icons.ads_click_outlined,
                     ),
                   ),
                 ],

@@ -183,23 +183,61 @@ class BackendService {
     }
   }
 
-  /// Fetch leads from backend
+  /// Loan Calculator Web App & Database Base URL (default local port 3000)
+  String _loanCalculatorUrl = 'http://localhost:3000/api';
+
+  String get loanCalculatorUrl => _loanCalculatorUrl;
+  set loanCalculatorUrl(String url) {
+    _loanCalculatorUrl = url.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  /// Fetch leads from Loan-Calculator and backend database
   Future<List<Map<String, dynamic>>> getLeads({String? status}) async {
+    // 1. Try primary backend / Firebase first
     try {
       final uri = Uri.parse('$_baseUrl/leads').replace(
         queryParameters: status != null ? {'status': status} : null,
       );
-      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      final res = await http.get(uri).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        final list = data['data'] as List<dynamic>?;
-        if (list != null) {
+        final list = (data['data'] ?? data['leads']) as List<dynamic>?;
+        if (list != null && list.isNotEmpty) {
+          debugPrint('[BackendService] ✅ Fetched ${list.length} leads from primary backend');
           return list.map((e) => Map<String, dynamic>.from(e)).toList();
         }
       }
     } catch (e) {
-      debugPrint('[BackendService] getLeads error: $e');
+      debugPrint('[BackendService] Primary getLeads notice: $e. Checking Loan Calculator database...');
     }
+
+    // 2. Fetch directly from Loan-Calculator website database (/api/leads)
+    final loanCalculatorEndpoints = [
+      '$_loanCalculatorUrl/leads',
+      'http://10.0.2.2:3000/api/leads', // Android emulator localhost alias
+      'http://localhost:3000/api/leads',
+      'http://127.0.0.1:3000/api/leads',
+    ];
+
+    for (final ep in loanCalculatorEndpoints) {
+      try {
+        final uri = Uri.parse(ep).replace(
+          queryParameters: status != null ? {'status': status} : null,
+        );
+        final res = await http.get(uri).timeout(const Duration(seconds: 3));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          final list = (data['leads'] ?? data['data']) as List<dynamic>?;
+          if (list != null && list.isNotEmpty) {
+            debugPrint('[BackendService] 🎯 Successfully fetched ${list.length} real leads from Loan Calculator database ($ep)');
+            return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          }
+        }
+      } catch (_) {
+        // Continue to next endpoint candidate
+      }
+    }
+
     return [];
   }
 

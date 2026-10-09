@@ -279,41 +279,131 @@ class _LeadDetailsScreenState
   }
 
   Widget _buildInformationCard(Lead lead) {
+    return Column(
+      children: [
+        if (lead.requiredLoan != null && lead.requiredLoan! > 0) ...[
+          _buildLoanDetailsCard(lead),
+          const SizedBox(height: 16),
+        ],
+        _sectionCard(
+          title: 'Lead Information',
+          child: Column(
+            children: [
+              _infoRow(
+                Icons.phone_outlined,
+                'Phone',
+                lead.phone,
+              ),
+              if (lead.email.isNotEmpty)
+                _infoRow(
+                  Icons.email_outlined,
+                  'Email',
+                  lead.email,
+                ),
+              if (lead.city != null && lead.city!.isNotEmpty)
+                _infoRow(
+                  Icons.location_city_outlined,
+                  'City & PIN',
+                  '${lead.city}${lead.pincode != null ? " - ${lead.pincode!}" : ""}',
+                ),
+              _infoRow(
+                Icons.campaign_outlined,
+                'Source',
+                lead.source,
+              ),
+              _infoRow(
+                Icons.ads_click_outlined,
+                'Campaign / Enquiry',
+                lead.campaign,
+              ),
+              _infoRow(
+                Icons.person_outline,
+                'Assigned To',
+                lead.assignedTo.isEmpty ? 'Unassigned' : lead.assignedTo,
+              ),
+              _infoRow(
+                Icons.tag_outlined,
+                'Lead ID',
+                lead.id,
+                isLast: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoanDetailsCard(Lead lead) {
     return _sectionCard(
-      title: 'Lead Information',
+      title: 'Loan Eligibility & Financial Profile',
       child: Column(
         children: [
           _infoRow(
-            Icons.phone_outlined,
-            'Phone',
-            lead.phone,
+            Icons.account_balance_outlined,
+            'Loan Category',
+            (lead.loanType ?? 'Salary').toUpperCase(),
           ),
           _infoRow(
-            Icons.email_outlined,
-            'Email',
-            lead.email,
+            Icons.currency_rupee,
+            'Required Loan Amount',
+            '₹${lead.requiredLoan!.toInt().toString().replaceAllMapped(RegExp(r"(\d)(?=(\d\d)+\d$)"), (m) => "${m[1]},")}',
           ),
-          _infoRow(
-            Icons.campaign_outlined,
-            'Source',
-            lead.source,
-          ),
-          _infoRow(
-            Icons.ads_click_outlined,
-            'Campaign',
-            lead.campaign,
-          ),
-          _infoRow(
-            Icons.person_outline,
-            'Assigned To',
-            lead.assignedTo,
-          ),
-          _infoRow(
-            Icons.tag_outlined,
-            'Lead ID',
-            lead.id,
-            isLast: true,
-          ),
+          if (lead.estimatedLow != null && lead.estimatedHigh != null && lead.estimatedHigh! > 0)
+            _infoRow(
+              Icons.trending_up,
+              'Eligible Range',
+              '₹${(lead.estimatedLow! / 100000).toStringAsFixed(1)}L - ₹${(lead.estimatedHigh! / 100000).toStringAsFixed(1)}L',
+            ),
+          if (lead.salary != null && lead.salary! > 0)
+            _infoRow(
+              Icons.payments_outlined,
+              lead.loanType == 'business' ? 'Annual Turnover' : 'Monthly Income',
+              '₹${lead.salary!.toInt().toString().replaceAllMapped(RegExp(r"(\d)(?=(\d\d)+\d$)"), (m) => "${m[1]},")}',
+            ),
+          if (lead.emi != null && lead.emi! > 0)
+            _infoRow(
+              Icons.credit_card_outlined,
+              'Existing EMI',
+              '₹${lead.emi!.toInt()}/mo',
+            ),
+          if (lead.cibil != null && lead.cibil! > 0)
+            _infoRow(
+              Icons.speed_outlined,
+              'CIBIL Score',
+              '${lead.cibil}',
+            ),
+          if (lead.job != null && lead.job!.isNotEmpty)
+            _infoRow(
+              Icons.work_outline,
+              'Job / Occupation',
+              lead.job!,
+            ),
+          if (lead.propertyCost != null && lead.propertyCost! > 0)
+            _infoRow(
+              Icons.home_work_outlined,
+              'Property Value',
+              '₹${(lead.propertyCost! / 100000).toStringAsFixed(1)} Lakhs',
+            ),
+          if (lead.propertyType != null && lead.propertyType!.isNotEmpty)
+            _infoRow(
+              Icons.home_outlined,
+              'Property Type',
+              lead.propertyType!,
+            ),
+          if (lead.businessType != null && lead.businessType!.isNotEmpty)
+            _infoRow(
+              Icons.business_outlined,
+              'Business Vintage / Type',
+              '${lead.businessVintage ?? ""} • ${lead.businessType!}',
+            ),
+          if (lead.gstRegistered != null && lead.gstRegistered!.isNotEmpty)
+            _infoRow(
+              Icons.receipt_long_outlined,
+              'GST / ITR',
+              'GST: ${lead.gstRegistered} | ${lead.itrVintage ?? ""}',
+              isLast: true,
+            ),
         ],
       ),
     );
