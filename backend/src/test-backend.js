@@ -286,6 +286,78 @@ async function runTests() {
     }
   });
 
+  // 16. Meta Diagnostics & Permissions Check
+  await testStep('16. Meta Diagnostics (GET /api/meta/diagnostics)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/diagnostics`);
+    if (!res.data || res.data.data === undefined) {
+      throw new Error('Diagnostics endpoint failed');
+    }
+    console.log(` [Configured: ${res.data.data.configured}, TokenValid: ${res.data.data.tokenValid}]`);
+  });
+
+  // 17. Meta Ad Accounts
+  await testStep('17. Meta Ad Accounts (GET /api/meta/accounts)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/accounts`);
+    if (!res.data.success || !Array.isArray(res.data.data)) {
+      throw new Error('Accounts endpoint failed');
+    }
+    console.log(` [Found ${res.data.data.length} ad accounts]`);
+  });
+
+  // 18. Meta Campaigns
+  await testStep('18. Meta Campaigns (GET /api/meta/campaigns)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/campaigns`);
+    if (!res.data.success || !Array.isArray(res.data.data)) {
+      throw new Error('Campaigns endpoint failed');
+    }
+    console.log(` [Found ${res.data.data.length} campaigns (source: ${res.data.source})]`);
+  });
+
+  // 19. Meta Ad Sets
+  await testStep('19. Meta Ad Sets (GET /api/meta/adsets)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/adsets`);
+    if (!res.data.success || !Array.isArray(res.data.data)) {
+      throw new Error('AdSets endpoint failed');
+    }
+    console.log(` [Found ${res.data.data.length} ad sets]`);
+  });
+
+  // 20. Meta Ads
+  await testStep('20. Meta Ads (GET /api/meta/ads)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/ads`);
+    if (!res.data.success || !Array.isArray(res.data.data)) {
+      throw new Error('Ads endpoint failed');
+    }
+    console.log(` [Found ${res.data.data.length} ads]`);
+  });
+
+  // 21. Meta Performance Insights
+  await testStep('21. Meta Insights (GET /api/meta/insights?datePreset=last_30d)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/insights?datePreset=last_30d`);
+    if (!res.data.success || !res.data.data) {
+      throw new Error('Insights endpoint failed');
+    }
+    console.log(` [Summary parsed: spend=${res.data.data.summary?.spend ?? 0}, leads=${res.data.data.summary?.leads ?? 0}]`);
+  });
+
+  // 22. Meta Lead Sync
+  await testStep('22. Meta Lead Sync & Deduplication (POST /api/leads/sync)', async () => {
+    const res = await axios.post(`${BASE_URL}/leads/sync`, {});
+    if (!res.data.success || res.data.syncedCount === undefined) {
+      throw new Error('Lead sync endpoint failed');
+    }
+    console.log(` [Synced: ${res.data.syncedCount}, Duplicates Skipped: ${res.data.duplicatesSkipped}]`);
+  });
+
+  // 23. Meta Sync Status
+  await testStep('23. Meta Sync Status (GET /api/meta/sync-status)', async () => {
+    const res = await axios.get(`${BASE_URL}/meta/sync-status`);
+    if (!res.data.success || !res.data.data) {
+      throw new Error('Sync status endpoint failed');
+    }
+    console.log(` [Sync Status: ${res.data.data.status}, LastSync: ${res.data.data.lastSyncTime || 'none'}]`);
+  });
+
   console.log('\n======================================================');
   console.log(`🏁 TEST RESULTS: ${passCount} PASSED, ${failCount} FAILED`);
   console.log('======================================================\n');

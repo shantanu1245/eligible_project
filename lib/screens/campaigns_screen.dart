@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
+import 'meta_setup_screen.dart';
+import 'meta_account_details_screen.dart';
 
 class CampaignsScreen extends StatefulWidget {
   const CampaignsScreen({super.key});
@@ -9,54 +11,217 @@ class CampaignsScreen extends StatefulWidget {
   State<CampaignsScreen> createState() => _CampaignsScreenState();
 }
 
-class _CampaignsScreenState extends State<CampaignsScreen> {
+class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProviderStateMixin {
   final BackendService _backend = BackendService();
+
+  late TabController _tabController;
+  int _selectedTabIndex = 0;
+
   bool _isLoading = true;
+  bool _isSyncing = false;
+  String _selectedDatePreset = 'last_30d';
+
+  List<Map<String, dynamic>> _adAccounts = [];
+  String? _selectedAdAccountId;
+  String? _selectedAdAccountName;
+
   List<Map<String, dynamic>> _campaigns = [];
+  List<Map<String, dynamic>> _adSets = [];
+  List<Map<String, dynamic>> _ads = [];
+  Map<String, dynamic> _insightsSummary = {};
+  Map<String, dynamic> _syncStatus = {};
+
+  String? _selectedCampaignFilterId;
+
+  final List<Map<String, String>> _datePresets = [
+    {'key': 'today', 'label': 'Today'},
+    {'key': 'yesterday', 'label': 'Yesterday'},
+    {'key': 'last_7d', 'label': 'Last 7 Days'},
+    {'key': 'last_30d', 'label': 'Last 30 Days'},
+    {'key': 'this_month', 'label': 'This Month'},
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadCampaigns();
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(_handleTabSelection);
+    _initializeData();
   }
 
-  Future<void> _loadCampaigns() async {
+  void _handleTabSelection() {
+    if (!_tabController.indexIsChanging && _selectedTabIndex != _tabController.index) {
+      if (mounted) {
+        setState(() {
+          _selectedTabIndex = _tabController.index;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabSelection);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initializeData() async {
     setState(() => _isLoading = true);
-    final data = await _backend.getCampaigns();
+
+    // 1. Fetch accessible Ad Accounts
+    final accounts = await _backend.getMetaAccounts();
     if (mounted) {
       setState(() {
-        if (data.isNotEmpty) {
-          _campaigns = data;
-        } else {
-          // Fallback initial list
-          _campaigns = [
-            {
-              'id': 'camp_1',
-              'name': 'Pune Property Campaign',
-              'platform': 'Facebook & Instagram',
-              'leads_count': 87,
-              'daily_budget': 1000,
-              'status': 'ACTIVE',
-            },
-            {
-              'id': 'camp_2',
-              'name': 'Mumbai Property Campaign',
-              'platform': 'Facebook',
-              'leads_count': 42,
-              'daily_budget': 800,
-              'status': 'ACTIVE',
-            },
-            {
-              'id': 'camp_3',
-              'name': 'Website Lead Campaign',
-              'platform': 'Instagram',
-              'leads_count': 31,
-              'daily_budget': 500,
-              'status': 'PAUSED',
-            },
-          ];
+        _adAccounts = accounts;
+        if (_adAccounts.isNotEmpty && _selectedAdAccountId == null) {
+          _selectedAdAccountId = _adAccounts.first['id'];
+          _selectedAdAccountName = _adAccounts.first['name'];
         }
+      });
+    }
+
+    // 2. Load data for active ad account
+    await _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
+    setState(() => _isLoading = true);
+
+    final futures = await Future.wait([
+      _backend.getMetaCampaigns(
+        adAccountId: _selectedAdAccountId,
+        datePreset: _selectedDatePreset,
+      ),
+      _backend.getMetaAdSets(
+        adAccountId: _selectedAdAccountId,
+        campaignId: _selectedCampaignFilterId,
+        datePreset: _selectedDatePreset,
+      ),
+      _backend.getMetaAds(
+        adAccountId: _selectedAdAccountId,
+        campaignId: _selectedCampaignFilterId,
+        datePreset: _selectedDatePreset,
+      ),
+      _backend.getMetaInsights(
+        adAccountId: _selectedAdAccountId,
+        datePreset: _selectedDatePreset,
+      ),
+      _backend.getMetaSyncStatus(),
+    ]);
+
+    if (mounted) {
+      final campaignsData = futures[0] as List<Map<String, dynamic>>;
+      final adSetsData = futures[1] as List<Map<String, dynamic>>;
+      final adsData = futures[2] as List<Map<String, dynamic>>;
+      final insightsData = futures[3] as Map<String, dynamic>;
+      final syncData = futures[4] as Map<String, dynamic>;
+
+      setState(() {
+        _campaigns = campaignsData.isNotEmpty
+            ? campaignsData
+            : [
+                {
+                  'id': 'camp_1',
+                  'name': 'Pune Luxury Property Campaign',
+                  'objective': 'OUTCOME_LEADS',
+                  'platform': 'Facebook & Instagram',
+                  'leadsCount': 87,
+                  'spend': 14200.0,
+                  'dailyBudget': 1000.0,
+                  'status': 'ACTIVE',
+                  'effectiveStatus': 'ACTIVE',
+                  'impressions': 48920,
+                  'clicks': 1420,
+                  'reach': 32400,
+                  'ctr': 2.9,
+                  'costPerLead': 163.21,
+                },
+                {
+                  'id': 'camp_2',
+                  'name': 'Mumbai Express Booking Campaign',
+                  'objective': 'OUTCOME_LEADS',
+                  'platform': 'Facebook',
+                  'leadsCount': 42,
+                  'spend': 8400.0,
+                  'dailyBudget': 800.0,
+                  'status': 'ACTIVE',
+                  'effectiveStatus': 'ACTIVE',
+                  'impressions': 24100,
+                  'clicks': 680,
+                  'reach': 18900,
+                  'ctr': 2.8,
+                  'costPerLead': 200.0,
+                },
+                {
+                  'id': 'camp_3',
+                  'name': 'General Consultation Retargeting',
+                  'objective': 'OUTCOME_LEADS',
+                  'platform': 'Instagram',
+                  'leadsCount': 31,
+                  'spend': 4500.0,
+                  'dailyBudget': 500.0,
+                  'status': 'PAUSED',
+                  'effectiveStatus': 'PAUSED',
+                  'impressions': 15200,
+                  'clicks': 410,
+                  'reach': 11200,
+                  'ctr': 2.7,
+                  'costPerLead': 145.16,
+                },
+              ];
+
+        _adSets = adSetsData;
+        _ads = adsData;
+        _insightsSummary = (insightsData['summary'] as Map<String, dynamic>?) ?? {};
+        _syncStatus = syncData;
         _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _syncLeads() async {
+    setState(() => _isSyncing = true);
+
+    final res = await _backend.syncMetaLeads();
+    if (mounted) {
+      setState(() => _isSyncing = false);
+      final success = res['success'] == true;
+      final msg = res['message'] ?? (success ? 'Lead sync complete!' : 'Lead sync failed');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      _loadAllData();
+    }
+  }
+
+  void _showDiagnosticsModal() async {
+    showDialog(
+      context: context,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final diag = await _backend.getMetaDiagnostics();
+    if (mounted) {
+      Navigator.pop(context); // Close loader
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          builder: (ctx) => _DiagnosticsSheet(diag: diag),
+        );
       });
     }
   }
@@ -80,7 +245,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
   }
 
   Future<void> _toggleStatus(Map<String, dynamic> campaign) async {
-    final currentStatus = campaign['status'] ?? 'ACTIVE';
+    final currentStatus = (campaign['status'] ?? campaign['effectiveStatus'] ?? 'ACTIVE').toString().toUpperCase();
     final newStatus = currentStatus == 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     final id = campaign['id'] ?? campaign['meta_campaign_id'];
 
@@ -90,6 +255,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
 
     setState(() {
       campaign['status'] = newStatus;
+      campaign['effectiveStatus'] = newStatus;
     });
 
     if (mounted) {
@@ -107,17 +273,59 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text(
-          'Meta Campaigns',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+        titleSpacing: 16,
+        actionsPadding: const EdgeInsets.only(right: 8),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Meta Ads Manager',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 19,
+              ),
+            ),
+            Text(
+              _selectedAdAccountName ?? 'Account Overview & Leads',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _loadCampaigns,
-            tooltip: 'Refresh from Meta',
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync_rounded),
+            onPressed: _isSyncing ? null : _syncLeads,
+            tooltip: 'Sync Meta Leads',
+          ),
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => MetaAccountDetailsScreen(initialAdAccountId: _selectedAdAccountId)),
+            ),
+            tooltip: 'Meta Account Details',
+          ),
+          IconButton(
+            icon: const Icon(Icons.shield_outlined),
+            onPressed: _showDiagnosticsModal,
+            tooltip: 'Meta Token & Permissions',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MetaSetupScreen()),
+            ),
+            tooltip: 'Meta Setup',
           ),
         ],
       ),
@@ -127,104 +335,552 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text(
-          'Create Meta Campaign',
+          'Create Campaign',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadCampaigns,
+              onRefresh: _loadAllData,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 90),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                 children: [
-                  _buildSummary(),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'All Campaigns',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        '${_campaigns.length} campaigns',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ..._campaigns.map(
-                    (campaign) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _CampaignCard(
-                        campaign: campaign,
-                        onToggleStatus: () => _toggleStatus(campaign),
-                      ),
-                    ),
-                  ),
+                  _buildAccountSelector(),
+                  const SizedBox(height: 14),
+                  _buildDateFilterRow(),
+                  const SizedBox(height: 14),
+                  _buildKpiMetricsGrid(),
+                  const SizedBox(height: 18),
+                  _buildTabBar(),
+                  const SizedBox(height: 14),
+                  _buildActiveTabContent(),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildSummary() {
-    final totalLeads = _campaigns.fold<int>(
-      0,
-      (sum, c) => sum + (c['leads_count'] as int? ?? c['leads'] as int? ?? 0),
+  Widget _buildAccountSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.account_balance_wallet_outlined, color: AppTheme.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Active Ad Account',
+                  style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.w600),
+                ),
+                if (_adAccounts.isNotEmpty)
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedAdAccountId,
+                      isDense: true,
+                      isExpanded: true,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                      items: _adAccounts.map((a) {
+                        return DropdownMenuItem<String>(
+                          value: a['id'],
+                          child: Text('${a['name']} (${a['currency']})', overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (newId) {
+                        if (newId != null && newId != _selectedAdAccountId) {
+                          final found = _adAccounts.firstWhere((a) => a['id'] == newId);
+                          setState(() {
+                            _selectedAdAccountId = newId;
+                            _selectedAdAccountName = found['name'];
+                          });
+                          _loadAllData();
+                        }
+                      },
+                    ),
+                  )
+                else
+                  Text(
+                    _selectedAdAccountName ?? 'Connected Meta Account',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFBBF7D0)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(radius: 3, backgroundColor: Color(0xFF16A34A)),
+                SizedBox(width: 5),
+                Text('Active', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+  }
 
-    final activeCampaigns = _campaigns.where(
-      (c) => (c['status'] ?? '').toString().toUpperCase() == 'ACTIVE',
-    ).length;
+  Widget _buildDateFilterRow() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _datePresets.map((preset) {
+          final isSelected = _selectedDatePreset == preset['key'];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(preset['label']!),
+              selected: isSelected,
+              onSelected: (val) {
+                if (val && _selectedDatePreset != preset['key']) {
+                  setState(() => _selectedDatePreset = preset['key']!);
+                  _loadAllData();
+                }
+              },
+              backgroundColor: Colors.white,
+              selectedColor: const Color(0xFFEFF6FF),
+              labelStyle: TextStyle(
+                color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 12,
+              ),
+              side: BorderSide(
+                color: isSelected ? AppTheme.primary : AppTheme.border,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
-    return Row(
+  Widget _buildKpiMetricsGrid() {
+    final double totalSpend = (_insightsSummary['spend'] as num?)?.toDouble() ??
+        _campaigns.fold<double>(0, (sum, c) => sum + ((c['spend'] as num?)?.toDouble() ?? 0));
+
+    final int totalLeads = (_insightsSummary['leads'] as num?)?.toInt() ??
+        _campaigns.fold<int>(0, (sum, c) => sum + ((c['leadsCount'] as num?)?.toInt() ?? (c['leads'] as num?)?.toInt() ?? 0));
+
+    final int totalImpressions = (_insightsSummary['impressions'] as num?)?.toInt() ??
+        _campaigns.fold<int>(0, (sum, c) => sum + ((c['impressions'] as num?)?.toInt() ?? 0));
+
+    final int totalClicks = (_insightsSummary['clicks'] as num?)?.toInt() ??
+        _campaigns.fold<int>(0, (sum, c) => sum + ((c['clicks'] as num?)?.toInt() ?? 0));
+
+    final double avgCpl = totalLeads > 0 ? (totalSpend / totalLeads) : 0;
+    final double avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+
+    return Column(
       children: [
-        Expanded(
-          child: _SummaryCard(
-            title: 'Total Campaigns',
-            value: '${_campaigns.length}',
-            icon: Icons.campaign_outlined,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricCard(
+                title: 'Total Spend',
+                value: '₹${totalSpend.toStringAsFixed(0)}',
+                subtitle: 'Budget spent',
+                icon: Icons.currency_rupee_rounded,
+                accentColor: const Color(0xFF2563EB),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
+                title: 'Meta Leads',
+                value: '$totalLeads',
+                subtitle: 'Form signups',
+                icon: Icons.assignment_ind_outlined,
+                accentColor: const Color(0xFF16A34A),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _SummaryCard(
-            title: 'Active Campaigns',
-            value: '$activeCampaigns',
-            icon: Icons.play_circle_outline,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _SummaryCard(
-            title: 'Meta Leads',
-            value: '$totalLeads',
-            icon: Icons.people_outline,
-          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricCard(
+                title: 'Cost Per Lead',
+                value: '₹${avgCpl.toStringAsFixed(1)}',
+                subtitle: 'Avg CPL',
+                icon: Icons.trending_down_rounded,
+                accentColor: const Color(0xFFD97706),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
+                title: 'Impressions & CTR',
+                value: '${(totalImpressions / 1000).toStringAsFixed(1)}k',
+                subtitle: '${avgCtr.toStringAsFixed(2)}% CTR',
+                icon: Icons.insights_rounded,
+                accentColor: const Color(0xFF9333EA),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
+
+  Widget _buildTabBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        labelColor: AppTheme.primary,
+        unselectedLabelColor: AppTheme.textSecondary,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        indicator: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        tabs: [
+          Tab(text: 'Campaigns (${_campaigns.length})'),
+          Tab(text: 'Ad Sets (${_adSets.length})'),
+          Tab(text: 'Ads (${_ads.length})'),
+          const Tab(text: 'Insights'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveTabContent() {
+    return KeyedSubtree(
+      key: ValueKey<int>(_selectedTabIndex),
+      child: _getTabBody(_selectedTabIndex),
+    );
+  }
+
+  Widget _getTabBody(int index) {
+    if (index == 0) {
+      return _buildCampaignsList();
+    } else if (index == 1) {
+      return _buildAdSetsList();
+    } else if (index == 2) {
+      return _buildAdsList();
+    } else {
+      return _buildInsightsOverview();
+    }
+  }
+
+  Widget _buildCampaignsList() {
+    if (_campaigns.isEmpty) {
+      return _buildEmptyTabState('No Campaigns Found', 'No campaigns match the selected filters or date range.');
+    }
+
+    return Column(
+      children: _campaigns.map((camp) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _CampaignCard(
+            campaign: camp,
+            onToggleStatus: () => _toggleStatus(camp),
+            onFilterAdSets: () {
+              setState(() {
+                _selectedCampaignFilterId = camp['id'];
+                _selectedTabIndex = 1;
+              });
+              _tabController.animateTo(1);
+            },
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildAdSetsList() {
+    if (_adSets.isEmpty) {
+      return _buildEmptyTabState(
+        'No Ad Sets Available',
+        _selectedCampaignFilterId != null
+            ? 'No ad sets found for this specific campaign.'
+            : 'Ad sets will be loaded directly from your connected Meta Ad Account.',
+      );
+    }
+
+    return Column(
+      children: [
+        if (_selectedCampaignFilterId != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                const Text('Filtered by Campaign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _selectedCampaignFilterId = null);
+                    _loadAllData();
+                  },
+                  child: const Text('Clear Filter', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+        ..._adSets.map((as) {
+          final status = (as['status'] ?? as['effectiveStatus'] ?? 'ACTIVE').toString().toUpperCase();
+          final active = status == 'ACTIVE';
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.layers_outlined, size: 18, color: AppTheme.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(as['name'] ?? 'Ad Set', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                          Text('ID: ${as['id']}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                        ],
+                      ),
+                    ),
+                    _StatusBadge(text: active ? 'Active' : 'Paused', active: active),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(color: AppTheme.border),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _MetricPill(label: 'Targeting', value: as['targetingSummary'] ?? 'Locations'),
+                    _MetricPill(label: 'Daily Budget', value: as['dailyBudget'] != null ? '₹${as['dailyBudget']}' : 'Auto'),
+                    _MetricPill(label: 'Leads', value: '${as['leadsCount'] ?? 0}'),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildAdsList() {
+    if (_ads.isEmpty) {
+      return _buildEmptyTabState(
+        'No Advertisements Available',
+        'Ads from your Meta Ad Account and active forms will appear here.',
+      );
+    }
+
+    return Column(
+      children: _ads.map((ad) {
+        final status = (ad['status'] ?? ad['effectiveStatus'] ?? 'ACTIVE').toString().toUpperCase();
+        final active = status == 'ACTIVE';
+        final creative = ad['creative'] as Map<String, dynamic>? ?? {};
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: creative['imageUrl'] != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(7),
+                            child: Image.network(creative['imageUrl'], fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_outlined, size: 20)),
+                          )
+                        : const Icon(Icons.image_outlined, size: 20, color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(ad['name'] ?? 'Ad Item', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                        if (creative['title'] != null)
+                          Text(creative['title'], style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  _StatusBadge(text: active ? 'Active' : 'Paused', active: active),
+                ],
+              ),
+              if (creative['body'] != null) ...[
+                const SizedBox(height: 8),
+                Text(creative['body'], style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
+              const SizedBox(height: 10),
+              const Divider(color: AppTheme.border),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _MetricPill(label: 'Clicks', value: '${ad['clicks'] ?? 0}'),
+                  _MetricPill(label: 'Spend', value: '₹${ad['spend'] ?? 0}'),
+                  _MetricPill(label: 'Leads', value: '${ad['leadsCount'] ?? 0}'),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildInsightsOverview() {
+    final syncRaw = _syncStatus['lastSyncTime']?.toString();
+    final parsedTime = syncRaw != null ? DateTime.tryParse(syncRaw)?.toLocal().toString().split('.')[0] : null;
+    final lastSyncTime = parsedTime ?? 'Never';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Lead Ads Synchronization', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 6),
+          Text(
+            'Sync incoming Facebook & Instagram instant-form leads into Eligible CRM without creating duplicates.',
+            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Last Synchronized', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                    Text(lastSyncTime, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _isSyncing ? null : _syncLeads,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: _isSyncing
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.sync, size: 16),
+                label: Text(_isSyncing ? 'Syncing...' : 'Sync Now'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTabState(String title, String message) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.campaign_outlined, size: 44, color: AppTheme.textSecondary),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+          const SizedBox(height: 6),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+        ],
+      ),
+    );
+  }
 }
 
-class _SummaryCard extends StatelessWidget {
+class _MetricCard extends StatelessWidget {
   final String title;
   final String value;
+  final String subtitle;
   final IconData icon;
+  final Color accentColor;
 
-  const _SummaryCard({
+  const _MetricCard({
     required this.title,
     required this.value,
+    required this.subtitle,
     required this.icon,
+    required this.accentColor,
   });
 
   @override
@@ -234,39 +890,43 @@ class _SummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: AppTheme.border,
-        ),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 19,
-            color: AppTheme.primary,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+              Icon(icon, size: 16, color: accentColor),
+            ],
           ),
-          const SizedBox(height: 9),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textPrimary,
-            ),
-          ),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: accentColor)),
           const SizedBox(height: 2),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppTheme.textSecondary,
-            ),
-          ),
+          Text(subtitle, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
         ],
       ),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MetricPill({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      ],
     );
   }
 }
@@ -274,44 +934,42 @@ class _SummaryCard extends StatelessWidget {
 class _CampaignCard extends StatelessWidget {
   final Map<String, dynamic> campaign;
   final VoidCallback onToggleStatus;
+  final VoidCallback? onFilterAdSets;
 
   const _CampaignCard({
     required this.campaign,
     required this.onToggleStatus,
+    this.onFilterAdSets,
   });
 
   @override
   Widget build(BuildContext context) {
-    final status = (campaign['status'] ?? 'ACTIVE').toString().toUpperCase();
+    final status = (campaign['effectiveStatus'] ?? campaign['status'] ?? 'ACTIVE').toString().toUpperCase();
     final bool active = status == 'ACTIVE';
-    final leads = campaign['leads_count'] ?? campaign['leads'] ?? 0;
-    final budgetVal = campaign['daily_budget'] != null ? '₹${campaign['daily_budget']}/day' : (campaign['budget'] ?? '₹1,000/day');
-    final metaId = campaign['meta_campaign_id'] ?? campaign['id'] ?? '';
+    final leads = campaign['leadsCount'] ?? campaign['leads'] ?? 0;
+    final spend = (campaign['spend'] as num?)?.toDouble() ?? 0;
+    final budgetVal = campaign['dailyBudget'] != null ? '₹${campaign['dailyBudget']}/day' : (campaign['budget'] ?? '₹1,000/day');
+    final cpl = (campaign['costPerLead'] as num?)?.toDouble() ?? (leads > 0 ? spend / leads : 0);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: AppTheme.border,
-        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                height: 44,
-                width: 44,
+                height: 42,
+                width: 42,
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.campaign_outlined,
-                  color: AppTheme.primary,
-                ),
+                child: const Icon(Icons.campaign_outlined, color: AppTheme.primary, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -322,20 +980,14 @@ class _CampaignCard extends StatelessWidget {
                       campaign['name'] ?? 'Untitled Campaign',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
-                      '${campaign['platform'] ?? 'Facebook & Instagram'} • ID: $metaId',
+                      '${campaign['objective'] ?? "LEAD_GENERATION"} • ID: ${campaign['id']}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textSecondary,
-                      ),
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                     ),
                   ],
                 ),
@@ -343,81 +995,55 @@ class _CampaignCard extends StatelessWidget {
               InkWell(
                 onTap: onToggleStatus,
                 borderRadius: BorderRadius.circular(20),
-                child: _StatusBadge(
-                  text: active ? 'Active' : 'Paused',
-                  active: active,
-                ),
+                child: _StatusBadge(text: active ? 'Active' : 'Paused', active: active),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           const Divider(color: AppTheme.border),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: _CampaignInfo(
-                  label: 'Leads Captured',
-                  value: '$leads',
-                  icon: Icons.people_outline,
-                ),
-              ),
-              Expanded(
-                child: _CampaignInfo(
-                  label: 'Daily Budget',
-                  value: '$budgetVal',
-                  icon: Icons.account_balance_wallet_outlined,
-                ),
-              ),
+              _CampaignStat(label: 'Leads', value: '$leads'),
+              _CampaignStat(label: 'Spend', value: '₹${spend.toStringAsFixed(0)}'),
+              _CampaignStat(label: 'CPL', value: '₹${cpl.toStringAsFixed(1)}'),
+              _CampaignStat(label: 'Budget', value: budgetVal),
             ],
           ),
+          if (onFilterAdSets != null) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: onFilterAdSets,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text('View Ad Sets', style: TextStyle(fontSize: 12, color: AppTheme.primary, fontWeight: FontWeight.w700)),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppTheme.primary),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _CampaignInfo extends StatelessWidget {
+class _CampaignStat extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
 
-  const _CampaignInfo({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
+  const _CampaignStat({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 17,
-          color: AppTheme.textSecondary,
-        ),
-        const SizedBox(width: 7),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
       ],
     );
   }
@@ -427,24 +1053,16 @@ class _StatusBadge extends StatelessWidget {
   final String text;
   final bool active;
 
-  const _StatusBadge({
-    required this.text,
-    required this.active,
-  });
+  const _StatusBadge({required this.text, required this.active});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: active ? const Color(0xFFF0FDF4) : const Color(0xFFFFF7ED),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: active ? const Color(0xFFBBF7D0) : const Color(0xFFFED7AA),
-        ),
+        border: Border.all(color: active ? const Color(0xFFBBF7D0) : const Color(0xFFFED7AA)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -472,7 +1090,92 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-/// Modal Bottom Sheet to create and launch a new campaign on Meta Ads
+class _DiagnosticsSheet extends StatelessWidget {
+  final Map<String, dynamic> diag;
+
+  const _DiagnosticsSheet({required this.diag});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = diag['user'] as Map<String, dynamic>? ?? {};
+    final granted = (diag['grantedPermissions'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final checks = diag['permissionChecks'] as Map<String, dynamic>? ?? {};
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Meta Connection & Permissions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _diagRow('Connected User', user['name'] ?? 'Not connected'),
+                _diagRow('Token Type', diag['type'] ?? 'USER'),
+                _diagRow('Expiration', diag['expiresAt'] ?? 'Unknown'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Granted Permissions Check', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          const SizedBox(height: 8),
+          _permTile('ads_read / ads_management', checks['ads_read'] == true),
+          _permTile('leads_retrieval', checks['leads_retrieval'] == true),
+          _permTile('pages_read_engagement', checks['pages_read_engagement'] == true),
+          _permTile('pages_manage_ads', checks['pages_manage_ads'] == true),
+          if (granted.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('All granted: ${granted.join(", ")}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _diagRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _permTile(String permission, bool granted) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(granted ? Icons.check_circle_rounded : Icons.cancel_rounded, size: 16, color: granted ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+          const SizedBox(width: 8),
+          Text(permission, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Text(granted ? 'Granted' : 'Missing', style: TextStyle(fontSize: 11, color: granted ? const Color(0xFF16A34A) : const Color(0xFFDC2626), fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
 class _CreateCampaignBottomSheet extends StatefulWidget {
   final Function(Map<String, dynamic>) onCreated;
 
@@ -488,7 +1191,7 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
   final _budgetController = TextEditingController(text: '1000');
   final _headlineController = TextEditingController(text: 'Book Exclusive Site Visit');
   final _bodyController = TextEditingController(text: 'Explore premium residential layouts. Fill form to download pricing details.');
-  
+
   String _selectedPlatform = 'Facebook & Instagram';
   bool _isSubmitting = false;
 
@@ -523,7 +1226,7 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('🎉 Meta Ads Campaign launched and synced with Firebase!'),
+            content: Text('🎉 Meta Ads Campaign launched and synced!'),
             backgroundColor: Color(0xFF16A34A),
           ),
         );
@@ -557,59 +1260,33 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Create Meta Ads Campaign',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  const Text('Create Meta Ads Campaign', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                 ],
               ),
-              const Text(
-                'Launches a Lead Generation campaign directly onto Meta Ads & saves to Firebase',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-              ),
+              const Text('Launches a Lead Generation campaign directly onto Meta Ads', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               const SizedBox(height: 18),
-
-              // Campaign Name
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Campaign Name *',
-                  hintText: 'e.g., Baner Prime Residences Launch',
-                  prefixIcon: Icon(Icons.campaign_outlined),
-                ),
+                decoration: const InputDecoration(labelText: 'Campaign Name *', prefixIcon: Icon(Icons.campaign_outlined)),
                 validator: (val) => val == null || val.trim().isEmpty ? 'Please enter a campaign name' : null,
               ),
               const SizedBox(height: 14),
-
-              // Daily Budget & Platform Row
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
                       controller: _budgetController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Daily Budget (₹) *',
-                        prefixText: '₹ ',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Daily Budget (₹) *', prefixText: '₹ '),
                       validator: (val) => val == null || double.tryParse(val) == null ? 'Valid budget required' : null,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      initialValue: _selectedPlatform,
-                      decoration: const InputDecoration(
-                        labelText: 'Target Platform',
-                      ),
+                      value: _selectedPlatform,
+                      decoration: const InputDecoration(labelText: 'Target Platform'),
                       items: const [
                         DropdownMenuItem(value: 'Facebook & Instagram', child: Text('FB & Instagram', style: TextStyle(fontSize: 13))),
                         DropdownMenuItem(value: 'Facebook', child: Text('Facebook Only', style: TextStyle(fontSize: 13))),
@@ -623,28 +1300,17 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
                 ],
               ),
               const SizedBox(height: 14),
-
-              // Ad Headline
               TextFormField(
                 controller: _headlineController,
-                decoration: const InputDecoration(
-                  labelText: 'Ad Headline',
-                  prefixIcon: Icon(Icons.title),
-                ),
+                decoration: const InputDecoration(labelText: 'Ad Headline', prefixIcon: Icon(Icons.title)),
               ),
               const SizedBox(height: 14),
-
-              // Ad Body
               TextFormField(
                 controller: _bodyController,
                 maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Ad Primary Text',
-                  prefixIcon: Icon(Icons.notes),
-                ),
+                decoration: const InputDecoration(labelText: 'Ad Primary Text', prefixIcon: Icon(Icons.notes)),
               ),
               const SizedBox(height: 22),
-
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -653,21 +1319,12 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: _isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : const Icon(Icons.rocket_launch),
-                  label: Text(
-                    _isSubmitting ? 'Creating on Meta Ads...' : 'Launch Meta Campaign',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
+                  label: Text(_isSubmitting ? 'Creating on Meta Ads...' : 'Launch Meta Campaign', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                 ),
               ),
             ],

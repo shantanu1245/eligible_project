@@ -27,7 +27,8 @@ class AppTheme {
       foregroundColor: textPrimary,
       elevation: 0,
       centerTitle: false,
-      titleSpacing: 0,
+      titleSpacing: 16,
+      actionsPadding: EdgeInsets.only(right: 8),
       titleTextStyle: TextStyle(
         color: textPrimary,
         fontSize: 19,

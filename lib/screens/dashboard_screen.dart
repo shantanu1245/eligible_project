@@ -243,6 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       appBar: AppBar(
         backgroundColor: Colors.white,
+        titleSpacing: 0,
         leading: Builder(
           builder: (context) => IconButton(
             tooltip: 'Menu',

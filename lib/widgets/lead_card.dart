@@ -87,6 +87,38 @@ class LeadCard extends StatelessWidget {
                           color: AppTheme.textSecondary,
                         ),
                       ),
+                      if (lead.source == 'Meta Ads') ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.campaign, size: 12, color: Color(0xFF2563EB)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    lead.campaign.isNotEmpty ? 'Meta • ${lead.campaign}' : 'Meta Ads Lead',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       if (lead.requiredLoan != null && lead.requiredLoan! > 0) ...[
                         const SizedBox(height: 4),
                         Row(

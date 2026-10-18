@@ -22,10 +22,189 @@ const MetaController = {
         firebase: firebaseStatus,
         meta: {
           ...metaStatus,
-          webhookEndpoint: `${req.protocol}://${req.get('host') || 'eligible-backend.onrender.com'}/api/webhooks/meta`,
+          webhookEndpoint: `${req.protocol}://${req.get('host') || 'localhost:5000'}/api/webhooks/meta`,
           verifyToken: config.meta.webhookVerifyToken,
         },
       },
+    });
+  },
+
+  /**
+   * GET /api/meta/diagnostics
+   * Validates token and reports granted permissions, expiration, and required permission checks
+   */
+  async getDiagnostics(req, res) {
+    try {
+      const diag = await metaService.getDiagnostics();
+      res.json({
+        success: diag.tokenValid,
+        data: diag,
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  /**
+   * GET /api/meta/accounts
+   * Phase 3.A: Retrieve accessible Ad Accounts with status, currency, timezone, and spend
+   */
+  async getAccounts(req, res) {
+    try {
+      const accounts = await metaService.getAdAccounts();
+      res.json({
+        success: true,
+        count: accounts.length,
+        data: accounts,
+        selectedAccountId: metaService.adAccountId || (accounts[0] ? accounts[0].id : null),
+      });
+    } catch (err) {
+      console.error('❌ [MetaController:getAccounts] Error:', err.message);
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message,
+        details: err.metaError || null,
+      });
+    }
+  },
+
+  /**
+   * GET /api/meta/campaigns
+   * Phase 3.B: Retrieve Campaigns from Meta with live metrics
+   */
+  async getCampaigns(req, res) {
+    try {
+      const { adAccountId, datePreset, status } = req.query;
+      const targetAccount = adAccountId || metaService.adAccountId;
+
+      const liveCampaigns = await metaService.getCampaigns(targetAccount, { datePreset, status });
+
+      if (liveCampaigns !== null) {
+        return res.json({
+          success: true,
+          source: 'meta_live',
+          adAccountId: targetAccount,
+          count: liveCampaigns.length,
+          data: liveCampaigns,
+        });
+      }
+
+      // Fallback to database stored campaigns if live credentials not yet set
+      const dbCampaigns = await firebaseService.getCampaigns();
+      res.json({
+        success: true,
+        source: 'database_fallback',
+        adAccountId: targetAccount || 'local',
+        count: dbCampaigns.length,
+        data: dbCampaigns,
+      });
+    } catch (err) {
+      console.error('❌ [MetaController:getCampaigns] Error:', err.message);
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message,
+        details: err.metaError || null,
+      });
+    }
+  },
+
+  /**
+   * GET /api/meta/adsets
+   * Phase 3.C: Retrieve Ad Sets with budget, schedule, targeting, and metrics
+   */
+  async getAdSets(req, res) {
+    try {
+      const { adAccountId, campaignId, datePreset, status } = req.query;
+      const targetAccount = adAccountId || metaService.adAccountId;
+
+      const adSets = await metaService.getAdSets(targetAccount, { campaignId, datePreset, status });
+      res.json({
+        success: true,
+        adAccountId: targetAccount,
+        campaignId: campaignId || null,
+        count: adSets.length,
+        data: adSets,
+      });
+    } catch (err) {
+      console.error('❌ [MetaController:getAdSets] Error:', err.message);
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message,
+        details: err.metaError || null,
+      });
+    }
+  },
+
+  /**
+   * GET /api/meta/ads
+   * Phase 3.D: Retrieve Ads with creative metadata, destination, and metrics
+   */
+  async getAds(req, res) {
+    try {
+      const { adAccountId, campaignId, adSetId, datePreset, status } = req.query;
+      const targetAccount = adAccountId || metaService.adAccountId;
+
+      const ads = await metaService.getAds(targetAccount, { campaignId, adSetId, datePreset, status });
+      res.json({
+        success: true,
+        adAccountId: targetAccount,
+        campaignId: campaignId || null,
+        adSetId: adSetId || null,
+        count: ads.length,
+        data: ads,
+      });
+    } catch (err) {
+      console.error('❌ [MetaController:getAds] Error:', err.message);
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message,
+        details: err.metaError || null,
+      });
+    }
+  },
+
+  /**
+   * GET /api/meta/insights
+   * Phase 3.E: Retrieve aggregated or daily performance insights with date presets
+   */
+  async getInsights(req, res) {
+    try {
+      const { adAccountId, level, id, datePreset, timeIncrement, since, until } = req.query;
+      const targetAccount = adAccountId || metaService.adAccountId;
+
+      const timeRange = since && until ? { since, until } : null;
+
+      const insights = await metaService.getInsights({
+        adAccountId: targetAccount,
+        level: level || 'account',
+        id: id || null,
+        datePreset: datePreset || 'last_30d',
+        timeRange,
+        timeIncrement: timeIncrement || null,
+      });
+
+      res.json({
+        success: true,
+        data: insights,
+      });
+    } catch (err) {
+      console.error('❌ [MetaController:getInsights] Error:', err.message);
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message,
+        details: err.metaError || null,
+      });
+    }
+  },
+
+  /**
+   * GET /api/meta/sync-status
+   * Phase 4 / 5: Get status and metrics of last lead sync
+   */
+  async getSyncStatus(req, res) {
+    res.json({
+      success: true,
+      data: metaService.lastSyncInfo,
     });
   },
 
@@ -55,11 +234,11 @@ const MetaController = {
 
   /**
    * POST /api/meta/config
-   * Saves dynamic Meta account configuration to Firebase Realtime Database
+   * Saves dynamic Meta account configuration
    */
   async saveConfig(req, res) {
     try {
-      const { accessToken, adAccountId, pageId, appSecret, pageName, adAccountName } = req.body;
+      const { accessToken, adAccountId, pageId, appSecret, pageName, adAccountName, appId } = req.body;
 
       if (!accessToken) {
         return res.status(400).json({ success: false, message: 'Access Token is required.' });
@@ -70,6 +249,7 @@ const MetaController = {
         accessToken,
         adAccountId,
         pageId,
+        appId,
         appSecret,
         pageName,
         adAccountName,
@@ -80,6 +260,7 @@ const MetaController = {
         accessToken,
         adAccountId: adAccountId || metaService.adAccountId,
         pageId: pageId || metaService.pageId,
+        appId: appId || metaService.appId,
         appSecret: appSecret || metaService.appSecret,
         pageName: pageName || '',
         adAccountName: adAccountName || '',
@@ -134,6 +315,23 @@ const MetaController = {
   async testConnection(req, res) {
     const result = await metaService.testConnection();
     res.json(result);
+  },
+
+  /**
+   * POST /api/meta/extend-token
+   * Exchanges a short-lived User token for a 60-day Long-Lived Token
+   */
+  async extendToken(req, res) {
+    try {
+      const { accessToken } = req.body;
+      const result = await metaService.exchangeForLongLivedToken(accessToken);
+      if (result.success && result.accessToken) {
+        metaService.setCredentials({ accessToken: result.accessToken });
+      }
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   },
 
   /**

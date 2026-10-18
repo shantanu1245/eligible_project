@@ -464,12 +464,16 @@ const FirebaseService = {
     ensureLocalDb();
     if (isLiveFirebase && rtdb) {
       try {
-        const snapshot = await rtdb.ref('settings/meta_config').once('value');
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('RTDB timeout')), 800)
+        );
+        const fetchPromise = rtdb.ref('settings/meta_config').once('value');
+        const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
         const val = snapshot.val();
         if (val) return val;
       } catch (_) {}
     }
-    return localStore.settings.meta_config || null;
+    return localStore.settings?.meta_config || null;
   },
 
   async saveMetaConfig(metaConfig) {
@@ -559,7 +563,11 @@ const FirebaseService = {
 
     if (isLiveFirebase && rtdb) {
       try {
-        const snapshot = await rtdb.ref('notifications').once('value');
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('RTDB timeout')), 800)
+        );
+        const fetchPromise = rtdb.ref('notifications').once('value');
+        const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
         const val = snapshot.val();
         if (val) {
           const updates = {};

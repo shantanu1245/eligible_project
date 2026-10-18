@@ -150,57 +150,23 @@ const LeadController = {
    */
   async syncMetaLeads(req, res) {
     try {
-      const { formId } = req.body;
-      const targetFormId = formId || 'default';
-      console.log(`🔄 [Sync] Starting manual lead sync from Meta Form: ${targetFormId}...`);
+      const { formId, pageId } = req.body;
+      console.log(`🔄 [Sync] Starting lead sync from Meta (Form: ${formId || 'all'}, Page: ${pageId || 'default'})...`);
 
-      const rawLeads = await metaService.fetchFormLeads(targetFormId);
-      let newCount = 0;
-
-      for (const item of rawLeads) {
-        const fields = {};
-        for (const f of item.field_data || []) {
-          fields[f.name] = Array.isArray(f.values) && f.values.length > 0 ? f.values[0] : '';
-        }
-
-        const name = fields.full_name || fields.first_name || 'Meta Sync Lead';
-        const email = fields.email || '';
-        const phone = fields.phone_number || fields.phone || '';
-
-        const record = {
-          id: `meta_${item.id}`,
-          meta_leadgen_id: item.id,
-          meta_form_id: formId,
-          name,
-          email,
-          phone,
-          source: 'Meta Ads',
-          campaign: item.campaign_name || 'Meta Lead Gen Campaign',
-          status: 'newLead',
-          assignedTo: '',
-          createdAt: item.created_time || new Date().toISOString(),
-          note: `Synced from Meta Form ${targetFormId}`,
-          activities: [
-            {
-              id: `act_${Date.now()}`,
-              title: 'Synced from Meta Lead Form',
-              description: `Batch sync from Form ${targetFormId}`,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-          followUps: [],
-        };
-
-        await firebaseService.saveLead(record);
-        newCount++;
-      }
+      const syncResult = await metaService.syncAllLeads({
+        formId,
+        pageId,
+        firebaseService,
+      });
 
       const allLeads = await firebaseService.getLeads();
       res.json({
         success: true,
-        message: `Successfully synced ${newCount} leads from Meta to Firebase`,
-        syncedCount: newCount,
+        message: `Successfully synced ${syncResult.syncedCount} leads from Meta Ads (${syncResult.duplicatesSkipped || 0} duplicates skipped)`,
+        syncedCount: syncResult.syncedCount,
+        duplicatesSkipped: syncResult.duplicatesSkipped || 0,
         totalLeadsInDb: allLeads.length,
+        lastSyncTime: syncResult.lastSyncTime,
       });
     } catch (err) {
       console.error('❌ [Sync Error]:', err.message);

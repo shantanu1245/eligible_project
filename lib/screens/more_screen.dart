@@ -10,6 +10,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'tasks_screen.dart';
 import 'team_screen.dart';
+import 'meta_account_details_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   final UserModel user;
@@ -172,6 +173,22 @@ class MoreScreen extends StatelessWidget {
                       currentUser: user,
                       onLeadsUpdated: onLeadsUpdated,
                     ),
+                  ),
+                );
+              },
+            ),
+
+            // Meta Account Details
+            _MenuItem(
+              icon: Icons.hub_outlined,
+              title: 'Meta Account Details',
+              subtitle: 'Full diagnostics, 41 ad accounts, campaigns & insights',
+              trailing: _connectedBadge('Live'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MetaAccountDetailsScreen(),
                   ),
                 );
               },

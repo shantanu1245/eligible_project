@@ -3,6 +3,7 @@ import '../models/lead.dart';
 import '../models/user.dart';
 import '../screens/add_lead_screen.dart';
 import '../screens/campaigns_screen.dart';
+import '../screens/meta_account_details_screen.dart';
 import '../screens/lead_allotment_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/tasks_screen.dart';
@@ -197,6 +198,22 @@ class AppDrawer extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const CampaignsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _drawerItem(
+                      context: context,
+                      icon: Icons.hub_outlined,
+                      selectedIcon: Icons.hub,
+                      title: 'Meta Account Details',
+                      isSelected: false,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MetaAccountDetailsScreen(),
                           ),
                         );
                       },

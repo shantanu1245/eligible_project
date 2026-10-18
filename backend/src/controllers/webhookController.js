@@ -62,7 +62,18 @@ const WebhookController = {
   async handleWebhook(req, res) {
     try {
       const payload = req.body;
-      console.log('📥 [Webhook] Incoming Meta webhook event received');
+      const signature = req.headers['x-hub-signature-256'];
+
+      // Verify HMAC-SHA256 signature when App Secret is configured
+      if (config.meta.appSecret && req.rawBody) {
+        const isValid = metaService.verifyWebhookSignature(req.rawBody, signature);
+        if (!isValid) {
+          console.warn('❌ [Webhook] Invalid X-Hub-Signature-256 header. Rejecting webhook request.');
+          return res.status(403).json({ error: 'Invalid webhook signature' });
+        }
+      }
+
+      console.log('📥 [Webhook] Incoming verified Meta webhook event received');
 
       // Always acknowledge receipt to Meta immediately (must respond within 20s)
       res.status(200).send('EVENT_RECEIVED');

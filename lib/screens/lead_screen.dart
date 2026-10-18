@@ -71,6 +71,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
+        titleSpacing: 16,
+        actionsPadding: const EdgeInsets.only(right: 8),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -94,17 +96,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
         ),
         actions: [
           if (isAdmin && widget.onOpenAllotment != null)
-            TextButton.icon(
-              onPressed: widget.onOpenAllotment,
-              icon: const Icon(Icons.assignment_ind, size: 18),
-              label: Text(
-                unassignedCount > 0 ? 'Allot ($unassignedCount)' : 'Allot',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              style: TextButton.styleFrom(
-                foregroundColor: unassignedCount > 0
-                    ? const Color(0xFFDC2626)
-                    : AppTheme.primary,
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: TextButton.icon(
+                onPressed: widget.onOpenAllotment,
+                icon: const Icon(Icons.assignment_ind, size: 18),
+                label: Text(
+                  unassignedCount > 0 ? 'Allot ($unassignedCount)' : 'Allot',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: unassignedCount > 0
+                      ? const Color(0xFFDC2626)
+                      : AppTheme.primary,
+                ),
               ),
             ),
           IconButton(
@@ -113,6 +118,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
             icon: const Icon(Icons.person_add_alt_1_rounded),
           ),
           IconButton(
+            tooltip: 'Filter Leads',
             onPressed: () {},
             icon: const Icon(Icons.tune_rounded),
           ),

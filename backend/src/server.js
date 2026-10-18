@@ -68,20 +68,30 @@ const server = app.listen(config.port, () => {
   console.log(`🌐 Base URL:          http://localhost:${config.port}`);
   console.log(`📡 Health Check:      http://localhost:${config.port}/api/health`);
   console.log(`🔗 Meta Status:       http://localhost:${config.port}/api/meta/status`);
+  console.log(`🔍 Meta Diagnostics:  http://localhost:${config.port}/api/meta/diagnostics`);
   console.log(`📥 Meta Webhook URL:  http://localhost:${config.port}/api/webhooks/meta`);
   console.log(`🔔 Notifications:     http://localhost:${config.port}/api/notifications`);
-  console.log(`🔑 Webhook Verify:    "${config.meta.webhookVerifyToken}"`);
+  console.log('--- Meta Credentials Status ---');
+  console.log(`   App ID:            ${config.meta.appId ? '✅ Configured' : '⚠️ Missing (Set in .env)'}`);
+  console.log(`   App Secret:        ${config.meta.appSecret ? '✅ Configured' : '⚠️ Missing (Set in .env)'}`);
+  console.log(`   Access Token:      ${config.meta.accessToken ? '✅ Configured' : '⚠️ Missing (Set in .env)'}`);
+  console.log(`   API Version:       ${config.meta.apiVersion}`);
+  console.log(`   Verify Token:      ${config.meta.webhookVerifyToken ? '✅ Configured' : '⚠️ Missing'}`);
   console.log('======================================================\n');
 
-  // Load dynamically saved Meta credentials from Firebase Realtime Database
-  firebaseService.getMetaConfig().then((saved) => {
-    if (saved && saved.accessToken) {
-      metaService.setCredentials(saved);
-      console.log('✨ [Bootstrap] Loaded dynamic Meta credentials from Firebase Realtime Database.');
-    }
-  }).catch((err) => {
-    console.warn('Could not load dynamic Meta credentials:', err.message);
-  });
+  // Load dynamically saved Meta credentials from Firebase Realtime Database only if not already set in .env
+  if (!config.meta.accessToken) {
+    firebaseService.getMetaConfig().then((saved) => {
+      if (saved && saved.accessToken) {
+        metaService.setCredentials(saved);
+        console.log('✨ [Bootstrap] Loaded dynamic Meta credentials from Firebase Realtime Database.');
+      }
+    }).catch((err) => {
+      console.warn('Could not load dynamic Meta credentials:', err.message);
+    });
+  } else {
+    console.log('🔒 [Bootstrap] Prioritizing environment variables (.env) for Meta credentials.');
+  }
 
   // Setup Real-time Firebase RTDB listener for incoming leads
   const serverStartTime = Date.now();

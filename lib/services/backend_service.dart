@@ -6,10 +6,28 @@ import 'package:http/http.dart' as http;
 class BackendService {
   static final BackendService _instance = BackendService._internal();
   factory BackendService() => _instance;
-  BackendService._internal();
+  BackendService._internal() {
+    _initBaseUrl();
+  }
 
-  /// Default Base URL pointing to deployed Render cloud backend
-  String _baseUrl = 'https://eligible-backend.onrender.com/api';
+  /// Base URL: auto-detects active local backend on web/desktop/debug, falls back to cloud Render
+  String _baseUrl = (kIsWeb || kDebugMode)
+      ? (kIsWeb || defaultTargetPlatform != TargetPlatform.android
+          ? 'http://localhost:5000/api'
+          : 'http://10.0.2.2:5000/api')
+      : 'https://eligible-backend.onrender.com/api';
+
+  void _initBaseUrl() {
+    if (kIsWeb || kDebugMode) {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        _baseUrl = 'http://10.0.2.2:5000/api';
+      } else {
+        _baseUrl = 'http://localhost:5000/api';
+      }
+    } else {
+      _baseUrl = 'https://eligible-backend.onrender.com/api';
+    }
+  }
 
   String get baseUrl => _baseUrl;
   set baseUrl(String url) {
@@ -35,7 +53,7 @@ class BackendService {
     _keepAliveTimer = null;
   }
 
-  /// Fast ping to Render instance to keep it active and awake
+  /// Fast ping to instance to keep it active and awake
   Future<Map<String, dynamic>> pingServer() async {
     try {
       final res = await http
@@ -43,14 +61,25 @@ class BackendService {
             Uri.parse('$_baseUrl/ping'),
             headers: {'X-Purpose': 'flutter-keep-alive'},
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         debugPrint('[BackendService] 💓 Server Awake: ${data['message']} (uptime: ${data['uptimeSeconds']}s)');
         return data;
       }
     } catch (e) {
-      debugPrint('[BackendService] ⚠️ Ping warning (server waking up): $e');
+      debugPrint('[BackendService] ⚠️ Ping note: $e');
+      final alternate = _baseUrl.contains('localhost') || _baseUrl.contains('10.0.2.2')
+          ? 'https://eligible-backend.onrender.com/api'
+          : (kIsWeb || defaultTargetPlatform != TargetPlatform.android ? 'http://localhost:5000/api' : 'http://10.0.2.2:5000/api');
+      try {
+        final altRes = await http.get(Uri.parse('$alternate/ping')).timeout(const Duration(seconds: 4));
+        if (altRes.statusCode == 200) {
+          _baseUrl = alternate;
+          debugPrint('[BackendService] 🔄 Auto-switched to active backend: $_baseUrl');
+          return jsonDecode(altRes.body);
+        }
+      } catch (_) {}
     }
     return {'status': 'error'};
   }
@@ -181,6 +210,208 @@ class BackendService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Safe HTTP GET with auto-discovery and seamless host fallback (Local <-> Cloud)
+  Future<http.Response?> _safeGet(String path, {Map<String, String>? query, Duration timeout = const Duration(seconds: 10)}) async {
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    final uri = Uri.parse('$_baseUrl/$cleanPath').replace(queryParameters: query?.isNotEmpty == true ? query : null);
+    try {
+      final res = await http.get(uri).timeout(timeout);
+      if (res.statusCode == 200) return res;
+    } catch (e) {
+      debugPrint('[BackendService] Request to $_baseUrl/$cleanPath note: $e');
+    }
+
+    // Try alternate host (local <-> cloud)
+    final alternate = _baseUrl.contains('localhost') || _baseUrl.contains('10.0.2.2')
+        ? 'https://eligible-backend.onrender.com/api'
+        : (kIsWeb || defaultTargetPlatform != TargetPlatform.android ? 'http://localhost:5000/api' : 'http://10.0.2.2:5000/api');
+
+    try {
+      final altUri = Uri.parse('$alternate/$cleanPath').replace(queryParameters: query?.isNotEmpty == true ? query : null);
+      final altRes = await http.get(altUri).timeout(const Duration(seconds: 8));
+      if (altRes.statusCode == 200) {
+        _baseUrl = alternate;
+        debugPrint('[BackendService] 🔄 Auto-switched to active backend: $_baseUrl');
+        return altRes;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Retrieve accessible Meta Ad Accounts
+  Future<List<Map<String, dynamic>>> getMetaAccounts() async {
+    try {
+      final res = await _safeGet('meta/accounts');
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = data['data'] as List<dynamic>?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaAccounts error: $e');
+    }
+    return [];
+  }
+
+  /// Retrieve Meta Campaigns with live metrics & date filters
+  Future<List<Map<String, dynamic>>> getMetaCampaigns({
+    String? adAccountId,
+    String? datePreset,
+    String? status,
+  }) async {
+    try {
+      final query = <String, String>{};
+      if (adAccountId != null) query['adAccountId'] = adAccountId;
+      if (datePreset != null) query['datePreset'] = datePreset;
+      if (status != null) query['status'] = status;
+
+      final res = await _safeGet('meta/campaigns', query: query);
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = data['data'] as List<dynamic>?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaCampaigns error: $e');
+    }
+    return [];
+  }
+
+  /// Retrieve Meta Ad Sets
+  Future<List<Map<String, dynamic>>> getMetaAdSets({
+    String? adAccountId,
+    String? campaignId,
+    String? datePreset,
+    String? status,
+  }) async {
+    try {
+      final query = <String, String>{};
+      if (adAccountId != null) query['adAccountId'] = adAccountId;
+      if (campaignId != null) query['campaignId'] = campaignId;
+      if (datePreset != null) query['datePreset'] = datePreset;
+      if (status != null) query['status'] = status;
+
+      final res = await _safeGet('meta/adsets', query: query);
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = data['data'] as List<dynamic>?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaAdSets error: $e');
+    }
+    return [];
+  }
+
+  /// Retrieve Meta Ads
+  Future<List<Map<String, dynamic>>> getMetaAds({
+    String? adAccountId,
+    String? campaignId,
+    String? adSetId,
+    String? datePreset,
+    String? status,
+  }) async {
+    try {
+      final query = <String, String>{};
+      if (adAccountId != null) query['adAccountId'] = adAccountId;
+      if (campaignId != null) query['campaignId'] = campaignId;
+      if (adSetId != null) query['adSetId'] = adSetId;
+      if (datePreset != null) query['datePreset'] = datePreset;
+      if (status != null) query['status'] = status;
+
+      final res = await _safeGet('meta/ads', query: query);
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = data['data'] as List<dynamic>?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaAds error: $e');
+    }
+    return [];
+  }
+
+  /// Retrieve Performance Insights
+  Future<Map<String, dynamic>> getMetaInsights({
+    String? adAccountId,
+    String level = 'account',
+    String? id,
+    String datePreset = 'last_30d',
+    String? timeIncrement,
+  }) async {
+    try {
+      final query = <String, String>{
+        'level': level,
+        'datePreset': datePreset,
+      };
+      if (adAccountId != null) query['adAccountId'] = adAccountId;
+      if (id != null) query['id'] = id;
+      if (timeIncrement != null) query['timeIncrement'] = timeIncrement;
+
+      final res = await _safeGet('meta/insights', query: query);
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['data'] ?? {};
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaInsights error: $e');
+    }
+    return {};
+  }
+
+  /// Retrieve Meta Diagnostics & Permissions
+  Future<Map<String, dynamic>> getMetaDiagnostics() async {
+    try {
+      final res = await _safeGet('meta/diagnostics');
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['data'] ?? {};
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaDiagnostics error: $e');
+    }
+    return {};
+  }
+
+  /// Retrieve Meta Sync Status
+  Future<Map<String, dynamic>> getMetaSyncStatus() async {
+    try {
+      final res = await _safeGet('meta/sync-status');
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['data'] ?? {};
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  /// Retrieve Meta Leadgen Forms
+  Future<List<Map<String, dynamic>>> getMetaLeadForms({String? pageId}) async {
+    try {
+      final query = pageId != null ? {'pageId': pageId} : null;
+      final res = await _safeGet('meta/leadgen-forms', query: query);
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = data['data'] as List<dynamic>?;
+        if (list != null) {
+          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaLeadForms error: $e');
+    }
+    return [];
   }
 
   /// Loan Calculator Web App & Database Base URL (default local port 3000)
@@ -468,13 +699,26 @@ class BackendService {
     try {
       final res = await http
           .get(Uri.parse('$_baseUrl/meta/config'))
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 12));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return data['data'] ?? {};
       }
     } catch (e) {
       debugPrint('[BackendService] getMetaConfig error: $e');
+      final alternate = _baseUrl.contains('localhost') || _baseUrl.contains('10.0.2.2')
+          ? 'https://eligible-backend.onrender.com/api'
+          : (kIsWeb || defaultTargetPlatform != TargetPlatform.android ? 'http://localhost:5000/api' : 'http://10.0.2.2:5000/api');
+      try {
+        final altRes = await http
+            .get(Uri.parse('$alternate/meta/config'))
+            .timeout(const Duration(seconds: 8));
+        if (altRes.statusCode == 200) {
+          _baseUrl = alternate;
+          final data = jsonDecode(altRes.body);
+          return data['data'] ?? {};
+        }
+      } catch (_) {}
     }
     return {};
   }
