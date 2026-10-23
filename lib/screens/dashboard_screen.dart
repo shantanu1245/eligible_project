@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
@@ -33,6 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late List<Lead> leads;
   bool _isLoading = true;
   int _unreadNotifCount = 0;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -41,6 +43,98 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchLeadsFromBackend();
     _fetchUnreadNotificationCount();
     _registerDeviceToken();
+    _startLivePollingTimer();
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startLivePollingTimer() {
+    _pollingTimer?.cancel();
+    // Poll every 12 seconds for real-time notifications and new leads
+    _pollingTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (!mounted) return;
+      _checkNewDataAndNotifyAdmin();
+    });
+  }
+
+  Future<void> _checkNewDataAndNotifyAdmin() async {
+    try {
+      final res = await BackendService().getNotifications();
+      final newUnreadCount = (res['unreadCount'] as int?) ?? 0;
+      if (mounted && newUnreadCount > _unreadNotifCount) {
+        final notifications = (res['data'] as List<dynamic>?) ?? [];
+        final latest = notifications.isNotEmpty ? notifications.first as Map<String, dynamic> : null;
+        final leadTitle = latest?['title'] ?? 'New Lead Arrived';
+        final leadBody = latest?['body'] ?? 'A new Meta lead has been received';
+
+        setState(() {
+          _unreadNotifCount = newUnreadCount;
+        });
+
+        // Trigger in-app live alert banner for Admin
+        if (widget.user.isAdmin && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.mark_email_unread_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          leadTitle,
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                        ),
+                        Text(
+                          leadBody,
+                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1E293B),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              action: SnackBarAction(
+                label: 'View',
+                textColor: const Color(0xFF38BDF8),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NotificationsScreen(
+                        leads: leads,
+                        currentUser: widget.user,
+                        onLeadsUpdated: _handleLeadsListUpdated,
+                      ),
+                    ),
+                  ).then((_) => _fetchUnreadNotificationCount());
+                },
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+
+        // Automatically reload leads so the new lead appears right away
+        _fetchLeadsFromBackend();
+      } else if (mounted && newUnreadCount != _unreadNotifCount) {
+        setState(() {
+          _unreadNotifCount = newUnreadCount;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _registerDeviceToken() async {

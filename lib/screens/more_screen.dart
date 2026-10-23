@@ -11,6 +11,7 @@ import 'profile_screen.dart';
 import 'tasks_screen.dart';
 import 'team_screen.dart';
 import 'meta_account_details_screen.dart';
+import 'campaigns_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   final UserModel user;
@@ -143,6 +144,23 @@ class MoreScreen extends StatelessWidget {
                 },
               ),
 
+            // Administrator-only Campaigns (Meta Ads Manager)
+            if (user.isAdmin)
+              _MenuItem(
+                icon: Icons.campaign_outlined,
+                title: 'Campaigns',
+                subtitle: 'Create, launch & monitor Meta Ads campaigns',
+                trailing: _connectedBadge('Meta Ads'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CampaignsScreen(),
+                    ),
+                  );
+                },
+              ),
+
             // Tasks available for everyone
             _MenuItem(
               icon: Icons.task_alt_outlined,
@@ -182,7 +200,7 @@ class MoreScreen extends StatelessWidget {
             _MenuItem(
               icon: Icons.hub_outlined,
               title: 'Meta Account Details',
-              subtitle: 'Full diagnostics, 41 ad accounts, campaigns & insights',
+              subtitle: 'Eligible.com live campaigns, ads, insights & diagnostics',
               trailing: _connectedBadge('Live'),
               onTap: () {
                 Navigator.push(

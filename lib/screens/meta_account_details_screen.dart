@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'meta_setup_screen.dart';
+import 'campaigns_screen.dart';
 
 class MetaAccountDetailsScreen extends StatefulWidget {
   final String? initialAdAccountId;
@@ -72,18 +73,20 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     super.dispose();
   }
 
-  Future<void> _loadAllAccountData() async {
+  Future<void> _loadAllAccountData({bool forceRefresh = false}) async {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Diagnostics & accessible ad accounts
-      final diag = await _backend.getMetaDiagnostics();
-      final accounts = await _backend.getMetaAccounts();
-      final syncSt = await _backend.getMetaSyncStatus();
+      // 1. Diagnostics, accessible ad accounts & sync status in parallel
+      final initResults = await Future.wait([
+        _backend.getMetaDiagnostics(forceRefresh: forceRefresh),
+        _backend.getMetaAccounts(forceRefresh: forceRefresh),
+        _backend.getMetaSyncStatus(forceRefresh: forceRefresh),
+      ]);
 
-      _diagnostics = diag;
-      _adAccounts = accounts;
-      _syncStatus = syncSt;
+      _diagnostics = initResults[0] as Map<String, dynamic>;
+      _adAccounts = initResults[1] as List<Map<String, dynamic>>;
+      _syncStatus = initResults[2] as Map<String, dynamic>;
 
       // Select active ad account
       if (_selectedAdAccountId == null || !_adAccounts.any((a) => a['id'] == _selectedAdAccountId)) {
@@ -98,13 +101,13 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
           orElse: () => _adAccounts.isNotEmpty ? _adAccounts.first : {},
         );
 
-        // 2. Fetch specific data for selected ad account
+        // 2. Fetch specific data for selected ad account in parallel
         final results = await Future.wait([
-          _backend.getMetaCampaigns(adAccountId: _selectedAdAccountId),
-          _backend.getMetaAdSets(adAccountId: _selectedAdAccountId),
-          _backend.getMetaAds(adAccountId: _selectedAdAccountId),
-          _backend.getMetaInsights(adAccountId: _selectedAdAccountId, datePreset: _selectedDatePreset),
-          _backend.getMetaLeadForms(),
+          _backend.getMetaCampaigns(adAccountId: _selectedAdAccountId, forceRefresh: forceRefresh),
+          _backend.getMetaAdSets(adAccountId: _selectedAdAccountId, forceRefresh: forceRefresh),
+          _backend.getMetaAds(adAccountId: _selectedAdAccountId, forceRefresh: forceRefresh),
+          _backend.getMetaInsights(adAccountId: _selectedAdAccountId, datePreset: _selectedDatePreset, forceRefresh: forceRefresh),
+          _backend.getMetaLeadForms(forceRefresh: forceRefresh),
         ]);
 
         _campaigns = results[0] as List<Map<String, dynamic>>;
@@ -154,14 +157,16 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
 
   Future<void> _syncLeads() async {
     setState(() => _isSyncing = true);
+    _backend.clearMetaCache();
     final res = await _backend.syncMetaLeads();
-    final refreshedSync = await _backend.getMetaSyncStatus();
+    final refreshedSync = await _backend.getMetaSyncStatus(forceRefresh: true);
 
     if (mounted) {
       setState(() {
         _isSyncing = false;
         _syncStatus = refreshedSync;
       });
+      _loadAllAccountData(forceRefresh: true);
 
       final count = res['syncedCount'] ?? 0;
       final dups = res['duplicatesSkipped'] ?? 0;
@@ -340,7 +345,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadAllAccountData,
+            onPressed: () => _loadAllAccountData(forceRefresh: true),
             tooltip: 'Refresh All Meta Data',
           ),
           IconButton(
@@ -365,13 +370,15 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
               ),
             )
           : RefreshIndicator(
-              onRefresh: _loadAllAccountData,
+              onRefresh: () => _loadAllAccountData(forceRefresh: true),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 30),
                 children: [
                   _buildProfileHeaderCard(),
                   const SizedBox(height: 12),
                   _buildAccountSwitcherCard(),
+                  const SizedBox(height: 12),
+                  _buildConnectedAssetsCard(),
                   const SizedBox(height: 12),
                   _buildDateFilterRow(),
                   const SizedBox(height: 16),
@@ -595,6 +602,138 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     );
   }
 
+  Widget _buildConnectedAssetsCard() {
+    final page = _diagnostics['page'] as Map<String, dynamic>?;
+    final instagram = _diagnostics['instagram'] as Map<String, dynamic>?;
+
+    final pageName = page?['name'] ?? 'Eligible.com';
+    final pageCategory = page?['category'] ?? 'Loan service';
+
+    final igHandle = instagram?['username'] ?? 'eligible1954';
+    final igName = instagram?['name'] ?? 'eligible.com';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.hub_outlined, size: 16, color: AppTheme.primary),
+              SizedBox(width: 6),
+              Text(
+                'Connected Meta Channels',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.textPrimary),
+              ),
+              Spacer(),
+              Text(
+                '2 Channels Active',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Facebook Page
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1877F2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.facebook, color: Colors.white, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pageName,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Page • $pageCategory',
+                              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Instagram
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDF2F8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFBCFE8)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '@$igHandle',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              igName,
+                              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDateFilterRow() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -781,18 +920,71 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
   }
 
   Widget _buildCampaignsTab() {
-    if (_campaigns.isEmpty) {
-      return _buildEmptyState('No Campaigns in this Ad Account', 'Switch ad accounts above to view campaigns in other accounts.');
-    }
-
     return Column(
-      children: _campaigns.map((camp) {
-        final status = (camp['effectiveStatus'] ?? camp['status'] ?? 'ACTIVE').toString().toUpperCase();
-        final isActive = status == 'ACTIVE';
-        final spend = camp['spend'] ?? 0;
-        final leads = camp['leads'] ?? camp['leadsCount'] ?? 0;
-        final dailyBudget = camp['dailyBudget'] != null ? '₹${camp['dailyBudget']}' : 'Auto';
-        final objective = camp['objective'] ?? 'OUTCOME_LEADS';
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.campaign, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Meta Ads Manager',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppTheme.textPrimary),
+                    ),
+                    Text(
+                      'Create & launch new lead campaigns directly from the CRM',
+                      style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CampaignsScreen()),
+                  ).then((_) => _loadAllAccountData());
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Create Ad', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+        if (_campaigns.isEmpty)
+          _buildEmptyState('No Campaigns in this Ad Account', 'Switch ad accounts above or tap "Create Ad" to launch one.')
+        else
+          ..._campaigns.map((camp) {
+            final status = (camp['effectiveStatus'] ?? camp['status'] ?? 'ACTIVE').toString().toUpperCase();
+            final isActive = status == 'ACTIVE';
+            final spend = camp['spend'] ?? 0;
+            final leads = camp['leads'] ?? camp['leadsCount'] ?? 0;
+            final dailyBudget = camp['dailyBudget'] != null ? '₹${camp['dailyBudget']}' : 'Auto';
+            final objective = camp['objective'] ?? 'OUTCOME_LEADS';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -885,9 +1077,10 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
             ],
           ),
         );
-      }).toList(),
-    );
-  }
+      }),
+    ],
+  );
+}
 
   Widget _buildAdSetsTab() {
     if (_adSets.isEmpty) {

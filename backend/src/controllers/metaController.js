@@ -35,7 +35,8 @@ const MetaController = {
    */
   async getDiagnostics(req, res) {
     try {
-      const diag = await metaService.getDiagnostics();
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
+      const diag = await metaService.getDiagnostics({ forceRefresh });
       res.json({
         success: diag.tokenValid,
         data: diag,
@@ -51,7 +52,8 @@ const MetaController = {
    */
   async getAccounts(req, res) {
     try {
-      const accounts = await metaService.getAdAccounts();
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
+      const accounts = await metaService.getAdAccounts({ forceRefresh });
       res.json({
         success: true,
         count: accounts.length,
@@ -75,9 +77,10 @@ const MetaController = {
   async getCampaigns(req, res) {
     try {
       const { adAccountId, datePreset, status } = req.query;
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
       const targetAccount = adAccountId || metaService.adAccountId;
 
-      const liveCampaigns = await metaService.getCampaigns(targetAccount, { datePreset, status });
+      const liveCampaigns = await metaService.getCampaigns(targetAccount, { datePreset, status, forceRefresh });
 
       if (liveCampaigns !== null) {
         return res.json({
@@ -115,9 +118,10 @@ const MetaController = {
   async getAdSets(req, res) {
     try {
       const { adAccountId, campaignId, datePreset, status } = req.query;
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
       const targetAccount = adAccountId || metaService.adAccountId;
 
-      const adSets = await metaService.getAdSets(targetAccount, { campaignId, datePreset, status });
+      const adSets = await metaService.getAdSets(targetAccount, { campaignId, datePreset, status, forceRefresh });
       res.json({
         success: true,
         adAccountId: targetAccount,
@@ -142,9 +146,10 @@ const MetaController = {
   async getAds(req, res) {
     try {
       const { adAccountId, campaignId, adSetId, datePreset, status } = req.query;
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
       const targetAccount = adAccountId || metaService.adAccountId;
 
-      const ads = await metaService.getAds(targetAccount, { campaignId, adSetId, datePreset, status });
+      const ads = await metaService.getAds(targetAccount, { campaignId, adSetId, datePreset, status, forceRefresh });
       res.json({
         success: true,
         adAccountId: targetAccount,
@@ -170,6 +175,7 @@ const MetaController = {
   async getInsights(req, res) {
     try {
       const { adAccountId, level, id, datePreset, timeIncrement, since, until } = req.query;
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
       const targetAccount = adAccountId || metaService.adAccountId;
 
       const timeRange = since && until ? { since, until } : null;
@@ -181,6 +187,7 @@ const MetaController = {
         datePreset: datePreset || 'last_30d',
         timeRange,
         timeIncrement: timeIncrement || null,
+        forceRefresh,
       });
 
       res.json({
@@ -341,7 +348,8 @@ const MetaController = {
   async getLeadForms(req, res) {
     try {
       const pageId = req.query.pageId || metaService.pageId;
-      const forms = await metaService.getLeadForms(pageId);
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
+      const forms = await metaService.getLeadForms(pageId, { forceRefresh });
       res.json({
         success: true,
         count: forms.length,
@@ -350,6 +358,15 @@ const MetaController = {
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
+  },
+
+  /**
+   * POST /api/meta/clear-cache
+   * Invalidate in-memory Meta cache
+   */
+  async clearCache(req, res) {
+    metaService.clearCache();
+    res.json({ success: true, message: 'Meta cache cleared successfully' });
   },
 };
 

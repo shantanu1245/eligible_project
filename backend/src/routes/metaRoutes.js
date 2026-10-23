@@ -23,5 +23,6 @@ router.get('/ads', metaController.getAds);
 // Performance Insights & Reporting
 router.get('/insights', metaController.getInsights);
 router.get('/sync-status', metaController.getSyncStatus);
+router.post('/clear-cache', metaController.clearCache);
 
 module.exports = router;

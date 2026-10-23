@@ -20,6 +20,8 @@ class MetaService {
       status: 'idle',
       lastError: null,
     };
+    this._cache = new Map();
+    this.cacheTtlMs = 180000; // 3 minutes TTL for lightning speed
   }
 
   setCredentials({ accessToken, adAccountId, pageId, appSecret, pageName, adAccountName, appId }) {
@@ -30,6 +32,7 @@ class MetaService {
     if (appSecret !== undefined) this.appSecret = appSecret.trim();
     if (pageName) this.pageName = pageName.trim();
     if (adAccountName) this.adAccountName = adAccountName.trim();
+    this.clearCache();
     console.log(`🔄 [MetaService] Credentials updated: Page="${this.pageName || this.pageId}", AdAccount="${this.adAccountName || this.adAccountId}"`);
   }
 
@@ -103,14 +106,45 @@ class MetaService {
   }
 
   /**
-   * Helper to perform axios requests against Meta Graph API with transient retry & rate limit protection
+   * Clear in-memory Meta API cache (whole cache or matching a keyword)
    */
-  async _request(method, endpoint, data = null, customParams = {}, retries = 2) {
+  clearCache(pattern = null) {
+    if (!pattern) {
+      this._cache.clear();
+      console.log('🧹 [MetaService] All Meta API cache entries cleared.');
+    } else {
+      for (const key of this._cache.keys()) {
+        if (key.includes(pattern)) {
+          this._cache.delete(key);
+        }
+      }
+      console.log(`🧹 [MetaService] Cleared Meta API cache matching "${pattern}".`);
+    }
+  }
+
+  /**
+   * Helper to perform axios requests against Meta Graph API with in-memory caching & rate limit protection
+   */
+  async _request(method, endpoint, data = null, customParams = {}, retries = 2, options = {}) {
+    const isGet = method.toUpperCase() === 'GET';
+    const forceRefresh = Boolean(options.forceRefresh || customParams?.forceRefresh);
+    const ttl = options.ttl || this.cacheTtlMs || 180000;
+
+    // Fast cache lookup for GET requests
+    const cacheKey = isGet ? `${endpoint}::${JSON.stringify(customParams || {})}` : null;
+    if (isGet && !forceRefresh && cacheKey && this._cache.has(cacheKey)) {
+      const cached = this._cache.get(cacheKey);
+      if (Date.now() - cached.timestamp < ttl) {
+        return cached.data;
+      }
+    }
+
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}/${endpoint.replace(/^\//, '')}`;
     const params = {
       access_token: this.accessToken,
       ...customParams,
     };
+    delete params.forceRefresh;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -125,6 +159,15 @@ class MetaService {
           },
           timeout: 15000,
         });
+
+        // Store successful GET response in high-speed cache
+        if (isGet && cacheKey) {
+          this._cache.set(cacheKey, {
+            data: response.data,
+            timestamp: Date.now(),
+          });
+        }
+
         return response.data;
       } catch (err) {
         const fbError = err.response?.data?.error;
@@ -196,10 +239,40 @@ class MetaService {
         } catch (_) {}
       }
 
+      // 4. Query Page & Instagram Business details
+      let page = null;
+      let instagram = null;
+      try {
+        const pagesRes = await this._request('GET', '/me/accounts', null, {
+          fields: 'id,name,category,is_published,instagram_business_account{id,username,name,profile_picture_url}',
+        });
+        if (pagesRes.data && pagesRes.data.length > 0) {
+          const firstPage = pagesRes.data[0];
+          page = {
+            id: firstPage.id,
+            name: firstPage.name,
+            category: firstPage.category || 'Loan service',
+            isPublished: firstPage.is_published,
+          };
+          if (firstPage.instagram_business_account) {
+            instagram = {
+              id: firstPage.instagram_business_account.id,
+              username: firstPage.instagram_business_account.username,
+              name: firstPage.instagram_business_account.name,
+              profilePictureUrl: firstPage.instagram_business_account.profile_picture_url,
+            };
+          }
+        }
+      } catch (pErr) {
+        console.warn('⚠️ Could not inspect /me/accounts for diagnostics:', pErr.message);
+      }
+
       return {
         configured: true,
         tokenValid: true,
         user,
+        page,
+        instagram,
         type: debugInfo?.type || 'USER',
         appId: debugInfo?.app_id || this.appId || null,
         expiresAt: debugInfo?.expires_at ? new Date(debugInfo.expires_at * 1000).toISOString() : 'Never / Long-Lived System User',
@@ -788,56 +861,65 @@ class MetaService {
           const pageResult = await this.fetchFormLeads(form.id, { limit: 50, afterCursor });
           const rawLeads = pageResult.data || [];
 
-          for (const item of rawLeads) {
-            const fields = {};
-            for (const f of item.field_data || []) {
-              fields[f.name] = Array.isArray(f.values) && f.values.length > 0 ? f.values[0] : '';
-            }
+          // High-speed parallel batch persistence
+          const BATCH_SIZE = 10;
+          for (let i = 0; i < rawLeads.length; i += BATCH_SIZE) {
+            const batch = rawLeads.slice(i, i + BATCH_SIZE);
+            const savePromises = batch.map(async (item) => {
+              const fields = {};
+              for (const f of item.field_data || []) {
+                fields[f.name] = Array.isArray(f.values) && f.values.length > 0 ? f.values[0] : '';
+              }
 
-            const name = fields.full_name || fields.first_name || (fields.first_name && fields.last_name ? `${fields.first_name} ${fields.last_name}` : '') || 'Meta Lead';
-            const email = fields.email || '';
-            const phone = fields.phone_number || fields.phone || '';
+              const name = fields.full_name || fields.first_name || (fields.first_name && fields.last_name ? `${fields.first_name} ${fields.last_name}` : '') || 'Meta Lead';
+              const email = fields.email || '';
+              const phone = fields.phone_number || fields.phone || '';
 
-            const extraNotes = Object.entries(fields)
-              .filter(([k]) => !['full_name', 'first_name', 'last_name', 'email', 'phone_number', 'phone'].includes(k))
-              .map(([k, v]) => `${k}: ${v}`)
-              .join(', ');
+              const extraNotes = Object.entries(fields)
+                .filter(([k]) => !['full_name', 'first_name', 'last_name', 'email', 'phone_number', 'phone'].includes(k))
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(', ');
 
-            const record = {
-              id: `meta_${item.id}`,
-              meta_leadgen_id: item.id,
-              meta_form_id: item.form_id || form.id,
-              meta_ad_id: item.ad_id || null,
-              meta_ad_name: item.ad_name || null,
-              meta_adset_id: item.adset_id || null,
-              meta_adset_name: item.adset_name || null,
-              meta_campaign_id: item.campaign_id || null,
-              campaign: item.campaign_name || form.name || 'Meta Ads Campaign',
-              name,
-              email,
-              phone,
-              source: 'Meta Ads',
-              status: 'newLead',
-              assignedTo: '',
-              createdAt: item.created_time || new Date().toISOString(),
-              syncedAt: new Date().toISOString(),
-              note: extraNotes ? `Form details: ${extraNotes}` : `Synced from Meta Form "${form.name}"`,
-              activities: [
-                {
-                  id: `act_${Date.now()}`,
-                  title: 'Synced from Meta Lead Form',
-                  description: `Imported from Form ${form.name || form.id}`,
-                  timestamp: new Date().toISOString(),
-                },
-              ],
-              followUps: [],
-            };
+              const record = {
+                id: `meta_${item.id}`,
+                meta_leadgen_id: item.id,
+                meta_form_id: item.form_id || form.id,
+                meta_ad_id: item.ad_id || null,
+                meta_ad_name: item.ad_name || null,
+                meta_adset_id: item.adset_id || null,
+                meta_adset_name: item.adset_name || null,
+                meta_campaign_id: item.campaign_id || null,
+                campaign: item.campaign_name || form.name || 'Meta Ads Campaign',
+                name,
+                email,
+                phone,
+                source: 'Meta Ads',
+                status: 'newLead',
+                assignedTo: '',
+                createdAt: item.created_time || new Date().toISOString(),
+                syncedAt: new Date().toISOString(),
+                note: extraNotes ? `Form details: ${extraNotes}` : `Synced from Meta Form "${form.name}"`,
+                activities: [
+                  {
+                    id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                    title: 'Synced from Meta Lead Form',
+                    description: `Imported from Form ${form.name || form.id}`,
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+                followUps: [],
+              };
 
-            const saved = await firebaseService.saveLead(record, { autoNotify: false });
-            if (saved) {
-              totalImported++;
-            } else {
-              totalDuplicatesSkipped++;
+              const saved = await firebaseService.saveLead(record, { autoNotify: false });
+              return saved ? 'saved' : 'skipped';
+            });
+
+            const results = await Promise.allSettled(savePromises);
+            for (const r of results) {
+              if (r.status === 'fulfilled') {
+                if (r.value === 'saved') totalImported++;
+                else totalDuplicatesSkipped++;
+              }
             }
           }
 
@@ -856,6 +938,24 @@ class MetaService {
         status: 'success',
         lastError: null,
       };
+
+      // Clear cache to reflect freshly synced leads immediately
+      this.clearCache();
+
+      // Dispatch alert to Admin when new leads are imported
+      if (totalImported > 0) {
+        try {
+          const notificationService = require('./notificationService');
+          notificationService.notifyNewLead({
+            id: `batch_sync_${Date.now()}`,
+            name: `${totalImported} New Meta Leads`,
+            campaign: 'Meta Ads Sync',
+            source: 'Meta Ads',
+            phone: '',
+            note: `Successfully imported ${totalImported} leads from Meta Ads.`,
+          }).catch(() => {});
+        } catch (_) {}
+      }
 
       console.log(`✅ [MetaService:syncAllLeads] Sync completed: ${totalImported} leads imported/updated, ${totalDuplicatesSkipped} duplicates skipped.`);
       return this.lastSyncInfo;
@@ -1158,6 +1258,8 @@ class MetaService {
       }
     }
 
+    this.clearCache();
+
     return {
       meta_campaign_id: campaignId,
       meta_adset_id: adSetResult?.id || null,
@@ -1184,7 +1286,9 @@ class MetaService {
     if (!this.isConfigured()) {
       return { id: campaignId, status };
     }
-    return await this._request('POST', `/${campaignId}`, { status });
+    const res = await this._request('POST', `/${campaignId}`, { status });
+    this.clearCache();
+    return res;
   }
 }
 

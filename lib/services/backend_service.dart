@@ -3,6 +3,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+class _CacheEntry {
+  final dynamic data;
+  final DateTime expiresAt;
+  _CacheEntry(this.data, {Duration ttl = const Duration(minutes: 3)})
+      : expiresAt = DateTime.now().add(ttl);
+  bool get isValid => DateTime.now().isBefore(expiresAt);
+}
+
 class BackendService {
   static final BackendService _instance = BackendService._internal();
   factory BackendService() => _instance;
@@ -10,22 +18,36 @@ class BackendService {
     _initBaseUrl();
   }
 
-  /// Base URL: auto-detects active local backend on web/desktop/debug, falls back to cloud Render
-  String _baseUrl = (kIsWeb || kDebugMode)
-      ? (kIsWeb || defaultTargetPlatform != TargetPlatform.android
-          ? 'http://localhost:5000/api'
-          : 'http://10.0.2.2:5000/api')
-      : 'https://eligible-backend.onrender.com/api';
+  static const String _defaultCloudUrl = 'https://eligible-backend.onrender.com/api';
+  String _baseUrl = _defaultCloudUrl;
+
+  // In-memory client cache for lightning speed instantaneous responses (0ms)
+  final Map<String, _CacheEntry> _cache = {};
+
+  void clearMetaCache() {
+    _cache.clear();
+    debugPrint('[BackendService] 🧹 Meta client cache cleared');
+  }
 
   void _initBaseUrl() {
-    if (kIsWeb || kDebugMode) {
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        _baseUrl = 'http://10.0.2.2:5000/api';
-      } else {
-        _baseUrl = 'http://localhost:5000/api';
+    _baseUrl = _defaultCloudUrl;
+    // Asynchronously and non-blockingly check if local server is active (without holding up UI requests)
+    _probeLocalhostAsync();
+  }
+
+  void _probeLocalhostAsync() async {
+    if (!kDebugMode && !kIsWeb) return;
+    final localHost = (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+        ? 'http://10.0.2.2:5000/api'
+        : 'http://localhost:5000/api';
+    try {
+      final res = await http.get(Uri.parse('$localHost/ping')).timeout(const Duration(milliseconds: 350));
+      if (res.statusCode == 200) {
+        _baseUrl = localHost;
+        debugPrint('[BackendService] 🚀 Local backend active, switched to: $_baseUrl');
       }
-    } else {
-      _baseUrl = 'https://eligible-backend.onrender.com/api';
+    } catch (_) {
+      // Localhost offline, stay on cloud backend at lightning speed
     }
   }
 
@@ -213,7 +235,7 @@ class BackendService {
   }
 
   /// Safe HTTP GET with auto-discovery and seamless host fallback (Local <-> Cloud)
-  Future<http.Response?> _safeGet(String path, {Map<String, String>? query, Duration timeout = const Duration(seconds: 10)}) async {
+  Future<http.Response?> _safeGet(String path, {Map<String, String>? query, Duration timeout = const Duration(seconds: 5)}) async {
     final cleanPath = path.startsWith('/') ? path.substring(1) : path;
     final uri = Uri.parse('$_baseUrl/$cleanPath').replace(queryParameters: query?.isNotEmpty == true ? query : null);
     try {
@@ -223,14 +245,14 @@ class BackendService {
       debugPrint('[BackendService] Request to $_baseUrl/$cleanPath note: $e');
     }
 
-    // Try alternate host (local <-> cloud)
+    // Try alternate host (local <-> cloud) with fast 3-second timeout
     final alternate = _baseUrl.contains('localhost') || _baseUrl.contains('10.0.2.2')
         ? 'https://eligible-backend.onrender.com/api'
         : (kIsWeb || defaultTargetPlatform != TargetPlatform.android ? 'http://localhost:5000/api' : 'http://10.0.2.2:5000/api');
 
     try {
       final altUri = Uri.parse('$alternate/$cleanPath').replace(queryParameters: query?.isNotEmpty == true ? query : null);
-      final altRes = await http.get(altUri).timeout(const Duration(seconds: 8));
+      final altRes = await http.get(altUri).timeout(const Duration(seconds: 3));
       if (altRes.statusCode == 200) {
         _baseUrl = alternate;
         debugPrint('[BackendService] 🔄 Auto-switched to active backend: $_baseUrl');
@@ -241,15 +263,23 @@ class BackendService {
     return null;
   }
 
-  /// Retrieve accessible Meta Ad Accounts
-  Future<List<Map<String, dynamic>>> getMetaAccounts() async {
+  /// Retrieve accessible Meta Ad Accounts with client caching
+  Future<List<Map<String, dynamic>>> getMetaAccounts({bool forceRefresh = false}) async {
+    const cacheKey = 'meta_accounts';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return List<Map<String, dynamic>>.from(_cache[cacheKey]!.data as List);
+    }
+
     try {
-      final res = await _safeGet('meta/accounts');
+      final query = forceRefresh ? {'refresh': 'true'} : null;
+      final res = await _safeGet('meta/accounts', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
         if (list != null) {
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          final result = list.map((e) => Map<String, dynamic>.from(e)).toList();
+          _cache[cacheKey] = _CacheEntry(result);
+          return result;
         }
       }
     } catch (e) {
@@ -258,24 +288,33 @@ class BackendService {
     return [];
   }
 
-  /// Retrieve Meta Campaigns with live metrics & date filters
+  /// Retrieve Meta Campaigns with live metrics & date filters with client caching
   Future<List<Map<String, dynamic>>> getMetaCampaigns({
     String? adAccountId,
     String? datePreset,
     String? status,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = 'meta_campaigns_${adAccountId ?? ""}_${datePreset ?? ""}_${status ?? ""}';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return List<Map<String, dynamic>>.from(_cache[cacheKey]!.data as List);
+    }
+
     try {
       final query = <String, String>{};
       if (adAccountId != null) query['adAccountId'] = adAccountId;
       if (datePreset != null) query['datePreset'] = datePreset;
       if (status != null) query['status'] = status;
+      if (forceRefresh) query['refresh'] = 'true';
 
       final res = await _safeGet('meta/campaigns', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
         if (list != null) {
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          final result = list.map((e) => Map<String, dynamic>.from(e)).toList();
+          _cache[cacheKey] = _CacheEntry(result);
+          return result;
         }
       }
     } catch (e) {
@@ -284,26 +323,35 @@ class BackendService {
     return [];
   }
 
-  /// Retrieve Meta Ad Sets
+  /// Retrieve Meta Ad Sets with client caching
   Future<List<Map<String, dynamic>>> getMetaAdSets({
     String? adAccountId,
     String? campaignId,
     String? datePreset,
     String? status,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = 'meta_adsets_${adAccountId ?? ""}_${campaignId ?? ""}_${datePreset ?? ""}_${status ?? ""}';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return List<Map<String, dynamic>>.from(_cache[cacheKey]!.data as List);
+    }
+
     try {
       final query = <String, String>{};
       if (adAccountId != null) query['adAccountId'] = adAccountId;
       if (campaignId != null) query['campaignId'] = campaignId;
       if (datePreset != null) query['datePreset'] = datePreset;
       if (status != null) query['status'] = status;
+      if (forceRefresh) query['refresh'] = 'true';
 
       final res = await _safeGet('meta/adsets', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
         if (list != null) {
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          final result = list.map((e) => Map<String, dynamic>.from(e)).toList();
+          _cache[cacheKey] = _CacheEntry(result);
+          return result;
         }
       }
     } catch (e) {
@@ -312,14 +360,20 @@ class BackendService {
     return [];
   }
 
-  /// Retrieve Meta Ads
+  /// Retrieve Meta Ads with client caching
   Future<List<Map<String, dynamic>>> getMetaAds({
     String? adAccountId,
     String? campaignId,
     String? adSetId,
     String? datePreset,
     String? status,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = 'meta_ads_${adAccountId ?? ""}_${campaignId ?? ""}_${adSetId ?? ""}_${datePreset ?? ""}_${status ?? ""}';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return List<Map<String, dynamic>>.from(_cache[cacheKey]!.data as List);
+    }
+
     try {
       final query = <String, String>{};
       if (adAccountId != null) query['adAccountId'] = adAccountId;
@@ -327,13 +381,16 @@ class BackendService {
       if (adSetId != null) query['adSetId'] = adSetId;
       if (datePreset != null) query['datePreset'] = datePreset;
       if (status != null) query['status'] = status;
+      if (forceRefresh) query['refresh'] = 'true';
 
       final res = await _safeGet('meta/ads', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
         if (list != null) {
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          final result = list.map((e) => Map<String, dynamic>.from(e)).toList();
+          _cache[cacheKey] = _CacheEntry(result);
+          return result;
         }
       }
     } catch (e) {
@@ -342,14 +399,20 @@ class BackendService {
     return [];
   }
 
-  /// Retrieve Performance Insights
+  /// Retrieve Performance Insights with client caching
   Future<Map<String, dynamic>> getMetaInsights({
     String? adAccountId,
     String level = 'account',
     String? id,
     String datePreset = 'last_30d',
     String? timeIncrement,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = 'meta_insights_${adAccountId ?? ""}_${level}_${id ?? ""}_${datePreset}_${timeIncrement ?? ""}';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return Map<String, dynamic>.from(_cache[cacheKey]!.data as Map);
+    }
+
     try {
       final query = <String, String>{
         'level': level,
@@ -358,11 +421,14 @@ class BackendService {
       if (adAccountId != null) query['adAccountId'] = adAccountId;
       if (id != null) query['id'] = id;
       if (timeIncrement != null) query['timeIncrement'] = timeIncrement;
+      if (forceRefresh) query['refresh'] = 'true';
 
       final res = await _safeGet('meta/insights', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        return data['data'] ?? {};
+        final result = Map<String, dynamic>.from(data['data'] ?? {});
+        _cache[cacheKey] = _CacheEntry(result);
+        return result;
       }
     } catch (e) {
       debugPrint('[BackendService] getMetaInsights error: $e');
@@ -370,13 +436,21 @@ class BackendService {
     return {};
   }
 
-  /// Retrieve Meta Diagnostics & Permissions
-  Future<Map<String, dynamic>> getMetaDiagnostics() async {
+  /// Retrieve Meta Diagnostics & Permissions with client caching
+  Future<Map<String, dynamic>> getMetaDiagnostics({bool forceRefresh = false}) async {
+    const cacheKey = 'meta_diagnostics';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return Map<String, dynamic>.from(_cache[cacheKey]!.data as Map);
+    }
+
     try {
-      final res = await _safeGet('meta/diagnostics');
+      final query = forceRefresh ? {'refresh': 'true'} : null;
+      final res = await _safeGet('meta/diagnostics', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        return data['data'] ?? {};
+        final result = Map<String, dynamic>.from(data['data'] ?? {});
+        _cache[cacheKey] = _CacheEntry(result);
+        return result;
       }
     } catch (e) {
       debugPrint('[BackendService] getMetaDiagnostics error: $e');
@@ -384,28 +458,46 @@ class BackendService {
     return {};
   }
 
-  /// Retrieve Meta Sync Status
-  Future<Map<String, dynamic>> getMetaSyncStatus() async {
+  /// Retrieve Meta Sync Status with client caching
+  Future<Map<String, dynamic>> getMetaSyncStatus({bool forceRefresh = false}) async {
+    const cacheKey = 'meta_sync_status';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return Map<String, dynamic>.from(_cache[cacheKey]!.data as Map);
+    }
+
     try {
-      final res = await _safeGet('meta/sync-status');
+      final query = forceRefresh ? {'refresh': 'true'} : null;
+      final res = await _safeGet('meta/sync-status', query: query);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        return data['data'] ?? {};
+        final result = Map<String, dynamic>.from(data['data'] ?? {});
+        _cache[cacheKey] = _CacheEntry(result);
+        return result;
       }
     } catch (_) {}
     return {};
   }
 
-  /// Retrieve Meta Leadgen Forms
-  Future<List<Map<String, dynamic>>> getMetaLeadForms({String? pageId}) async {
+  /// Retrieve Meta Leadgen Forms with client caching
+  Future<List<Map<String, dynamic>>> getMetaLeadForms({String? pageId, bool forceRefresh = false}) async {
+    final cacheKey = 'meta_leadforms_${pageId ?? ""}';
+    if (!forceRefresh && _cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid) {
+      return List<Map<String, dynamic>>.from(_cache[cacheKey]!.data as List);
+    }
+
     try {
-      final query = pageId != null ? {'pageId': pageId} : null;
-      final res = await _safeGet('meta/leadgen-forms', query: query);
+      final query = <String, String>{};
+      if (pageId != null) query['pageId'] = pageId;
+      if (forceRefresh) query['refresh'] = 'true';
+
+      final res = await _safeGet('meta/leadgen-forms', query: query.isNotEmpty ? query : null);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
         if (list != null) {
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          final result = list.map((e) => Map<String, dynamic>.from(e)).toList();
+          _cache[cacheKey] = _CacheEntry(result);
+          return result;
         }
       }
     } catch (e) {

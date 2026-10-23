@@ -36,6 +36,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
   String searchQuery = '';
   LeadStatus? selectedStatus;
+  String? selectedSourceFilter;
 
   @override
   void dispose() {
@@ -51,12 +52,22 @@ class _LeadsScreenState extends State<LeadsScreen> {
           lead.name.toLowerCase().contains(query) ||
           lead.phone.toLowerCase().contains(query) ||
           lead.email.toLowerCase().contains(query) ||
-          lead.source.toLowerCase().contains(query);
+          lead.source.toLowerCase().contains(query) ||
+          lead.campaign.toLowerCase().contains(query);
 
       final matchesStatus =
           selectedStatus == null || lead.status == selectedStatus;
 
-      return matchesSearch && matchesStatus;
+      final matchesSource = selectedSourceFilter == null ||
+          (selectedSourceFilter == 'whatsapp' &&
+              (lead.campaign.toLowerCase().contains('whatsapp') ||
+                  lead.campaign.toLowerCase().contains("what's app") ||
+                  lead.source.toLowerCase().contains('whatsapp') ||
+                  lead.source.toLowerCase().contains('meta'))) ||
+          (selectedSourceFilter == 'calculator' &&
+              lead.source.toLowerCase().contains('calculator'));
+
+      return matchesSearch && matchesStatus && matchesSource;
     }).toList();
   }
 
@@ -273,18 +284,65 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   Widget _buildFilters() {
-    return SizedBox(
-      height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          _filter('All', null),
-          _filter('New', LeadStatus.newLead),
-          _filter('Contacted', LeadStatus.contacted),
-          _filter('Qualified', LeadStatus.qualified),
-          _filter('Converted', LeadStatus.converted),
-        ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 38,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              _filter('All', null),
+              _filter('New', LeadStatus.newLead),
+              _filter('Contacted', LeadStatus.contacted),
+              _filter('Qualified', LeadStatus.qualified),
+              _filter('Converted', LeadStatus.converted),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 32,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              _sourceFilter('All Sources', null),
+              _sourceFilter('💬 WhatsApp Campaign', 'whatsapp'),
+              _sourceFilter('🧮 Loan Calculator', 'calculator'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sourceFilter(String title, String? key) {
+    final selected = selectedSourceFilter == key;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(title),
+        selected: selected,
+        onSelected: (_) {
+          setState(() {
+            selectedSourceFilter = key;
+          });
+        },
+        labelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+          color: selected ? AppTheme.primary : AppTheme.textSecondary,
+        ),
+        selectedColor: const Color(0xFFEFF6FF),
+        backgroundColor: Colors.white,
+        side: BorderSide(
+          color: selected ? AppTheme.primary : AppTheme.border,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
