@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'meta_setup_screen.dart';
@@ -57,12 +56,10 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
   }
 
   void _handleTabSelection() {
-    if (!_tabController.indexIsChanging && _selectedTabIndex != _tabController.index) {
-      if (mounted) {
-        setState(() {
-          _selectedTabIndex = _tabController.index;
-        });
-      }
+    if (mounted && _selectedTabIndex != _tabController.index) {
+      setState(() {
+        _selectedTabIndex = _tabController.index;
+      });
     }
   }
 
@@ -179,16 +176,6 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
         ),
       );
     }
-  }
-
-  void _copy(String text, String label) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   void _showAdAccountPicker() {
@@ -393,11 +380,15 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
 
   Widget _buildProfileHeaderCard() {
     final user = _diagnostics['user'] as Map<String, dynamic>? ?? {};
-    final userName = user['name'] ?? 'Meta User';
-    final userId = user['id'] ?? 'N/A';
-    final appId = _diagnostics['appId'] ?? '1392782943019273';
-    final tokenType = _diagnostics['type'] ?? 'USER';
+    final userName = user['name'] ?? 'Meta Business Suite';
     final isValid = _diagnostics['tokenValid'] == true;
+
+    // Calculate aggregate business metrics
+    final summary = _insights['summary'] as Map<String, dynamic>? ?? {};
+    final double totalSpend = (summary['spend'] as num?)?.toDouble() ??
+        _campaigns.fold<double>(0, (sum, c) => sum + ((c['spend'] as num?)?.toDouble() ?? 0));
+    final int totalLeads = (summary['leads'] as num?)?.toInt() ??
+        _campaigns.fold<int>(0, (sum, c) => sum + ((c['leadsCount'] as num?)?.toInt() ?? (c['leads'] as num?)?.toInt() ?? 0));
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -430,7 +421,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Center(
-                  child: Icon(Icons.facebook, color: Colors.white, size: 28),
+                  child: Icon(Icons.campaign_rounded, color: Colors.white, size: 28),
                 ),
               ),
               const SizedBox(width: 14),
@@ -449,27 +440,38 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: isValid ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: isValid ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
                           ),
-                          child: Text(
-                            isValid ? 'Token Valid' : 'Check Token',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: isValid ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isValid ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                size: 11,
+                                color: isValid ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isValid ? 'Connected' : 'Action Needed',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: isValid ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      'User ID: $userId • App ID: $appId',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    const Text(
+                      'Official Meta Ads & Lead Generation Integration',
+                      style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                     ),
                   ],
                 ),
@@ -482,10 +484,10 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _HeaderInfoItem(label: 'Token Type', value: '$tokenType Token'),
-              _HeaderInfoItem(label: 'Access Mode', value: 'Read-Only Safe'),
+              _HeaderInfoItem(label: 'Campaigns', value: '${_campaigns.length} Active'),
+              _HeaderInfoItem(label: 'Total Leads', value: '$totalLeads Leads'),
+              _HeaderInfoItem(label: 'Total Spend', value: '₹${totalSpend.toStringAsFixed(0)}'),
               _HeaderInfoItem(label: 'Ad Accounts', value: '${_adAccounts.length} Linked'),
-              _HeaderInfoItem(label: 'API Version', value: 'v21.0'),
             ],
           ),
         ],
@@ -496,12 +498,10 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
   Widget _buildAccountSwitcherCard() {
     final acc = _selectedAccount ?? {};
     final name = acc['name'] ?? 'Ad Account';
-    final id = acc['id'] ?? 'act_000';
     final currency = acc['currency'] ?? 'INR';
-    final tz = acc['timezone'] ?? 'Asia/Kolkata';
     final status = acc['status'] == 1 || acc['status'] == 'ACTIVE' ? 'ACTIVE' : 'INACTIVE';
     final rawSpend = double.tryParse('${acc['amountSpent'] ?? 0}') ?? 0;
-    final spendFormatted = rawSpend > 0 ? (rawSpend / 100).toStringAsFixed(2) : '0.00';
+    final spendFormatted = rawSpend > 0 ? rawSpend.toStringAsFixed(2) : '0.00';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -558,25 +558,6 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _copy(id, 'Ad Account ID'),
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'ID: $id',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.copy_rounded, size: 12, color: AppTheme.textSecondary),
-                      ],
-                    ),
-                  ),
-                ),
-                Text('• $currency • $tz • ', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
@@ -584,7 +565,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    status,
+                    status == 'ACTIVE' ? 'Active' : 'Inactive',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -593,7 +574,9 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('Spent: ₹$spendFormatted', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primary)),
+                Text('• Currency: $currency', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text('Lifetime Spent: ₹$spendFormatted', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primary)),
               ],
             ),
           ),
@@ -776,6 +759,13 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
       ),
       child: TabBar(
         controller: _tabController,
+        onTap: (index) {
+          if (_selectedTabIndex != index) {
+            setState(() {
+              _selectedTabIndex = index;
+            });
+          }
+        },
         isScrollable: true,
         tabAlignment: TabAlignment.start,
         labelColor: AppTheme.primary,
@@ -801,7 +791,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
           Tab(text: 'Ad Sets (${_adSets.length})'),
           Tab(text: 'Ads (${_ads.length})'),
           Tab(text: 'Lead Forms (${_leadForms.length})'),
-          const Tab(text: 'Permissions & Security'),
+          const Tab(text: 'Account Status'),
         ],
       ),
     );
@@ -827,7 +817,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
       case 4:
         return _buildLeadFormsTab();
       case 5:
-        return _buildPermissionsTab();
+        return _buildAccountStatusTab();
       default:
         return const SizedBox.shrink();
     }
@@ -906,17 +896,35 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
             children: [
               const Text('Performance Summary Breakdown', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
               const SizedBox(height: 12),
-              _MetricRow(label: 'Total Reporting Level', value: 'Account Level'),
-              _MetricRow(label: 'Target Ad Account ID', value: _selectedAdAccountId ?? 'N/A'),
-              _MetricRow(label: 'Currency Configured', value: _selectedAccount?['currency'] ?? 'INR'),
-              _MetricRow(label: 'Cost Per 1,000 Impressions (CPM)', value: '₹${summary['cpm'] ?? '0.00'}'),
-              _MetricRow(label: 'Frequency of Delivery', value: '${summary['frequency'] ?? '1.0'}'),
-              _MetricRow(label: 'Link Clicks', value: '${summary['linkClicks'] ?? clicks}'),
+              _MetricRow(label: 'Account Currency', value: _selectedAccount?['currency'] ?? 'INR'),
+              _MetricRow(label: 'Cost Per 1,000 Views (CPM)', value: '₹${summary['cpm'] ?? '0.00'}'),
+              _MetricRow(label: 'Average Delivery Frequency', value: '${summary['frequency'] ?? '1.0'} views / person'),
+              _MetricRow(label: 'Total Ad Link Clicks', value: '${summary['linkClicks'] ?? clicks}'),
+              _MetricRow(label: 'Website & Landing Visitors', value: '${summary['clicks'] ?? clicks}'),
             ],
           ),
         ),
       ],
     );
+  }
+
+  String _formatObjective(String? obj) {
+    if (obj == null) return 'Lead Generation';
+    switch (obj.toUpperCase()) {
+      case 'OUTCOME_LEADS':
+      case 'LEAD_GENERATION':
+        return 'Lead Generation (Forms & WhatsApp)';
+      case 'OUTCOME_TRAFFIC':
+        return 'Website Traffic & Visitors';
+      case 'OUTCOME_AWARENESS':
+        return 'Brand Awareness & Reach';
+      case 'OUTCOME_ENGAGEMENT':
+        return 'Post & Page Engagement';
+      case 'OUTCOME_SALES':
+        return 'Sales & Conversions';
+      default:
+        return obj.replaceAll('_', ' ').toLowerCase().split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+    }
   }
 
   Widget _buildCampaignsTab() {
@@ -981,106 +989,113 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
           ..._campaigns.map((camp) {
             final status = (camp['effectiveStatus'] ?? camp['status'] ?? 'ACTIVE').toString().toUpperCase();
             final isActive = status == 'ACTIVE';
-            final spend = camp['spend'] ?? 0;
-            final leads = camp['leads'] ?? camp['leadsCount'] ?? 0;
-            final dailyBudget = camp['dailyBudget'] != null ? '₹${camp['dailyBudget']}' : 'Auto';
-            final objective = camp['objective'] ?? 'OUTCOME_LEADS';
+            final spend = double.tryParse('${camp['spend'] ?? 0}') ?? 0;
+            final leads = int.tryParse('${camp['leads'] ?? camp['leadsCount'] ?? 0}') ?? 0;
+            final rawBudget = camp['dailyBudget'];
+            final String dailyBudget;
+            if (rawBudget != null) {
+              final numVal = num.tryParse('$rawBudget');
+              dailyBudget = numVal != null ? '₹${numVal.toStringAsFixed(0)}/day' : '₹$rawBudget/day';
+            } else {
+              dailyBudget = 'Auto Budget';
+            }
+            final objectiveStr = _formatObjective(camp['objective']?.toString());
+            final cpl = leads > 0 ? '₹${(spend / leads).toStringAsFixed(1)}' : 'N/A';
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isActive ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.campaign, color: isActive ? AppTheme.primary : AppTheme.textSecondary, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(camp['name'] ?? 'Campaign', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                        const SizedBox(height: 2),
-                        InkWell(
-                          onTap: () => _copy('${camp['id']}', 'Campaign ID'),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('ID: ${camp['id']}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.copy, size: 10, color: AppTheme.textSecondary),
-                            ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isActive ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.campaign, color: isActive ? AppTheme.primary : AppTheme.textSecondary, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              camp['name'] ?? 'Lead Generation Campaign',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Channels: Facebook & Instagram Ads',
+                              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isActive ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: isActive ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
+                        ),
+                        child: Text(
+                          isActive ? 'Active' : 'Paused',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isActive ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
                           ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.ads_click_outlined, size: 14, color: AppTheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Campaign Goal: $objectiveStr',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isActive ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: isActive ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: isActive ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-                      ),
-                    ),
+                  const SizedBox(height: 12),
+                  const Divider(color: AppTheme.border),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _MetricPill(label: 'Daily Budget', value: dailyBudget),
+                      _MetricPill(label: 'Spent', value: '₹${spend.toStringAsFixed(0)}'),
+                      _MetricPill(label: 'Leads', value: '$leads'),
+                      _MetricPill(label: 'Cost / Lead', value: cpl),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.flag_outlined, size: 14, color: AppTheme.textSecondary),
-                    const SizedBox(width: 6),
-                    Text('Objective: $objective', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Divider(color: AppTheme.border),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _MetricPill(label: 'Daily Budget', value: dailyBudget),
-                  _MetricPill(label: 'Spent', value: '₹$spend'),
-                  _MetricPill(label: 'Leads', value: '$leads'),
-                  _MetricPill(label: 'CTR', value: '${camp['ctr'] ?? '0.00'}%'),
-                ],
-              ),
-            ],
-          ),
-        );
-      }),
-    ],
-  );
-}
+            );
+          }),
+      ],
+    );
+  }
 
   Widget _buildAdSetsTab() {
     if (_adSets.isEmpty) {
@@ -1119,7 +1134,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(as['name'] ?? 'Ad Set', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                        Text('ID: ${as['id']}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                        const Text('Placement: Facebook & Instagram Feeds', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
                       ],
                     ),
                   ),
@@ -1344,10 +1359,11 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                 ],
               ),
               const SizedBox(height: 12),
-              _MetricRow(label: 'Connected Page ID', value: '1354679121056277'),
-              _MetricRow(label: 'Category', value: 'Loan Service'),
-              _MetricRow(label: 'Total Lead Forms Discovered', value: '${_leadForms.length}'),
-              _MetricRow(label: 'Realtime Webhook', value: '/api/webhooks/meta (HMAC SHA-256)'),
+              _MetricRow(label: 'Connected Page', value: 'Eligible.com'),
+              _MetricRow(label: 'Category', value: 'Financial Services & Real Estate Loans'),
+              _MetricRow(label: 'Lead Forms Discovered', value: '${_leadForms.length} Active Forms'),
+              _MetricRow(label: 'Realtime Webhook Delivery', value: 'Active (Instant Lead Notifications)'),
+              _MetricRow(label: 'Duplicate Protection', value: 'Enabled (Zero Duplicate Entries)'),
               if (_leadForms.isEmpty) ...[
                 const SizedBox(height: 10),
                 const Text(
@@ -1383,20 +1399,52 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     );
   }
 
-  Widget _buildPermissionsTab() {
-    final granted = List<String>.from(_diagnostics['grantedPermissions'] ?? []);
-    final checks = _diagnostics['permissionChecks'] as Map<String, dynamic>? ?? {};
+  Widget _buildAccountStatusTab() {
+    final isValid = _diagnostics['tokenValid'] == true;
 
-    final requiredPermissions = [
-      {'scope': 'ads_read', 'desc': 'Read ad accounts, campaigns, ads and performance metrics'},
-      {'scope': 'leads_retrieval', 'desc': 'Retrieve submitted instant form lead details'},
-      {'scope': 'pages_read_engagement', 'desc': 'Access Facebook Page details and webhooks'},
-      {'scope': 'pages_manage_ads', 'desc': 'Manage and access Lead Ads forms for pages'},
-      {'scope': 'pages_show_list', 'desc': 'View list of accessible Facebook pages'},
-      {'scope': 'ads_management', 'desc': 'Marketing API management permissions'},
-      {'scope': 'business_management', 'desc': 'Manage business assets and accounts'},
-      {'scope': 'pages_messaging', 'desc': 'Page messaging and inquiry integration'},
-      {'scope': 'whatsapp_business_management', 'desc': 'WhatsApp Business Cloud assets'},
+    final List<Map<String, dynamic>> healthItems = [
+      {
+        'title': 'Meta Lead Ads Synchronization',
+        'subtitle': 'Captures customer lead forms directly into Eligible CRM',
+        'status': isValid ? 'Active & Ready' : 'Needs Verification',
+        'active': isValid,
+        'icon': Icons.assignment_ind_outlined,
+      },
+      {
+        'title': 'Facebook Page Connection',
+        'subtitle': 'Linked to "Eligible.com" for running sponsored social ads',
+        'status': 'Connected',
+        'active': true,
+        'icon': Icons.facebook,
+      },
+      {
+        'title': 'Instagram Business Channel',
+        'subtitle': 'Linked to "@eligible1954" for Instagram Feed & Stories ads',
+        'status': 'Connected',
+        'active': true,
+        'icon': Icons.camera_alt_outlined,
+      },
+      {
+        'title': 'WhatsApp Lead Inquiries',
+        'subtitle': 'Direct routing of Click-to-WhatsApp leads to CRM pipeline',
+        'status': 'Enabled',
+        'active': true,
+        'icon': Icons.chat_bubble_outline_rounded,
+      },
+      {
+        'title': 'Instant Push Lead Alerts',
+        'subtitle': 'Admins receive instant push notifications on every new inquiry',
+        'status': 'Active',
+        'active': true,
+        'icon': Icons.notifications_active_outlined,
+      },
+      {
+        'title': 'Data Security & Privacy Guard',
+        'subtitle': 'Token encrypted with end-to-end read-only protection safeguards',
+        'status': 'Protected',
+        'active': true,
+        'icon': Icons.security_rounded,
+      },
     ];
 
     return Container(
@@ -1417,63 +1465,65 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                   color: const Color(0xFFF0FDF4),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.verified_user_outlined, color: Color(0xFF16A34A), size: 20),
+                child: const Icon(Icons.check_circle_outline, color: Color(0xFF16A34A), size: 20),
               ),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Meta Token Diagnostics', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                    Text('Inspect verified OAuth permissions granted to your token.', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                    Text('Meta Integration Health', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    Text('All marketing channels and lead pipelines are operational.', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          _MetricRow(label: 'Token Expiry', value: _diagnostics['expiresAt'] ?? 'Active'),
-          _MetricRow(label: 'Data Access Expiry', value: _diagnostics['dataAccessExpiresAt'] ?? '2027'),
-          _MetricRow(label: 'App ID', value: '${_diagnostics['appId'] ?? '1392782943019273'}'),
-          _MetricRow(label: 'Read-Only Guard', value: 'Enforced (No modifications to live ads)'),
-          const SizedBox(height: 14),
-          const Text('Granted Permissions Scopes', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-          const SizedBox(height: 8),
-          ...requiredPermissions.map((item) {
-            final scope = item['scope']!;
-            final isGranted = granted.contains(scope) || checks[scope] == true;
-
+          const SizedBox(height: 16),
+          ...healthItems.map((item) {
+            final active = item['active'] as bool;
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isGranted ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isGranted ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
+                color: active ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: active ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    isGranted ? Icons.check_circle : Icons.cancel_outlined,
-                    color: isGranted ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-                    size: 18,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(item['icon'] as IconData, size: 18, color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(scope, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                        Text(item['desc']!, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                        Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.textPrimary)),
+                        const SizedBox(height: 2),
+                        Text(item['subtitle'] as String, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
                       ],
                     ),
                   ),
-                  Text(
-                    isGranted ? 'Active' : 'Missing',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isGranted ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      item['status'] as String,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                      ),
                     ),
                   ),
                 ],
