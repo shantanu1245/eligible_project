@@ -496,7 +496,7 @@ class _MetaSetupScreenState extends State<MetaSetupScreen> {
           // Ad Account Dropdown
           if (_adAccounts.isNotEmpty) ...[
             DropdownButtonFormField<String>(
-              value: _selectedAdAccountId,
+              initialValue: _selectedAdAccountId,
               decoration: const InputDecoration(
                 labelText: 'Target Ad Account',
                 prefixIcon: Icon(Icons.account_balance_wallet_outlined),
@@ -523,7 +523,7 @@ class _MetaSetupScreenState extends State<MetaSetupScreen> {
           // Page Dropdown
           if (_pages.isNotEmpty) ...[
             DropdownButtonFormField<String>(
-              value: _selectedPageId,
+              initialValue: _selectedPageId,
               decoration: const InputDecoration(
                 labelText: 'Target Facebook Page',
                 prefixIcon: Icon(Icons.flag_outlined),
@@ -550,7 +550,7 @@ class _MetaSetupScreenState extends State<MetaSetupScreen> {
           // Lead Form Dropdown
           if (_forms.isNotEmpty) ...[
             DropdownButtonFormField<String>(
-              value: _selectedFormId,
+              initialValue: _selectedFormId,
               decoration: const InputDecoration(
                 labelText: 'Default Lead Form for Sync',
                 prefixIcon: Icon(Icons.description_outlined),
