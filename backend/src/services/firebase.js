@@ -133,6 +133,102 @@ function initializeFirebase() {
 // Initial bootstrap
 initializeFirebase();
 
+// ===================== RTDB LEADS MERGE (Loan Calculator Website -> CRM) =====================
+// The Loan Calculator website writes leads straight into Firebase RTDB at
+// leads/{leadId}. The backend merges those remote leads into every lead query
+// so the Flutter app (which only talks to this HTTP API) sees them too.
+let rtdbLeadsCache = {
+  fetchedAt: 0,
+  failedAt: 0,
+  leads: [],
+};
+const RTDB_CACHE_TTL_MS = 30 * 1000;
+const RTDB_FAIL_COOLDOWN_MS = 60 * 1000;
+const RTDB_FETCH_TIMEOUT_MS = 2500;
+
+const CRM_STATUS_MAP = {
+  new: 'newLead',
+  newlead: 'newLead',
+  contacted: 'contacted',
+  qualified: 'qualified',
+  converted: 'converted',
+  lost: 'lost',
+};
+
+function normalizeLeadStatus(status) {
+  if (!status) return 'newLead';
+  const key = String(status).toLowerCase().replace(/[\s_-]+/g, '');
+  return CRM_STATUS_MAP[key] || status;
+}
+
+function normalizeRemoteLead(raw, leadId) {
+  const record = { ...raw, id: raw.id || leadId };
+  record.status = normalizeLeadStatus(record.status);
+  if (!record.createdAt) record.createdAt = new Date().toISOString();
+  if (!record.updatedAt) record.updatedAt = record.createdAt;
+  return record;
+}
+
+async function fetchRtdbLeads() {
+  const now = Date.now();
+  const lastAttempt = Math.max(rtdbLeadsCache.fetchedAt, rtdbLeadsCache.failedAt);
+  const cooldown =
+    rtdbLeadsCache.failedAt > rtdbLeadsCache.fetchedAt
+      ? RTDB_FAIL_COOLDOWN_MS
+      : RTDB_CACHE_TTL_MS;
+  if (now - lastAttempt < cooldown) {
+    return rtdbLeadsCache.leads;
+  }
+
+  const leadsPath = config.firebase.paths.leads;
+  let rawMap = null;
+
+  if (isLiveFirebase && rtdb) {
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('RTDB leads fetch timeout')), RTDB_FETCH_TIMEOUT_MS)
+      );
+      const fetchPromise = rtdb.ref(leadsPath).once('value');
+      const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
+      const val = snapshot.val();
+      if (val) rawMap = val;
+    } catch (err) {
+      console.warn('⚠️ RTDB leads fetch (admin SDK) note:', err.message);
+    }
+  }
+
+  if (rawMap === null) {
+    // REST fallback: used when the admin SDK is not initialized locally. It
+    // works while RTDB rules allow public read; the admin SDK bypasses rules.
+    const dbUrl = (config.firebase.databaseURL || '').replace(/\/+$/, '');
+    if (dbUrl) {
+      try {
+        const res = await fetch(`${dbUrl}/${leadsPath}.json`, {
+          signal: AbortSignal.timeout(RTDB_FETCH_TIMEOUT_MS),
+        });
+        if (res.ok) {
+          rawMap = await res.json();
+        }
+      } catch (err) {
+        console.warn('⚠️ RTDB leads REST fetch note:', err.message);
+      }
+    }
+  }
+
+  if (rawMap !== null) {
+    const leads = Object.entries(rawMap)
+      .filter(([, v]) => v && typeof v === 'object')
+      .map(([key, value]) => normalizeRemoteLead(value, key))
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    rtdbLeadsCache = { fetchedAt: now, failedAt: 0, leads };
+    console.log(`🔗 [RTDB Merge] Fetched ${leads.length} remote lead(s) from Firebase (${leadsPath}).`);
+  } else {
+    rtdbLeadsCache = { fetchedAt: rtdbLeadsCache.fetchedAt, failedAt: now, leads: rtdbLeadsCache.leads };
+  }
+
+  return rtdbLeadsCache.leads;
+}
+
 const FirebaseService = {
   isConfigured: () => isLiveFirebase,
   getRtdb: () => rtdb,
@@ -275,7 +371,17 @@ const FirebaseService = {
 
   async getLeads(filters = {}) {
     ensureLocalDb();
-    let list = [...localStore.leads];
+
+    // Merge remote RTDB leads (Loan Calculator website submissions) with the
+    // local store. Local wins on id collision so CRM edits are never lost.
+    const remoteLeads = await fetchRtdbLeads();
+    const merged = new Map();
+    remoteLeads.forEach((l) => merged.set(l.id, l));
+    localStore.leads.forEach((l) => merged.set(l.id, l));
+
+    let list = [...merged.values()].sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
 
     if (filters.status) list = list.filter((l) => l.status === filters.status);
     if (filters.assignedTo) list = list.filter((l) => l.assignedTo === filters.assignedTo);
@@ -284,13 +390,26 @@ const FirebaseService = {
 
   async getLeadById(id) {
     ensureLocalDb();
-    return localStore.leads.find((l) => l.id === id) || null;
+    const local = localStore.leads.find((l) => l.id === id);
+    if (local) return local;
+    const remoteLeads = await fetchRtdbLeads();
+    return remoteLeads.find((l) => l.id === id) || null;
   },
 
   async updateLead(id, updates) {
     const updatedAt = new Date().toISOString();
     ensureLocalDb();
-    const idx = localStore.leads.findIndex((l) => l.id === id);
+    let idx = localStore.leads.findIndex((l) => l.id === id);
+    if (idx < 0) {
+      // Lead may exist only in RTDB (created by the Loan Calculator website).
+      // Materialize it into the local store so the CRM can manage it.
+      const remoteLeads = await fetchRtdbLeads();
+      const remote = remoteLeads.find((l) => l.id === id);
+      if (remote) {
+        localStore.leads.unshift(remote);
+        idx = 0;
+      }
+    }
     if (idx >= 0) {
       localStore.leads[idx] = { ...localStore.leads[idx], ...updates, updatedAt };
       persistLocalDb();

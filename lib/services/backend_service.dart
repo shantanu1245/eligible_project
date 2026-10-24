@@ -514,9 +514,31 @@ class BackendService {
     _loanCalculatorUrl = url.replaceAll(RegExp(r'/+$'), '');
   }
 
-  /// Fetch leads from Loan-Calculator and backend database
+  /// Firebase Realtime Database REST endpoint where the Loan Calculator website
+  /// stores leads directly. Public read — same project config the website uses.
+  static const String _firebaseRtdbLeadsUrl =
+      'https://eligiblecrmdatabase-default-rtdb.firebaseio.com/leads.json';
+
+  /// Map website/Firebase status values to the CRM's camelCase conventions.
+  static String _normalizeLeadStatus(dynamic status) {
+    final raw = status?.toString() ?? '';
+    final key = raw.toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+    const statusMap = {
+      'new': 'newLead',
+      'newlead': 'newLead',
+      'contacted': 'contacted',
+      'qualified': 'qualified',
+      'converted': 'converted',
+      'lost': 'lost',
+    };
+    return statusMap[key] ?? (raw.isNotEmpty ? raw : 'newLead');
+  }
+
+  /// Fetch leads from backend AND Firebase Realtime Database, merged & deduped.
   Future<List<Map<String, dynamic>>> getLeads({String? status}) async {
-    // 1. Try primary backend / Firebase first
+    final merged = <String, Map<String, dynamic>>{};
+
+    // 1. Primary backend (CRM-managed leads; wins on id conflicts)
     try {
       final uri = Uri.parse('$_baseUrl/leads').replace(
         queryParameters: status != null ? {'status': status} : null,
@@ -525,43 +547,100 @@ class BackendService {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = (data['data'] ?? data['leads']) as List<dynamic>?;
-        if (list != null && list.isNotEmpty) {
+        if (list != null) {
+          for (final e in list) {
+            final lead = Map<String, dynamic>.from(e);
+            final id = lead['id']?.toString();
+            if (id != null && id.isNotEmpty) merged[id] = lead;
+          }
           debugPrint('[BackendService] ✅ Fetched ${list.length} leads from primary backend');
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
         }
       }
     } catch (e) {
-      debugPrint('[BackendService] Primary getLeads notice: $e. Checking Loan Calculator database...');
+      debugPrint('[BackendService] Primary getLeads notice: $e.');
     }
 
-    // 2. Fetch directly from Loan-Calculator website database (/api/leads)
-    final loanCalculatorEndpoints = [
-      '$_loanCalculatorUrl/leads',
-      'http://10.0.2.2:3000/api/leads', // Android emulator localhost alias
-      'http://localhost:3000/api/leads',
-      'http://127.0.0.1:3000/api/leads',
-    ];
-
-    for (final ep in loanCalculatorEndpoints) {
-      try {
-        final uri = Uri.parse(ep).replace(
-          queryParameters: status != null ? {'status': status} : null,
-        );
-        final res = await http.get(uri).timeout(const Duration(seconds: 3));
-        if (res.statusCode == 200) {
-          final data = jsonDecode(res.body);
-          final list = (data['leads'] ?? data['data']) as List<dynamic>?;
-          if (list != null && list.isNotEmpty) {
-            debugPrint('[BackendService] 🎯 Successfully fetched ${list.length} real leads from Loan Calculator database ($ep)');
-            return list.map((e) => Map<String, dynamic>.from(e)).toList();
-          }
+    // 2. Leads written directly to Firebase RTDB by the Loan Calculator website.
+    //    This guarantees website leads appear even when the app is talking to a
+    //    backend that has not synced them yet.
+    try {
+      final res = await http
+          .get(Uri.parse(_firebaseRtdbLeadsUrl))
+          .timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data.isNotEmpty) {
+          final now = DateTime.now().toUtc().toIso8601String();
+          var added = 0;
+          data.forEach((key, value) {
+            if (value is! Map) return;
+            final lead = Map<String, dynamic>.from(value);
+            final id = (lead['id']?.toString().isNotEmpty == true)
+                ? lead['id']!.toString()
+                : key.toString();
+            lead['id'] = id;
+            lead['status'] = _normalizeLeadStatus(lead['status']);
+            if (lead['createdAt'] == null) lead['createdAt'] = now;
+            if (lead['updatedAt'] == null) lead['updatedAt'] = lead['createdAt'];
+            if (!merged.containsKey(id)) {
+              merged[id] = lead;
+              added++;
+            }
+          });
+          debugPrint('[BackendService] 🔥 Merged $added Firebase RTDB lead(s) (total ${merged.length}).');
         }
-      } catch (_) {
-        // Continue to next endpoint candidate
+      }
+    } catch (e) {
+      debugPrint('[BackendService] Firebase RTDB fetch note: $e');
+    }
+
+    // 3. Fallback: Loan-Calculator website database if the sources above failed
+    if (merged.isEmpty) {
+      final loanCalculatorEndpoints = [
+        '$_loanCalculatorUrl/leads',
+        'http://10.0.2.2:3000/api/leads', // Android emulator localhost alias
+        'http://localhost:3000/api/leads',
+        'http://127.0.0.1:3000/api/leads',
+      ];
+
+      for (final ep in loanCalculatorEndpoints) {
+        try {
+          final uri = Uri.parse(ep).replace(
+            queryParameters: status != null ? {'status': status} : null,
+          );
+          final res = await http.get(uri).timeout(const Duration(seconds: 3));
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body);
+            final list = (data['leads'] ?? data['data']) as List<dynamic>?;
+            if (list != null) {
+              for (final e in list) {
+                final lead = Map<String, dynamic>.from(e);
+                final id = lead['id']?.toString();
+                if (id != null && id.isNotEmpty) merged[id] = lead;
+              }
+              debugPrint('[BackendService] 🎯 Successfully fetched ${list.length} real leads from Loan Calculator database ($ep)');
+              break;
+            }
+          }
+        } catch (_) {
+          // Continue to next endpoint candidate
+        }
       }
     }
 
-    return [];
+    var list = merged.values.toList()
+      ..sort((a, b) {
+        final at = DateTime.tryParse(a['createdAt']?.toString() ?? '');
+        final bt = DateTime.tryParse(b['createdAt']?.toString() ?? '');
+        final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+        return (bt ?? epoch).compareTo(at ?? epoch);
+      });
+
+    if (status != null && status.isNotEmpty) {
+      list = list.where((l) => l['status'] == status).toList();
+    }
+
+    return list;
   }
 
   /// Create a new lead manually in the CRM (with instant targeted or broadcast notifications)

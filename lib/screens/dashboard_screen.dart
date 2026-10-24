@@ -61,7 +61,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  int _pollTick = 0;
+
   Future<void> _checkNewDataAndNotifyAdmin() async {
+    _pollTick++;
+    // Refresh the leads list every 5 polls (60s) so new website leads appear
+    // automatically even without a notification change.
+    if (_pollTick % 5 == 0) {
+      _fetchLeadsFromBackend();
+    }
     try {
       final res = await BackendService().getNotifications();
       final newUnreadCount = (res['unreadCount'] as int?) ?? 0;
