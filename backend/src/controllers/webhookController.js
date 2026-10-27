@@ -81,8 +81,8 @@ const WebhookController = {
       // Async logging to Firebase/Local store
       await firebaseService.logWebhook(payload);
 
-      if (payload.object !== 'page') {
-        console.log(`ℹ️ [Webhook] Non-page object received: ${payload.object}, skipping.`);
+      if (payload.object !== 'page' && payload.object !== 'whatsapp_business_account') {
+        console.log(`ℹ️ [Webhook] Unhandled object received: ${payload.object}, skipping.`);
         return;
       }
 
@@ -91,6 +91,52 @@ const WebhookController = {
         for (const entry of payload.entry) {
           const changes = entry.changes || [];
           for (const change of changes) {
+            // 1. WhatsApp Business incoming messages
+            if (change.field === 'messages') {
+              const value = change.value || {};
+              const contacts = value.contacts || [];
+              const messages = value.messages || [];
+
+              for (const msg of messages) {
+                const fromNumber = msg.from || '';
+                const contact = contacts.find((c) => c.wa_id === fromNumber) || {};
+                const contactName = (contact.profile && contact.profile.name) ? contact.profile.name : 'WhatsApp User';
+                const messageText = (msg.text && msg.text.body)
+                  ? msg.text.body
+                  : (msg.type ? `[${msg.type.toUpperCase()} received]` : 'Inquiry message');
+                const createdTime = msg.timestamp
+                  ? new Date(parseInt(msg.timestamp) * 1000).toISOString()
+                  : new Date().toISOString();
+
+                const waLead = {
+                  id: `wa_${msg.id || Date.now()}`,
+                  name: contactName,
+                  phone: fromNumber.startsWith('+') ? fromNumber : `+${fromNumber}`,
+                  email: '',
+                  source: 'WhatsApp Campaign',
+                  campaign: 'WhatsApp Direct Inquiry',
+                  message: messageText,
+                  note: messageText,
+                  status: 'newLead',
+                  assignedTo: '',
+                  createdAt: createdTime,
+                  activities: [
+                    {
+                      id: `act_${Date.now()}`,
+                      title: 'Incoming WhatsApp Message',
+                      description: messageText,
+                      timestamp: createdTime,
+                    },
+                  ],
+                  followUps: [],
+                };
+
+                await firebaseService.saveLead(waLead);
+                console.log(`✅ [Webhook] WhatsApp lead saved: "${contactName}" (${fromNumber}): "${messageText}"`);
+              }
+            }
+
+            // 2. Meta Leadgen forms
             if (change.field === 'leadgen') {
               const leadgenValue = change.value || {};
               const leadgenId = leadgenValue.leadgen_id;

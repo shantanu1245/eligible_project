@@ -324,7 +324,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedMember,
+                      value: selectedMember,
                       decoration: const InputDecoration(
                         labelText: 'Assign to',
                         prefixIcon: Icon(
@@ -351,7 +351,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedPriority,
+                      value: selectedPriority,
                       decoration: const InputDecoration(
                         labelText: 'Priority',
                         prefixIcon: Icon(

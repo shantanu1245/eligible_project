@@ -19,6 +19,7 @@ class Lead {
   final DateTime createdAt;
   final String? avatarUrl;
   final String note;
+  final String? message;
   final List<Activity> activities;
   final List<FollowUp> followUps;
 
@@ -61,6 +62,7 @@ class Lead {
     required this.createdAt,
     this.avatarUrl,
     this.note = '',
+    this.message,
     this.activities = const [],
     this.followUps = const [],
     this.loanType,
@@ -89,6 +91,13 @@ class Lead {
     this.experience,
   });
 
+  /// Convenient helper to get WhatsApp / customer inquiry message or note
+  String get displayMessage {
+    if (message != null && message!.trim().isNotEmpty) return message!.trim();
+    if (note.trim().isNotEmpty) return note.trim();
+    return '';
+  }
+
   Lead copyWith({
     String? id,
     String? name,
@@ -102,6 +111,7 @@ class Lead {
     DateTime? createdAt,
     String? avatarUrl,
     String? note,
+    String? message,
     List<Activity>? activities,
     List<FollowUp>? followUps,
     String? loanType,
@@ -142,6 +152,7 @@ class Lead {
       createdAt: createdAt ?? this.createdAt,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       note: note ?? this.note,
+      message: message ?? this.message,
       activities: activities ?? this.activities,
       followUps: followUps ?? this.followUps,
       loanType: loanType ?? this.loanType,
@@ -225,7 +236,8 @@ class Lead {
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
       avatarUrl: json['avatarUrl']?.toString(),
-      note: json['note']?.toString() ?? '',
+      note: json['note']?.toString() ?? json['message']?.toString() ?? '',
+      message: json['message']?.toString() ?? json['whatsappMessage']?.toString() ?? json['note']?.toString(),
       activities: const [],
       followUps: const [],
       loanType: parsedLoanType,

@@ -127,6 +127,11 @@ class _LeadDetailsScreenState
 
           const SizedBox(height: 16),
 
+          if (widget.lead.displayMessage.isNotEmpty) ...[
+            _buildCustomerInquiryCard(widget.lead),
+            const SizedBox(height: 16),
+          ],
+
           _buildStatusCard(),
 
           const SizedBox(height: 16),
@@ -622,7 +627,7 @@ class _LeadDetailsScreenState
                     : (items.any((item) => item.value == currentAssignedTo) ? currentAssignedTo : '');
 
                 return DropdownButtonFormField<String>(
-                  initialValue: selectedDropdownValue,
+                  value: selectedDropdownValue,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Allot to Sales Executive',
@@ -667,7 +672,7 @@ class _LeadDetailsScreenState
     return _sectionCard(
       title: 'Lead Status',
       child: DropdownButtonFormField<LeadStatus>(
-        initialValue: selectedStatus,
+        value: selectedStatus,
         isExpanded: true,
         decoration: const InputDecoration(
           contentPadding: EdgeInsets.symmetric(
@@ -692,6 +697,114 @@ class _LeadDetailsScreenState
             selectedStatus = value;
           });
         },
+      ),
+    );
+  }
+
+  Widget _buildCustomerInquiryCard(Lead lead) {
+    final isWhatsApp = lead.source.toLowerCase().contains('whatsapp') ||
+        lead.campaign.toLowerCase().contains('whatsapp') ||
+        lead.campaign.toLowerCase().contains("what's app");
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isWhatsApp ? const Color(0xFFF0FDF4) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isWhatsApp ? const Color(0xFF86EFAC) : AppTheme.border,
+          width: isWhatsApp ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: isWhatsApp ? const Color(0xFFDCFCE7) : const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isWhatsApp ? Icons.chat_rounded : Icons.mark_chat_read_outlined,
+                  size: 18,
+                  color: isWhatsApp ? const Color(0xFF16A34A) : AppTheme.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isWhatsApp ? 'Incoming WhatsApp Message' : 'Customer Inquiry Message',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: isWhatsApp ? const Color(0xFF166534) : AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Received from ${lead.phone}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isWhatsApp ? const Color(0xFF15803D) : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isWhatsApp ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: Text(
+              lead.displayMessage,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF1E293B),
+                height: 1.45,
+              ),
+            ),
+          ),
+          if (isWhatsApp) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openWhatsApp(lead.phone),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.chat_rounded, size: 18),
+                label: const Text(
+                  'Open WhatsApp Chat & Reply',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -12,6 +12,8 @@ import 'tasks_screen.dart';
 import 'team_screen.dart';
 import 'meta_account_details_screen.dart';
 import 'campaigns_screen.dart';
+import 'meta_setup_screen.dart';
+import 'integrations_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   final UserModel user;
@@ -196,7 +198,14 @@ class MoreScreen extends StatelessWidget {
               },
             ),
 
-            // Meta Account Details
+          ]),
+
+          const SizedBox(height: 18),
+
+          _sectionTitle('Meta & Integrations'),
+
+          _menuCard([
+            // Meta Account Details (Full live data: 41 accounts, campaigns, ads, insights, diagnostics)
             _MenuItem(
               icon: Icons.hub_outlined,
               title: 'Meta Account Details',
@@ -211,9 +220,55 @@ class MoreScreen extends StatelessWidget {
                 );
               },
             ),
-          ]),
 
-          // Integrations section hidden as requested
+            // Meta Campaigns (Ads Manager)
+            _MenuItem(
+              icon: Icons.campaign_outlined,
+              title: 'Meta Campaigns',
+              subtitle: 'Create, launch & monitor Meta Ads campaigns',
+              trailing: _connectedBadge('Meta Ads'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CampaignsScreen(),
+                  ),
+                );
+              },
+            ),
+
+            // Meta Account Setup & Lead Sync
+            _MenuItem(
+              icon: Icons.facebook,
+              title: 'Meta Account Setup',
+              subtitle: 'Token, Page, Ad Account, Forms & instant lead sync',
+              trailing: _connectedBadge('Setup'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MetaSetupScreen(),
+                  ),
+                );
+              },
+            ),
+
+            // Integrations Hub
+            _MenuItem(
+              icon: Icons.cable_outlined,
+              title: 'Integrations Hub',
+              subtitle: 'Meta Ads, Firebase RTDB & Webhooks health status',
+              trailing: _connectedBadge('Active'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const IntegrationsScreen(),
+                  ),
+                );
+              },
+            ),
+          ]),
 
           const SizedBox(height: 18),
 

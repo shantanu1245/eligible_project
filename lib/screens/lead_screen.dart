@@ -320,11 +320,22 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
   Widget _sourceFilter(String title, String? key) {
     final selected = selectedSourceFilter == key;
+    final isWhatsApp = key == 'whatsapp';
+
+    final count = key == null
+        ? widget.leads.length
+        : (isWhatsApp
+            ? widget.leads.where((l) =>
+                l.campaign.toLowerCase().contains('whatsapp') ||
+                l.campaign.toLowerCase().contains("what's app") ||
+                l.source.toLowerCase().contains('whatsapp') ||
+                l.source.toLowerCase().contains('meta')).length
+            : widget.leads.where((l) => l.source.toLowerCase().contains('calculator')).length);
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: FilterChip(
-        label: Text(title),
+        label: Text('$title ($count)'),
         selected: selected,
         onSelected: (_) {
           setState(() {
@@ -334,14 +345,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
         labelStyle: TextStyle(
           fontSize: 11,
           fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-          color: selected ? AppTheme.primary : AppTheme.textSecondary,
+          color: selected
+              ? (isWhatsApp ? const Color(0xFF15803D) : AppTheme.primary)
+              : AppTheme.textSecondary,
         ),
-        selectedColor: const Color(0xFFEFF6FF),
+        selectedColor: isWhatsApp ? const Color(0xFFDCFCE7) : const Color(0xFFEFF6FF),
         backgroundColor: Colors.white,
         side: BorderSide(
-          color: selected ? AppTheme.primary : AppTheme.border,
+          color: selected
+              ? (isWhatsApp ? const Color(0xFF16A34A) : AppTheme.primary)
+              : AppTheme.border,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
         visualDensity: VisualDensity.compact,
       ),
     );

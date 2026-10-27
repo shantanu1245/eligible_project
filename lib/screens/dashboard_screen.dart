@@ -168,8 +168,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final rawList = await BackendService().getLeads();
       if (mounted && rawList.isNotEmpty) {
+        final backendLeads = rawList.map((m) => Lead.fromJson(m)).toList();
         setState(() {
-          leads = rawList.map((m) => Lead.fromJson(m)).toList();
+          leads = backendLeads;
         });
       }
     } finally {
