@@ -58,9 +58,9 @@ class _LeadDetailsScreenState
       case LeadStatus.qualified:
         return 'Qualified';
       case LeadStatus.converted:
-        return 'Converted';
+        return 'In Process';
       case LeadStatus.lost:
-        return 'Lost';
+        return 'Rejected';
     }
   }
 

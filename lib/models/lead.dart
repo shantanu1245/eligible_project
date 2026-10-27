@@ -98,6 +98,34 @@ class Lead {
     return '';
   }
 
+  /// Categorization based on loan type from website / Meta Ads
+  String get categoryDisplay {
+    final t = (loanType ?? '').toLowerCase().trim();
+    if (t.contains('home')) return 'Home Loan';
+    if (t.contains('business')) return 'Business Loan';
+    if (t.contains('salary') || t.contains('personal')) return 'Personal / Salary Loan';
+    if (t.contains('lap') || t.contains('mortgage') || t.contains('property')) return 'Loan Against Property';
+    if (t.contains('education')) return 'Education Loan';
+    if (t.contains('car') || t.contains('vehicle') || t.contains('auto')) return 'Vehicle Loan';
+
+    final c = '$campaign $note'.toLowerCase();
+    if (c.contains('home loan') || c.contains('home')) return 'Home Loan';
+    if (c.contains('business loan') || c.contains('business')) return 'Business Loan';
+    if (c.contains('personal loan') || c.contains('salary')) return 'Personal / Salary Loan';
+    if (c.contains('doctor')) return 'Doctor Loan';
+
+    return (loanType != null && loanType!.trim().isNotEmpty) ? loanType!.trim() : 'General Loan';
+  }
+
+  String get categoryKey {
+    final c = categoryDisplay.toLowerCase();
+    if (c.contains('home')) return 'home';
+    if (c.contains('business')) return 'business';
+    if (c.contains('salary') || c.contains('personal')) return 'salary';
+    if (c.contains('property') || c.contains('lap')) return 'lap';
+    return 'other';
+  }
+
   Lead copyWith({
     String? id,
     String? name,
@@ -330,16 +358,96 @@ class Activity {
 
 class FollowUp {
   final String id;
+  final String followupNumber;
+  final String leadId;
   final String leadName;
-  final String title;
+  final String phone;
+  final String category;
+  final double? requiredAmount;
+  final String remark;
   final DateTime dateTime;
+  final List<String> pendingDocuments;
   final bool isOverdue;
+  final bool isCompleted;
 
   const FollowUp({
     required this.id,
+    String? followupNumber,
+    this.leadId = '',
     required this.leadName,
-    required this.title,
+    this.phone = '',
+    this.category = 'General Loan',
+    this.requiredAmount,
+    String? remark,
+    String? title,
     required this.dateTime,
+    this.pendingDocuments = const [],
     this.isOverdue = false,
-  });
+    this.isCompleted = false,
+  })  : followupNumber = followupNumber ?? id,
+        remark = remark ?? title ?? '';
+
+  String get title => remark.isNotEmpty ? remark : 'Follow-up with $leadName';
+
+  FollowUp copyWith({
+    String? id,
+    String? followupNumber,
+    String? leadId,
+    String? leadName,
+    String? phone,
+    String? category,
+    double? requiredAmount,
+    String? remark,
+    DateTime? dateTime,
+    List<String>? pendingDocuments,
+    bool? isOverdue,
+    bool? isCompleted,
+  }) {
+    return FollowUp(
+      id: id ?? this.id,
+      followupNumber: followupNumber ?? this.followupNumber,
+      leadId: leadId ?? this.leadId,
+      leadName: leadName ?? this.leadName,
+      phone: phone ?? this.phone,
+      category: category ?? this.category,
+      requiredAmount: requiredAmount ?? this.requiredAmount,
+      remark: remark ?? this.remark,
+      dateTime: dateTime ?? this.dateTime,
+      pendingDocuments: pendingDocuments ?? this.pendingDocuments,
+      isOverdue: isOverdue ?? this.isOverdue,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'followupNumber': followupNumber,
+        'leadId': leadId,
+        'leadName': leadName,
+        'phone': phone,
+        'category': category,
+        'requiredAmount': requiredAmount,
+        'remark': remark,
+        'dateTime': dateTime.toIso8601String(),
+        'pendingDocuments': pendingDocuments,
+        'isOverdue': isOverdue,
+        'isCompleted': isCompleted,
+      };
+
+  factory FollowUp.fromJson(Map<String, dynamic> json) {
+    return FollowUp(
+      id: json['id']?.toString() ?? '',
+      followupNumber: json['followupNumber']?.toString() ?? json['id']?.toString() ?? '',
+      leadId: json['leadId']?.toString() ?? '',
+      leadName: json['leadName']?.toString() ?? json['name']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'General Loan',
+      requiredAmount: json['requiredAmount'] != null ? (json['requiredAmount'] as num).toDouble() : null,
+      remark: json['remark']?.toString() ?? json['title']?.toString() ?? json['task']?.toString() ?? '',
+      dateTime: json['dateTime'] != null ? DateTime.tryParse(json['dateTime'].toString()) ?? DateTime.now() : DateTime.now(),
+      pendingDocuments: json['pendingDocuments'] is List ? List<String>.from(json['pendingDocuments']) : [],
+      isOverdue: json['isOverdue'] == true,
+      isCompleted: json['isCompleted'] == true,
+    );
+  }
 }

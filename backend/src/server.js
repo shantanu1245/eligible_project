@@ -99,18 +99,40 @@ const server = app.listen(config.port, () => {
   if (rtdb) {
     const notificationService = require('./services/notificationService');
     const processedLeadIds = new Set();
+    let initialSyncComplete = false;
 
-    rtdb.ref('leads').limitToLast(5).on('child_added', (snapshot) => {
+    // Snapshot existing historical leads on startup so we don't alert for old data
+    rtdb.ref(config.firebase.paths.leads).limitToLast(20).once('value')
+      .then((snapshot) => {
+        if (snapshot.exists()) {
+          snapshot.forEach((child) => {
+            const l = child.val();
+            if (l && l.id) processedLeadIds.add(l.id);
+            processedLeadIds.add(child.key);
+          });
+        }
+        initialSyncComplete = true;
+      })
+      .catch((err) => {
+        console.warn('⚠️ [Realtime Listener] Pre-sync note:', err.message);
+        initialSyncComplete = true;
+      });
+
+    // Real-time child_added listener for all new incoming leads
+    rtdb.ref(config.firebase.paths.leads).limitToLast(10).on('child_added', (snapshot) => {
       const lead = snapshot.val();
-      if (!lead || !lead.id) return;
-      if (processedLeadIds.has(lead.id)) return;
-      processedLeadIds.add(lead.id);
+      if (!lead) return;
+      const leadId = lead.id || snapshot.key;
+      if (processedLeadIds.has(leadId)) return;
+      processedLeadIds.add(leadId);
 
+      // If initial historical sync is complete, this is a fresh real-time lead
       const leadCreatedAt = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
-      // Only fire real-time alert for leads created after this server instance started
-      if (leadCreatedAt >= serverStartTime - 3000) {
-        console.log(`📡 [Realtime DB Event] New lead detected in Firebase RTDB: ${lead.name}`);
-        notificationService.notifyNewLead(lead).catch((err) => {
+      const isFresh = initialSyncComplete || (!isNaN(leadCreatedAt) && leadCreatedAt >= serverStartTime - 5000);
+
+      if (isFresh) {
+        console.log(`📡 [Realtime DB Event] New lead detected in Firebase RTDB: ${lead.name || leadId}`);
+        notificationService.notifyNewLead({ ...lead, id: leadId }).catch((err) => {
           console.warn('⚠️ Realtime lead alert note:', err.message);
         });
       }

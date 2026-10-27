@@ -37,6 +37,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
   String searchQuery = '';
   LeadStatus? selectedStatus;
   String? selectedSourceFilter;
+  String? selectedCategoryFilter;
+  String selectedSort = 'date_desc';
 
   @override
   void dispose() {
@@ -45,7 +47,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   List<Lead> get filteredLeads {
-    return widget.leads.where((lead) {
+    final list = widget.leads.where((lead) {
       final query = searchQuery.toLowerCase().trim();
 
       final matchesSearch = query.isEmpty ||
@@ -53,7 +55,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
           lead.phone.toLowerCase().contains(query) ||
           lead.email.toLowerCase().contains(query) ||
           lead.source.toLowerCase().contains(query) ||
-          lead.campaign.toLowerCase().contains(query);
+          lead.campaign.toLowerCase().contains(query) ||
+          lead.categoryDisplay.toLowerCase().contains(query);
 
       final matchesStatus =
           selectedStatus == null || lead.status == selectedStatus;
@@ -67,8 +70,37 @@ class _LeadsScreenState extends State<LeadsScreen> {
           (selectedSourceFilter == 'calculator' &&
               lead.source.toLowerCase().contains('calculator'));
 
-      return matchesSearch && matchesStatus && matchesSource;
+      final matchesCategory = selectedCategoryFilter == null ||
+          lead.categoryKey == selectedCategoryFilter;
+
+      return matchesSearch && matchesStatus && matchesSource && matchesCategory;
     }).toList();
+
+    list.sort((a, b) {
+      switch (selectedSort) {
+        case 'category_asc':
+          final catComp = a.categoryDisplay.compareTo(b.categoryDisplay);
+          if (catComp != 0) return catComp;
+          return b.createdAt.compareTo(a.createdAt);
+        case 'date_asc':
+          return a.createdAt.compareTo(b.createdAt);
+        case 'amount_desc':
+          final amtA = a.requiredLoan ?? a.propertyCost ?? a.annualTurnover ?? 0.0;
+          final amtB = b.requiredLoan ?? b.propertyCost ?? b.annualTurnover ?? 0.0;
+          return amtB.compareTo(amtA);
+        case 'amount_asc':
+          final amtA = a.requiredLoan ?? a.propertyCost ?? a.annualTurnover ?? 0.0;
+          final amtB = b.requiredLoan ?? b.propertyCost ?? b.annualTurnover ?? 0.0;
+          return amtA.compareTo(amtB);
+        case 'name_asc':
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        case 'date_desc':
+        default:
+          return b.createdAt.compareTo(a.createdAt);
+      }
+    });
+
+    return list;
   }
 
   int get unassignedCount =>
@@ -129,9 +161,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
             icon: const Icon(Icons.person_add_alt_1_rounded),
           ),
           IconButton(
-            tooltip: 'Filter Leads',
-            onPressed: () {},
-            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Sort & Filter Leads',
+            onPressed: _showSortAndFilterModal,
+            icon: Badge(
+              isLabelVisible: selectedSort != 'date_desc' ||
+                  selectedCategoryFilter != null ||
+                  selectedStatus != null ||
+                  selectedSourceFilter != null,
+              child: const Icon(Icons.tune_rounded),
+            ),
           ),
         ],
       ),
@@ -284,9 +322,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   Widget _buildFilters() {
+    final hasActiveFilter = selectedSort != 'date_desc' ||
+        selectedCategoryFilter != null ||
+        selectedSourceFilter != null;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Status Row
         SizedBox(
           height: 38,
           child: ListView(
@@ -297,67 +340,335 @@ class _LeadsScreenState extends State<LeadsScreen> {
               _filter('New', LeadStatus.newLead),
               _filter('Contacted', LeadStatus.contacted),
               _filter('Qualified', LeadStatus.qualified),
-              _filter('Converted', LeadStatus.converted),
+              _filter('In Process', LeadStatus.converted),
+              _filter('Rejected', LeadStatus.lost),
             ],
           ),
         ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 32,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              _sourceFilter('All Sources', null),
-              _sourceFilter('💬 WhatsApp Campaign', 'whatsapp'),
-              _sourceFilter('🧮 Loan Calculator', 'calculator'),
-            ],
+        if (hasActiveFilter)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: Row(
+              children: [
+                if (selectedCategoryFilter != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDBEAFE),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _categoryTitle(selectedCategoryFilter),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => setState(() => selectedCategoryFilter = null),
+                          child: const Icon(Icons.close, size: 13, color: Color(0xFF1D4ED8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                if (selectedSort != 'date_desc')
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sort_rounded, size: 14, color: AppTheme.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          _sortLabel(selectedSort),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      selectedSort = 'date_desc';
+                      selectedCategoryFilter = null;
+                      selectedStatus = null;
+                      selectedSourceFilter = null;
+                    });
+                  },
+                  child: const Text(
+                    'Reset all',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
 
-  Widget _sourceFilter(String title, String? key) {
-    final selected = selectedSourceFilter == key;
-    final isWhatsApp = key == 'whatsapp';
+  String _categoryTitle(String? key) {
+    switch (key) {
+      case 'salary':
+        return '💼 Salary / Personal';
+      case 'home':
+        return '🏠 Home Loan';
+      case 'business':
+        return '🏢 Business Loan';
+      default:
+        return 'Category Filter';
+    }
+  }
 
-    final count = key == null
-        ? widget.leads.length
-        : (isWhatsApp
-            ? widget.leads.where((l) =>
-                l.campaign.toLowerCase().contains('whatsapp') ||
-                l.campaign.toLowerCase().contains("what's app") ||
-                l.source.toLowerCase().contains('whatsapp') ||
-                l.source.toLowerCase().contains('meta')).length
-            : widget.leads.where((l) => l.source.toLowerCase().contains('calculator')).length);
+  String _sortLabel(String sortKey) {
+    switch (sortKey) {
+      case 'category_asc':
+        return 'Sorted by Category';
+      case 'amount_desc':
+        return 'Sorted by Loan Amount (High-Low)';
+      case 'amount_asc':
+        return 'Sorted by Loan Amount (Low-High)';
+      case 'date_asc':
+        return 'Sorted by Oldest First';
+      case 'name_asc':
+        return 'Sorted by Name (A-Z)';
+      case 'date_desc':
+      default:
+        return 'Sorted by Newest First';
+    }
+  }
 
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text('$title ($count)'),
-        selected: selected,
-        onSelected: (_) {
-          setState(() {
-            selectedSourceFilter = key;
-          });
-        },
-        labelStyle: TextStyle(
-          fontSize: 11,
-          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-          color: selected
-              ? (isWhatsApp ? const Color(0xFF15803D) : AppTheme.primary)
-              : AppTheme.textSecondary,
-        ),
-        selectedColor: isWhatsApp ? const Color(0xFFDCFCE7) : const Color(0xFFEFF6FF),
-        backgroundColor: Colors.white,
-        side: BorderSide(
-          color: selected
-              ? (isWhatsApp ? const Color(0xFF16A34A) : AppTheme.primary)
-              : AppTheme.border,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-        visualDensity: VisualDensity.compact,
+  void _showSortAndFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Sort & Filter Leads',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setModalState(() {
+                                selectedSort = 'date_desc';
+                                selectedCategoryFilter = null;
+                                selectedStatus = null;
+                                selectedSourceFilter = null;
+                              });
+                              setState(() {});
+                            },
+                            child: const Text('Reset All'),
+                          ),
+                        ],
+                      ),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'SORT LEADS BY',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _modalSortChip('🏷️ Loan Category', 'category_asc', setModalState),
+                          _modalSortChip('📅 Newest First', 'date_desc', setModalState),
+                          _modalSortChip('📅 Oldest First', 'date_asc', setModalState),
+                          _modalSortChip('💰 Amount (High to Low)', 'amount_desc', setModalState),
+                          _modalSortChip('💰 Amount (Low to High)', 'amount_asc', setModalState),
+                          _modalSortChip('👤 Name (A to Z)', 'name_asc', setModalState),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'LOAN CATEGORY (WEBSITE)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _modalCategoryChip('All Categories', null, setModalState),
+                          _modalCategoryChip('💼 Salary / Personal', 'salary', setModalState),
+                          _modalCategoryChip('🏠 Home Loan', 'home', setModalState),
+                          _modalCategoryChip('🏢 Business Loan', 'business', setModalState),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'LEAD STATUS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _modalStatusChip('All', null, setModalState),
+                          _modalStatusChip('New', LeadStatus.newLead, setModalState),
+                          _modalStatusChip('Contacted', LeadStatus.contacted, setModalState),
+                          _modalStatusChip('Qualified', LeadStatus.qualified, setModalState),
+                          _modalStatusChip('In Process', LeadStatus.converted, setModalState),
+                          _modalStatusChip('Rejected', LeadStatus.lost, setModalState),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            setState(() {});
+                          },
+                          child: Text(
+                            'Apply (${filteredLeads.length} Leads)',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _modalSortChip(String label, String key, StateSetter setModalState) {
+    final isSelected = selectedSort == key;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (val) {
+        if (val) {
+          setModalState(() => selectedSort = key);
+          setState(() => selectedSort = key);
+        }
+      },
+      selectedColor: AppTheme.primary,
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: isSelected ? Colors.white : AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _modalCategoryChip(String label, String? key, StateSetter setModalState) {
+    final isSelected = selectedCategoryFilter == key;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        setModalState(() => selectedCategoryFilter = key);
+        setState(() => selectedCategoryFilter = key);
+      },
+      selectedColor: const Color(0xFF2563EB),
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: isSelected ? Colors.white : AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _modalStatusChip(String label, LeadStatus? status, StateSetter setModalState) {
+    final isSelected = selectedStatus == status;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        setModalState(() => selectedStatus = status);
+        setState(() => selectedStatus = status);
+      },
+      selectedColor: AppTheme.primary,
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: isSelected ? Colors.white : AppTheme.textPrimary,
       ),
     );
   }

@@ -270,37 +270,6 @@ class MoreScreen extends StatelessWidget {
             ),
           ]),
 
-          const SizedBox(height: 18),
-
-          _sectionTitle('Account'),
-
-          _menuCard([
-            _MenuItem(
-              icon: Icons.person_outline,
-              title: 'Profile',
-              subtitle: 'Manage your account details',
-              onTap: () {},
-            ),
-            _MenuItem(
-              icon: Icons.notifications_none_outlined,
-              title: 'Notifications',
-              subtitle: 'Manage notification preferences',
-              onTap: () {},
-            ),
-            _MenuItem(
-              icon: Icons.security_outlined,
-              title: 'Security',
-              subtitle: 'Password and security settings',
-              onTap: () {},
-            ),
-            _MenuItem(
-              icon: Icons.settings_outlined,
-              title: 'Settings',
-              subtitle: 'Application preferences',
-              onTap: () {},
-            ),
-          ]),
-
           const SizedBox(height: 24),
 
           OutlinedButton.icon(

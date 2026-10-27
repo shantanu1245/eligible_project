@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
 import '../theme/app_theme.dart';
@@ -83,8 +84,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _unreadNotifCount = newUnreadCount;
         });
 
-        // Trigger in-app live alert banner for Admin
+        // Trigger in-app live alert banner with physical vibration for Admin
         if (widget.user.isAdmin && mounted) {
+          try {
+            HapticFeedback.vibrate();
+          } catch (_) {}
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(

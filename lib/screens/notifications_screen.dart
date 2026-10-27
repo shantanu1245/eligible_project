@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
 import '../services/backend_service.dart';
@@ -204,6 +205,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   void _showInAppHeadsUpBanner(Map<String, dynamic> notif) {
+    try {
+      HapticFeedback.vibrate();
+    } catch (_) {}
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -369,10 +373,16 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   Widget build(BuildContext context) {
     final adminNotifs = _allNotifications
-        .where((n) => n['targetRole'] == 'admin')
+        .where((n) =>
+            n['targetRole'] == 'admin' ||
+            n['targetRole'] == 'all' ||
+            n['targetRole'] == null)
         .toList();
     final salesNotifs = _allNotifications
-        .where((n) => n['targetRole'] == 'sales_agent')
+        .where((n) =>
+            n['targetRole'] == 'sales_agent' ||
+            n['targetRole'] == 'all' ||
+            n['targetRole'] == null)
         .toList();
 
     return Scaffold(

@@ -83,13 +83,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           _buildPipelineCard('New', '$newCount', Icons.people_alt_outlined, const Color(0xFF2563EB)),
           _buildPipelineCard('Contacted', '$contactedCount', Icons.phone_outlined, const Color(0xFFEA580C)),
           _buildPipelineCard('Qualified', '$qualifiedCount', Icons.verified_outlined, const Color(0xFF16A34A)),
-          _buildPipelineCard('Converted', '$convertedCount', Icons.check_circle_outline, const Color(0xFF0F766E)),
-          _buildPipelineCard('Lost', '$lostCount', Icons.close_outlined, const Color(0xFFDC2626)),
+          _buildPipelineCard('In Process', '$convertedCount', Icons.timelapse_rounded, const Color(0xFF0F766E)),
+          _buildPipelineCard('Rejected', '$lostCount', Icons.cancel_outlined, const Color(0xFFDC2626)),
+
+          const SizedBox(height: 24),
+
+          // Category Breakdown Section
+          const Text(
+            'Loan Categories Breakdown',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildCategoryBreakdownCard(leads),
 
           const SizedBox(height: 24),
 
           const Text(
-            'Conversion Rate',
+            'In Process Rate',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -112,7 +127,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Overall Conversion',
+                      'Overall In Process',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -140,7 +155,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '$convertedCount of $totalCount total applicants converted',
+                  '$convertedCount of $totalCount total applicants in process',
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppTheme.textSecondary,
@@ -151,6 +166,62 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCategoryBreakdownCard(List<Lead> leads) {
+    final personalCount = leads.where((l) => l.categoryKey == 'salary').length;
+    final homeCount = leads.where((l) => l.categoryKey == 'home').length;
+    final businessCount = leads.where((l) => l.categoryKey == 'business').length;
+    final otherCount = leads.length - (personalCount + homeCount + businessCount);
+    final total = leads.isEmpty ? 1 : leads.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        children: [
+          _categoryRow('💼 Salary / Personal Loan', personalCount, personalCount / total, const Color(0xFF2563EB)),
+          const SizedBox(height: 12),
+          _categoryRow('🏠 Home Loan', homeCount, homeCount / total, const Color(0xFF16A34A)),
+          const SizedBox(height: 12),
+          _categoryRow('🏢 Business Loan', businessCount, businessCount / total, const Color(0xFFD97706)),
+          if (otherCount > 0) ...[
+            const SizedBox(height: 12),
+            _categoryRow('📋 Other Loans', otherCount, otherCount / total, const Color(0xFF64748B)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryRow(String label, int count, double ratio, Color color) {
+    final pct = (ratio * 100).toStringAsFixed(0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            Text('$count leads ($pct%)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio.clamp(0.0, 1.0),
+            minHeight: 6,
+            backgroundColor: const Color(0xFFF1F5F9),
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+        ),
+      ],
     );
   }
 

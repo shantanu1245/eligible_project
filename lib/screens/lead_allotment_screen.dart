@@ -21,6 +21,7 @@ class LeadAllotmentScreen extends StatefulWidget {
 class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
   late List<Lead> _currentLeads;
   String _selectedFilter = 'Unassigned';
+  String? _selectedCategoryFilter; // null = All, 'salary', 'home', 'business'
   final Set<String> _selectedLeadIds = {};
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -44,7 +45,8 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
           lead.name.toLowerCase().contains(query) ||
           lead.phone.toLowerCase().contains(query) ||
           lead.email.toLowerCase().contains(query) ||
-          lead.source.toLowerCase().contains(query);
+          lead.source.toLowerCase().contains(query) ||
+          lead.categoryDisplay.toLowerCase().contains(query);
 
       bool matchesFilter = true;
       if (_selectedFilter == 'Unassigned') {
@@ -55,7 +57,10 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
         matchesFilter = lead.assignedTo.toLowerCase().contains('priya');
       }
 
-      return matchesSearch && matchesFilter;
+      final matchesCategory = _selectedCategoryFilter == null ||
+          lead.categoryKey == _selectedCategoryFilter;
+
+      return matchesSearch && matchesFilter && matchesCategory;
     }).toList();
   }
 
@@ -67,6 +72,57 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
   int get _priyaCount => _currentLeads
       .where((l) => l.assignedTo.toLowerCase().contains('priya'))
       .length;
+
+  int _categoryCount(String key) =>
+      _currentLeads.where((l) => l.categoryKey == key).length;
+
+  int _categoryUnassignedCount(String key) => _currentLeads
+      .where((l) => l.assignedTo.trim().isEmpty && l.categoryKey == key)
+      .length;
+
+  void _allotCategoryBatch(String categoryKey, UserModel executive) {
+    final targets = _currentLeads
+        .where((l) => l.assignedTo.trim().isEmpty && l.categoryKey == categoryKey)
+        .toList();
+
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No unassigned leads found in this category.'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+      return;
+    }
+
+    final targetIds = targets.map((l) => l.id).toSet();
+
+    setState(() {
+      for (int i = 0; i < _currentLeads.length; i++) {
+        if (targetIds.contains(_currentLeads[i].id)) {
+          _currentLeads[i] =
+              _currentLeads[i].copyWith(assignedTo: executive.name);
+        }
+      }
+      _selectedLeadIds.removeAll(targetIds);
+    });
+
+    widget.onLeadsUpdated(_currentLeads);
+
+    for (final lead in targets) {
+      BackendService().allotLead(lead.id, assignedTo: executive.name);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${targets.length} ${targets.first.categoryDisplay} leads allotted to ${executive.name}',
+        ),
+        backgroundColor: const Color(0xFF16A34A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   void _allotSingleLead(Lead lead, UserModel executive) {
     final updatedLead = lead.copyWith(assignedTo: executive.name);
@@ -363,6 +419,22 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: OutlinedButton.icon(
+              onPressed: _showCategoryBatchAllotmentModal,
+              icon: const Icon(Icons.category_rounded, size: 16),
+              label: const Text(
+                'Category Allot',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+                side: const BorderSide(color: AppTheme.primary),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+            ),
+          ),
           if (_selectedLeadIds.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -560,40 +632,330 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
       {'label': 'Priya Shah', 'count': _priyaCount},
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: filters.map((f) {
-          final isSelected = _selectedFilter == f['label'];
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('${f['label']} (${f['count']})'),
-              selected: isSelected,
-              onSelected: (_) {
-                setState(() {
-                  _selectedFilter = f['label'] as String;
-                  _selectedLeadIds.clear();
-                });
+    final categories = [
+      {'label': 'All Categories', 'key': null, 'count': _currentLeads.length},
+      {'label': '💼 Salary / Personal', 'key': 'salary', 'count': _categoryCount('salary')},
+      {'label': '🏠 Home Loan', 'key': 'home', 'count': _categoryCount('home')},
+      {'label': '🏢 Business Loan', 'key': 'business', 'count': _categoryCount('business')},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Executive / status filter
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: filters.map((f) {
+              final isSelected = _selectedFilter == f['label'];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text('${f['label']} (${f['count']})'),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    setState(() {
+                      _selectedFilter = f['label'] as String;
+                      _selectedLeadIds.clear();
+                    });
+                  },
+                  selectedColor: AppTheme.primary,
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : AppTheme.textPrimary,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: isSelected ? AppTheme.primary : AppTheme.border,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        // Loan Category Filter Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          child: Row(
+            children: categories.map((c) {
+              final isSelected = _selectedCategoryFilter == c['key'];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text('${c['label']} (${c['count']})'),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    setState(() {
+                      _selectedCategoryFilter = c['key'] as String?;
+                      _selectedLeadIds.clear();
+                    });
+                  },
+                  selectedColor: const Color(0xFFDBEAFE),
+                  labelStyle: TextStyle(
+                    color: isSelected ? const Color(0xFF1D4ED8) : AppTheme.textSecondary,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                    color: isSelected ? const Color(0xFF2563EB) : AppTheme.border,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                  visualDensity: VisualDensity.compact,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  void _showCategoryBatchAllotmentModal() {
+    String selectedCatKey = 'salary';
+    UserModel selectedExec = UserModel.salesExecutives.first;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final unassignedSalary = _categoryUnassignedCount('salary');
+            final unassignedHome = _categoryUnassignedCount('home');
+            final unassignedBusiness = _categoryUnassignedCount('business');
+
+            final categoryList = [
+              {
+                'key': 'salary',
+                'title': '💼 Salary / Personal Loan',
+                'unassigned': unassignedSalary,
+                'total': _categoryCount('salary'),
               },
-              selectedColor: AppTheme.primary,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : AppTheme.textPrimary,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 12,
-              ),
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: isSelected ? AppTheme.primary : AppTheme.border,
+              {
+                'key': 'home',
+                'title': '🏠 Home Loan',
+                'unassigned': unassignedHome,
+                'total': _categoryCount('home'),
+              },
+              {
+                'key': 'business',
+                'title': '🏢 Business Loan',
+                'unassigned': unassignedBusiness,
+                'total': _categoryCount('business'),
+              },
+            ];
+
+            final selectedCategoryInfo =
+                categoryList.firstWhere((c) => c['key'] == selectedCatKey);
+            final targetCount = selectedCategoryInfo['unassigned'] as int;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Category-Wise Allotment',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const Text(
+                      'Allot unassigned leads of a specific website loan type to an executive in one tap:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      '1. SELECT LOAN CATEGORY',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...categoryList.map((cat) {
+                      final isSelected = selectedCatKey == cat['key'];
+                      final unassigned = cat['unassigned'] as int;
+                      final total = cat['total'] as int;
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? AppTheme.primary : AppTheme.border,
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: RadioListTile<String>(
+                          value: cat['key'] as String,
+                          groupValue: selectedCatKey,
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() => selectedCatKey = val);
+                            }
+                          },
+                          title: Text(
+                            cat['title'] as String,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '$unassigned unassigned of $total leads',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: unassigned > 0
+                                  ? const Color(0xFFDC2626)
+                                  : AppTheme.textSecondary,
+                              fontWeight: unassigned > 0
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '2. SELECT SALES EXECUTIVE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: UserModel.salesExecutives.map((exec) {
+                        final isExecSelected = selectedExec.id == exec.id;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setModalState(() => selectedExec = exec);
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: isExecSelected
+                                    ? const Color(0xFFEFF6FF)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isExecSelected
+                                      ? AppTheme.primary
+                                      : AppTheme.border,
+                                  width: isExecSelected ? 2 : 1,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: isExecSelected
+                                        ? AppTheme.primary
+                                        : const Color(0xFFDBEAFE),
+                                    child: Text(
+                                      exec.initial,
+                                      style: TextStyle(
+                                        color: isExecSelected
+                                            ? Colors.white
+                                            : AppTheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    exec.name,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: targetCount > 0
+                              ? AppTheme.primary
+                              : Colors.grey.shade400,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: targetCount == 0
+                            ? null
+                            : () {
+                                Navigator.pop(ctx);
+                                _allotCategoryBatch(selectedCatKey, selectedExec);
+                              },
+                        icon: const Icon(Icons.assignment_turned_in, size: 18),
+                        label: Text(
+                          targetCount > 0
+                              ? 'Allot $targetCount Leads to ${selectedExec.name}'
+                              : 'No Unassigned Leads',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          );
-        }).toList(),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -675,6 +1037,19 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                               color: AppTheme.textSecondary,
                             ),
                           ),
+                          if (lead.city != null && lead.city!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Icon(Icons.location_on_outlined,
+                                size: 12, color: AppTheme.textSecondary),
+                            const SizedBox(width: 2),
+                            Text(
+                              lead.city!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -705,32 +1080,53 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
             const Divider(height: 1, color: Color(0xFFF1F5F9)),
             const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Source badge
+                // Category badge
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
                   ),
                   child: Text(
-                    lead.source,
+                    lead.categoryDisplay,
                     style: const TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1D4ED8),
                     ),
                   ),
                 ),
+                if (lead.requiredLoan != null && lead.requiredLoan! > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Text(
+                      '₹${lead.requiredLoan! >= 100000 ? "${(lead.requiredLoan! / 100000).toStringAsFixed(1)}L" : lead.requiredLoan!.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF16A34A),
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
                 // Assigned to status chip
                 Row(
                   children: [
                     const Text(
-                      'Assigned to: ',
+                      'Assigned: ',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: AppTheme.textSecondary,
                       ),
                     ),
@@ -746,7 +1142,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                       child: Text(
                         isUnassigned ? 'Unassigned' : lead.assignedTo,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: isUnassigned
                               ? const Color(0xFFDC2626)

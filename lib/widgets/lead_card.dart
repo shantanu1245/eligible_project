@@ -528,14 +528,14 @@ class _StatusBadge extends StatelessWidget {
 
       case LeadStatus.converted:
         return const _StatusStyle(
-          'Converted',
+          'In Process',
           Color(0xFFF0FDFA),
           Color(0xFF0F766E),
         );
 
       case LeadStatus.lost:
         return const _StatusStyle(
-          'Lost',
+          'Rejected',
           Color(0xFFFEF2F2),
           Color(0xFFDC2626),
         );
