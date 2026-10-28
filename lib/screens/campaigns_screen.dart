@@ -903,7 +903,15 @@ class _MetricCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 6),
               Icon(icon, size: 16, color: accentColor),
             ],
           ),
@@ -1010,10 +1018,10 @@ class _CampaignCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _CampaignStat(label: 'Leads', value: '$leads'),
-              _CampaignStat(label: 'Spend', value: '₹${spend.toStringAsFixed(0)}'),
-              _CampaignStat(label: 'CPL', value: '₹${cpl.toStringAsFixed(1)}'),
-              _CampaignStat(label: 'Budget', value: budgetVal),
+              Expanded(child: _CampaignStat(label: 'Leads', value: '$leads')),
+              Expanded(child: _CampaignStat(label: 'Spend', value: '₹${spend.toStringAsFixed(0)}')),
+              Expanded(child: _CampaignStat(label: 'CPL', value: '₹${cpl.toStringAsFixed(1)}')),
+              Expanded(child: _CampaignStat(label: 'Budget', value: budgetVal)),
             ],
           ),
           if (onFilterAdSets != null) ...[
@@ -1046,9 +1054,9 @@ class _CampaignStat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
       ],
     );
   }
@@ -1285,7 +1293,7 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _selectedPlatform,
+                      initialValue: _selectedPlatform,
                       decoration: const InputDecoration(labelText: 'Target Platform'),
                       items: const [
                         DropdownMenuItem(value: 'Facebook & Instagram', child: Text('FB & Instagram', style: TextStyle(fontSize: 13))),

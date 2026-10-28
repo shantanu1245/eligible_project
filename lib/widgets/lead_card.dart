@@ -91,7 +91,7 @@ class LeadCard extends StatelessWidget {
                   radius: compact ? 21 : 24,
                   backgroundColor: isWhatsApp ? const Color(0xFFDCFCE7) : const Color(0xFFEFF6FF),
                   child: Text(
-                    lead.name.trim().substring(0, 1).toUpperCase(),
+                    lead.initial,
                     style: TextStyle(
                       color: isWhatsApp ? const Color(0xFF16A34A) : AppTheme.primary,
                       fontWeight: FontWeight.w800,
@@ -123,12 +123,16 @@ class LeadCard extends StatelessWidget {
                             const Icon(Icons.chat, size: 12, color: Color(0xFF16A34A)),
                             const SizedBox(width: 4),
                           ],
-                          Text(
-                            lead.phone,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isWhatsApp ? FontWeight.w700 : FontWeight.normal,
-                              color: isWhatsApp ? const Color(0xFF166534) : AppTheme.textSecondary,
+                          Flexible(
+                            child: Text(
+                              lead.phone,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isWhatsApp ? FontWeight.w700 : FontWeight.normal,
+                                color: isWhatsApp ? const Color(0xFF166534) : AppTheme.textSecondary,
+                              ),
                             ),
                           ),
                         ],
@@ -137,29 +141,33 @@ class LeadCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDCFCE7),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: const Color(0xFF86EFAC)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.mark_chat_unread_rounded, size: 11, color: Color(0xFF16A34A)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    lead.campaign.isNotEmpty ? 'WhatsApp • ${lead.campaign}' : 'WhatsApp Campaign',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF15803D),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF86EFAC)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.mark_chat_unread_rounded, size: 11, color: Color(0xFF16A34A)),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        lead.campaign.isNotEmpty ? 'WhatsApp • ${lead.campaign}' : 'WhatsApp Campaign',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF15803D),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -168,29 +176,33 @@ class LeadCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: const Color(0xFFBFDBFE)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.campaign, size: 12, color: Color(0xFF2563EB)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    lead.campaign.isNotEmpty ? 'Meta • ${lead.campaign}' : 'Meta Ads Lead',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF2563EB),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.campaign, size: 12, color: Color(0xFF2563EB)),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        lead.campaign.isNotEmpty ? 'Meta • ${lead.campaign}' : 'Meta Ads Lead',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -200,18 +212,22 @@ class LeadCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                (lead.loanType ?? 'Loan').toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.primary,
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  (lead.loanType ?? 'Loan').toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.primary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -226,11 +242,15 @@ class LeadCard extends StatelessWidget {
                             ),
                             if (lead.city != null && lead.city!.isNotEmpty) ...[
                               const SizedBox(width: 6),
-                              Text(
-                                '• ${lead.city}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppTheme.textSecondary,
+                              Flexible(
+                                child: Text(
+                                  '• ${lead.city}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textSecondary,
+                                  ),
                                 ),
                               ),
                             ],

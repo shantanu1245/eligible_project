@@ -162,7 +162,7 @@ class _LeadDetailsScreenState
             radius: 34,
             backgroundColor: const Color(0xFFEFF6FF),
             child: Text(
-              lead.name.substring(0, 1).toUpperCase(),
+              lead.initial,
               style: const TextStyle(
                 fontSize: 25,
                 fontWeight: FontWeight.w800,
@@ -598,16 +598,16 @@ class _LeadDetailsScreenState
             Builder(
               builder: (context) {
                 // Determine valid items
-                final knownExecNames = UserModel.salesExecutives.map((e) => e.name).toSet();
+                final knownExecNames = UserModel.teamMembers.map((e) => e.name).toSet();
                 final items = <DropdownMenuItem<String>>[
                   const DropdownMenuItem(
                     value: '',
                     child: Text('Unassigned / Available for Claim'),
                   ),
-                  ...UserModel.salesExecutives.map((exec) {
+                  ...UserModel.teamMembers.map((exec) {
                     return DropdownMenuItem(
                       value: exec.name,
-                      child: Text('${exec.name} (Sales Executive)'),
+                      child: Text('${exec.name} (${exec.roleDisplayName})'),
                     );
                   }),
                 ];
@@ -627,10 +627,10 @@ class _LeadDetailsScreenState
                     : (items.any((item) => item.value == currentAssignedTo) ? currentAssignedTo : '');
 
                 return DropdownButtonFormField<String>(
-                  value: selectedDropdownValue,
+                  initialValue: selectedDropdownValue,
                   isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Allot to Sales Executive',
+                    labelText: 'Allot to Team Member',
                     prefixIcon: Icon(Icons.assignment_ind_outlined),
                     contentPadding:
                         EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -672,7 +672,7 @@ class _LeadDetailsScreenState
     return _sectionCard(
       title: 'Lead Status',
       child: DropdownButtonFormField<LeadStatus>(
-        value: selectedStatus,
+        initialValue: selectedStatus,
         isExpanded: true,
         decoration: const InputDecoration(
           contentPadding: EdgeInsets.symmetric(

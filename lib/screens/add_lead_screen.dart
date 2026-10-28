@@ -51,7 +51,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
     {'title': 'Education Loan Promo', 'desc': 'Higher studies'},
   ];
 
-  final List<UserModel> _executives = UserModel.salesExecutives;
+  final List<UserModel> _executives = UserModel.teamMembers;
 
   @override
   void initState() {
@@ -351,15 +351,19 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                           const DropdownMenuItem(
                             value: '',
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.group_outlined,
                                     size: 18, color: Color(0xFFDC2626)),
                                 SizedBox(width: 8),
-                                Text(
-                                  'Unassigned (Broadcast to All Executives)',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFFDC2626),
+                                Flexible(
+                                  child: Text(
+                                    'Unassigned (Broadcast to All Executives)',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFDC2626),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -369,6 +373,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                             (e) => DropdownMenuItem(
                               value: e.name,
                               child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   CircleAvatar(
                                     radius: 11,
@@ -383,10 +388,13 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 10),
-                                  Text(
-                                    '${e.name} (${e.roleDisplayName})',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
+                                  Flexible(
+                                    child: Text(
+                                      '${e.name} (${e.roleDisplayName})',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -555,14 +563,18 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                         const Icon(Icons.add_circle_outline_rounded,
                             color: Colors.white, size: 20),
                         const SizedBox(width: 8),
-                        Text(
-                          _assignedTo.isEmpty
-                              ? 'Add Lead & Broadcast Alert'
-                              : 'Add Lead & Allot to $_assignedTo',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                        Flexible(
+                          child: Text(
+                            _assignedTo.isEmpty
+                                ? 'Add Lead & Broadcast Alert'
+                                : 'Add Lead & Allot to $_assignedTo',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -600,12 +612,16 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
             children: [
               Icon(icon, size: 18, color: AppTheme.primary),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary,
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
               ),
             ],

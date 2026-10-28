@@ -164,6 +164,7 @@ function normalizeLeadStatus(status) {
 function normalizeRemoteLead(raw, leadId) {
   const record = { ...raw, id: raw.id || leadId };
   record.status = normalizeLeadStatus(record.status);
+  if (!record.name || !String(record.name).trim()) record.name = 'Unnamed Lead';
   if (!record.createdAt) record.createdAt = new Date().toISOString();
   if (!record.updatedAt) record.updatedAt = record.createdAt;
   return record;
@@ -538,6 +539,29 @@ const FirebaseService = {
       rtdb.ref(`team/${id}`).set(record).catch(() => {});
     }
     return record;
+  },
+
+  async updateTeamMember(id, updates) {
+    ensureLocalDb();
+    const idx = localStore.team.findIndex((m) => m.id === id || m.name === id);
+    if (idx < 0) return null;
+    const merged = {
+      ...localStore.team[idx],
+      name: updates.name ?? localStore.team[idx].name,
+      email: updates.email ?? localStore.team[idx].email,
+      role: updates.role ?? localStore.team[idx].role,
+      initial:
+        updates.name != null && updates.name.length > 0
+          ? updates.name[0].toUpperCase()
+          : localStore.team[idx].initial,
+    };
+    localStore.team[idx] = merged;
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      rtdb.ref(`team/${merged.id}`).update(merged).catch(() => {});
+    }
+    return merged;
   },
 
   async deleteTeamMember(id) {

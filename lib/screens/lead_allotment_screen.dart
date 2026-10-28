@@ -195,21 +195,23 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
       ),
       builder: (context) {
         return SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Allot Lead: ${lead.name}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
+                    Expanded(
+                      child: Text(
+                        'Allot Lead: ${lead.name}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -220,14 +222,14 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Select a Sales Executive to handle this lead:',
+                  'Select a team member to handle this lead:',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 18),
-                ...UserModel.salesExecutives.map((exec) {
+                ...UserModel.teamMembers.map((exec) {
                   final isCurrentlyAssigned =
                       lead.assignedTo.toLowerCase().contains(exec.name.toLowerCase().split(' ').first);
                   final execCount = _currentLeads
@@ -317,7 +319,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
       ),
       builder: (context) {
         return SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -333,14 +335,14 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Choose which sales executive should receive these leads:',
+                  'Choose which team member should receive these leads:',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 18),
-                ...UserModel.salesExecutives.map((exec) {
+                ...UserModel.teamMembers.map((exec) {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
@@ -506,18 +508,22 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                       });
                     },
                   ),
-                  Text(
-                    _selectedLeadIds.isEmpty
-                        ? 'Select unassigned leads for bulk allotment'
-                        : '${_selectedLeadIds.length} leads selected',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: _selectedLeadIds.isNotEmpty
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: _selectedLeadIds.isNotEmpty
-                          ? AppTheme.primary
-                          : AppTheme.textSecondary,
+                  Expanded(
+                    child: Text(
+                      _selectedLeadIds.isEmpty
+                          ? 'Select unassigned leads for bulk allotment'
+                          : '${_selectedLeadIds.length} leads selected',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: _selectedLeadIds.isNotEmpty
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: _selectedLeadIds.isNotEmpty
+                            ? AppTheme.primary
+                            : AppTheme.textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -761,7 +767,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
             final targetCount = selectedCategoryInfo['unassigned'] as int;
 
             return SafeArea(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -770,12 +776,16 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Category-Wise Allotment',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textPrimary,
+                        const Expanded(
+                          child: Text(
+                            'Category-Wise Allotment',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textPrimary,
+                            ),
                           ),
                         ),
                         IconButton(
@@ -817,31 +827,34 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
-                        child: RadioListTile<String>(
-                          value: cat['key'] as String,
-                          groupValue: selectedCatKey,
-                          onChanged: (val) {
-                            if (val != null) {
-                              setModalState(() => selectedCatKey = val);
-                            }
-                          },
-                          title: Text(
-                            cat['title'] as String,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: RadioListTile<String>(
+                            value: cat['key'] as String,
+                            groupValue: selectedCatKey,
+                            onChanged: (val) {
+                              if (val != null) {
+                                setModalState(() => selectedCatKey = val);
+                              }
+                            },
+                            title: Text(
+                              cat['title'] as String,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          subtitle: Text(
-                            '$unassigned unassigned of $total leads',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: unassigned > 0
-                                  ? const Color(0xFFDC2626)
-                                  : AppTheme.textSecondary,
-                              fontWeight: unassigned > 0
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
+                            subtitle: Text(
+                              '$unassigned unassigned of $total leads',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: unassigned > 0
+                                    ? const Color(0xFFDC2626)
+                                    : AppTheme.textSecondary,
+                                fontWeight: unassigned > 0
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
                             ),
                           ),
                         ),
@@ -849,7 +862,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                     }),
                     const SizedBox(height: 12),
                     const Text(
-                      '2. SELECT SALES EXECUTIVE',
+                      '2. SELECT TEAM MEMBER',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -858,16 +871,20 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: UserModel.salesExecutives.map((exec) {
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: UserModel.teamMembers.map((exec) {
                         final isExecSelected = selectedExec.id == exec.id;
-                        return Expanded(
+                        final cardWidth =
+                            (MediaQuery.of(context).size.width - 48) / 2;
+                        return SizedBox(
+                          width: cardWidth,
                           child: GestureDetector(
                             onTap: () {
                               setModalState(() => selectedExec = exec);
                             },
                             child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
                               padding: const EdgeInsets.symmetric(
                                   vertical: 12, horizontal: 8),
                               decoration: BoxDecoration(
@@ -1002,7 +1019,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                       ? const Color(0xFFFEE2E2)
                       : const Color(0xFFEFF6FF),
                   child: Text(
-                    lead.name.substring(0, 1).toUpperCase(),
+                    lead.initial,
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: isUnassigned
@@ -1027,26 +1044,34 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.phone_outlined,
+                          const Icon(Icons.phone_outlined,
                               size: 12, color: AppTheme.textSecondary),
                           const SizedBox(width: 4),
-                          Text(
-                            lead.phone,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSecondary,
+                          Flexible(
+                            child: Text(
+                              lead.phone,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary,
+                              ),
                             ),
                           ),
                           if (lead.city != null && lead.city!.isNotEmpty) ...[
                             const SizedBox(width: 8),
-                            Icon(Icons.location_on_outlined,
+                            const Icon(Icons.location_on_outlined,
                                 size: 12, color: AppTheme.textSecondary),
                             const SizedBox(width: 2),
-                            Text(
-                              lead.city!,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.textSecondary,
+                            Flexible(
+                              child: Text(
+                                lead.city!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
                               ),
                             ),
                           ],
@@ -1082,20 +1107,24 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
             Row(
               children: [
                 // Category badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFBFDBFE)),
-                  ),
-                  child: Text(
-                    lead.categoryDisplay,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1D4ED8),
+                Flexible(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Text(
+                      lead.categoryDisplay,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1D4ED8),
+                      ),
                     ),
                   ),
                 ),
@@ -1119,38 +1148,54 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                     ),
                   ),
                 ],
-                const Spacer(),
+                const SizedBox(width: 6),
                 // Assigned to status chip
-                Row(
-                  children: [
-                    const Text(
-                      'Assigned: ',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isUnassigned
-                            ? const Color(0xFFFEE2E2)
-                            : const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        isUnassigned ? 'Unassigned' : lead.assignedTo,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isUnassigned
-                              ? const Color(0xFFDC2626)
-                              : AppTheme.primary,
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isUnassigned
+                                ? const Color(0xFFFEE2E2)
+                                : const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                const TextSpan(
+                                  text: 'Assigned: ',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: isUnassigned
+                                      ? 'Unassigned'
+                                      : lead.assignedTo,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isUnassigned
+                                        ? const Color(0xFFDC2626)
+                                        : AppTheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

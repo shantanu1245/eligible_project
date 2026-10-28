@@ -20,6 +20,16 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.patch('/:id', async (req, res) => {
+  try {
+    const member = await firebaseService.updateTeamMember(req.params.id, req.body);
+    if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
+    res.json({ success: true, data: member });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const success = await firebaseService.deleteTeamMember(req.params.id);

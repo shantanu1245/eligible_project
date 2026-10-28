@@ -272,12 +272,16 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color,
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
                 ),
               ),
               Icon(icon, size: 16, color: color),
@@ -421,30 +425,37 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.tag_rounded, size: 12, color: Color(0xFF475569)),
-                          const SizedBox(width: 3),
-                          Text(
-                            item.followupNumber,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF334155),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.tag_rounded, size: 12, color: Color(0xFF475569)),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(
+                                item.followupNumber,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 6),
                     if (item.isCompleted)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -470,6 +481,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                         ),
                         child: const Text(
                           'Due Today',
+                          maxLines: 1,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -514,28 +526,36 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              Text(
-                                item.phone,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.textSecondary,
+                              Flexible(
+                                child: Text(
+                                  item.phone,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSecondary,
+                                  ),
                                 ),
                               ),
                               if (item.category.isNotEmpty) ...[
                                 const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDBEAFE),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    item.category,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF1D4ED8),
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDBEAFE),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      item.category,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1D4ED8),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -571,16 +591,20 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                     children: [
                       const Icon(Icons.event_outlined, size: 14, color: AppTheme.primary),
                       const SizedBox(width: 6),
-                      Text(
-                        _formatDate(item.dateTime),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E293B),
+                      Expanded(
+                        child: Text(
+                          _formatDate(item.dateTime),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E293B),
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      if (item.requiredAmount != null && item.requiredAmount! > 0)
+                      if (item.requiredAmount != null && item.requiredAmount! > 0) ...[
+                        const SizedBox(width: 8),
                         Text(
                           '₹${(item.requiredAmount! >= 100000 ? "${(item.requiredAmount! / 100000).toStringAsFixed(1)}L" : item.requiredAmount!.toStringAsFixed(0))}',
                           style: const TextStyle(
@@ -589,6 +613,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                             color: Color(0xFF16A34A),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -747,28 +772,37 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Schedule Follow-up',
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
+                        const Expanded(
+                          child: Text(
+                            'Schedule Follow-up',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFBFDBFE)),
-                          ),
-                          child: Text(
-                            uniqueFollowupNum,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.primary,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Text(
+                              uniqueFollowupNum,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.primary,
+                              ),
                             ),
                           ),
                         ),
@@ -895,10 +929,14 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                                   const Icon(Icons.calendar_today_outlined,
                                       size: 16, color: AppTheme.primary),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                                    style: const TextStyle(
-                                        fontSize: 13, fontWeight: FontWeight.w600),
+                                  Flexible(
+                                    child: Text(
+                                      '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontSize: 13, fontWeight: FontWeight.w600),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -929,10 +967,14 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                                   const Icon(Icons.access_time_outlined,
                                       size: 16, color: AppTheme.primary),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    selectedTime.format(context),
-                                    style: const TextStyle(
-                                        fontSize: 13, fontWeight: FontWeight.w600),
+                                  Flexible(
+                                    child: Text(
+                                      selectedTime.format(context),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontSize: 13, fontWeight: FontWeight.w600),
+                                    ),
                                   ),
                                 ],
                               ),

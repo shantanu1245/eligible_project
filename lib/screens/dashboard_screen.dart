@@ -663,14 +663,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           size: 16,
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          widget.user.isAdmin
-                              ? 'View all leads (${leads.length})'
-                              : 'My leads (${visibleLeads.length})',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            widget.user.isAdmin
+                                ? 'View all leads (${leads.length})'
+                                : 'My leads (${visibleLeads.length})',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],

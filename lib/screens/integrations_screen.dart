@@ -143,15 +143,19 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                isOnline ? 'Backend Server Online' : 'Backend Server Disconnected',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: AppTheme.textPrimary,
+              Expanded(
+                child: Text(
+                  isOnline ? 'Backend Server Online' : 'Backend Server Disconnected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -461,9 +465,13 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
             children: [
               Icon(Icons.webhook, color: AppTheme.primary, size: 20),
               SizedBox(width: 8),
-              Text(
-                'Meta Webhook Setup Details',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              Expanded(
+                child: Text(
+                  'Meta Webhook Setup Details',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
               ),
             ],
           ),
@@ -519,8 +527,24 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );

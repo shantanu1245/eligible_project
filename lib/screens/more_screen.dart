@@ -200,11 +200,12 @@ class MoreScreen extends StatelessWidget {
 
           ]),
 
-          const SizedBox(height: 18),
+          if (user.isAdmin) ...[
+            const SizedBox(height: 18),
 
-          _sectionTitle('Meta & Integrations'),
+            _sectionTitle('Meta & Integrations'),
 
-          _menuCard([
+            _menuCard([
             // Meta Account Details (Full live data: 41 accounts, campaigns, ads, insights, diagnostics)
             _MenuItem(
               icon: Icons.hub_outlined,
@@ -268,7 +269,8 @@ class MoreScreen extends StatelessWidget {
                 );
               },
             ),
-          ]),
+            ]),
+          ],
 
           const SizedBox(height: 24),
 
@@ -424,14 +426,13 @@ class MoreScreen extends StatelessWidget {
   }
 
   Widget _menuCard(List<_MenuItem> items) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.border,
-        ),
+        side: const BorderSide(color: AppTheme.border),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: items.map((item) {
           final isLast = items.last == item;

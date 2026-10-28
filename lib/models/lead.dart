@@ -91,6 +91,12 @@ class Lead {
     this.experience,
   });
 
+  /// Avatar initial; safe for empty names coming from the website/RTDB.
+  String get initial {
+    final n = name.trim();
+    return n.isEmpty ? '?' : n.substring(0, 1).toUpperCase();
+  }
+
   /// Convenient helper to get WhatsApp / customer inquiry message or note
   String get displayMessage {
     if (message != null && message!.trim().isNotEmpty) return message!.trim();
@@ -238,21 +244,26 @@ class Lead {
     if (parsedLoanType == null && json['requiredLoan'] != null) {
       parsedLoanType = 'salary';
     }
+    final loanType = (parsedLoanType != null && parsedLoanType.trim().isNotEmpty)
+        ? parsedLoanType.trim()
+        : null;
 
     // Default source / campaign for Loan-Calculator leads
     final rawSource = json['source']?.toString();
-    final defaultSource = parsedLoanType != null ? 'Loan Calculator' : 'Website';
+    final defaultSource = loanType != null ? 'Loan Calculator' : 'Website';
     final source = (rawSource != null && rawSource.isNotEmpty) ? rawSource : defaultSource;
 
     final rawCampaign = json['campaign']?.toString();
-    final defaultCampaign = parsedLoanType != null 
-        ? '${parsedLoanType[0].toUpperCase()}${parsedLoanType.substring(1)} Loan Enquiry'
+    final defaultCampaign = loanType != null 
+        ? '${loanType[0].toUpperCase()}${loanType.substring(1)} Loan Enquiry'
         : 'General Campaign';
     final campaign = (rawCampaign != null && rawCampaign.isNotEmpty) ? rawCampaign : defaultCampaign;
 
+    final rawName = json['name']?.toString().trim() ?? '';
+
     return Lead(
       id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? 'Unnamed Lead',
+      name: rawName.isNotEmpty ? rawName : 'Unnamed Lead',
       phone: json['mobile']?.toString() ?? json['phone']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       source: source,
@@ -268,7 +279,7 @@ class Lead {
       message: json['message']?.toString() ?? json['whatsappMessage']?.toString() ?? json['note']?.toString(),
       activities: const [],
       followUps: const [],
-      loanType: parsedLoanType,
+      loanType: loanType,
       requiredLoan: parseDouble(json['requiredLoan']),
       estimatedLow: parseDouble(json['estimatedLow']),
       estimatedHigh: parseDouble(json['estimatedHigh']),

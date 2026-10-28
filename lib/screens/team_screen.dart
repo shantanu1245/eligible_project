@@ -105,6 +105,7 @@ class _TeamScreenState extends State<TeamScreen> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _MemberCard(
                   member: member,
+                  onEdit: () => _showEditMemberDialog(index),
                   onDelete: index == 0
                       ? null
                       : () {
@@ -193,7 +194,7 @@ class _TeamScreenState extends State<TeamScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: selectedRole,
+                      initialValue: selectedRole,
                       decoration: const InputDecoration(
                         labelText: 'Role',
                         prefixIcon: Icon(Icons.badge_outlined),
@@ -262,6 +263,127 @@ class _TeamScreenState extends State<TeamScreen> {
       },
     );
   }
+  void _showEditMemberDialog(int index) {
+    final member = _members[index];
+    final nameController = TextEditingController(text: member['name'] ?? '');
+    final emailController = TextEditingController(text: member['email'] ?? '');
+
+    String selectedRole = member['role'] ?? 'Sales Executive';
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Edit Team Member',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedRole,
+                      decoration: const InputDecoration(
+                        labelText: 'Role',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Administrator',
+                          child: Text('Administrator'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Sales Executive',
+                          child: Text('Sales Executive'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Manager',
+                          child: Text('Manager'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Viewer',
+                          child: Text('Viewer'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            selectedRole = value;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    final email = emailController.text.trim();
+                    if (name.isEmpty || email.isEmpty) {
+                      return;
+                    }
+
+                    final memberId = member['id'] ?? member['name'] ?? '';
+                    final updated = {
+                      'name': name,
+                      'email': email,
+                      'role': selectedRole,
+                      'initial': name.substring(0, 1).toUpperCase(),
+                    };
+
+                    setState(() {
+                      _members[index] = {...member, ...updated};
+                    });
+
+                    if (memberId.isNotEmpty) {
+                      _backend.updateTeamMember(memberId, updated);
+                    }
+
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _SummaryCard extends StatelessWidget {
@@ -302,24 +424,30 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppTheme.textSecondary,
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -329,10 +457,12 @@ class _SummaryCard extends StatelessWidget {
 
 class _MemberCard extends StatelessWidget {
   final Map<String, String> member;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   const _MemberCard({
     required this.member,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -397,7 +527,9 @@ class _MemberCard extends StatelessWidget {
 
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'delete' && onDelete != null) {
+              if (value == 'edit' && onEdit != null) {
+                onEdit!();
+              } else if (value == 'delete' && onDelete != null) {
                 onDelete!();
               }
             },

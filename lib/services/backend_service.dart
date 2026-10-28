@@ -579,6 +579,9 @@ class BackendService {
                 ? lead['id']!.toString()
                 : key.toString();
             lead['id'] = id;
+            if ((lead['name']?.toString().trim().isEmpty) ?? true) {
+              lead['name'] = 'Unnamed Lead';
+            }
             lead['status'] = _normalizeLeadStatus(lead['status']);
             if (lead['createdAt'] == null) lead['createdAt'] = now;
             if (lead['updatedAt'] == null) lead['updatedAt'] = lead['createdAt'];
@@ -802,6 +805,21 @@ class BackendService {
       return jsonDecode(res.body);
     } catch (e) {
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<bool> updateTeamMember(String id, Map<String, dynamic> updates) async {
+    try {
+      final res = await http
+          .patch(
+            Uri.parse('$_baseUrl/team/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(updates),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
     }
   }
 

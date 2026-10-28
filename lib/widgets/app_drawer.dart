@@ -423,13 +423,12 @@ class AppDrawer extends StatelessWidget {
     String? badge,
     Color? badgeColor,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
         color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
-      ),
-      child: ListTile(
+        child: ListTile(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -469,6 +468,7 @@ class AppDrawer extends StatelessWidget {
               )
             : null,
         onTap: onTap,
+      ),
       ),
     );
   }

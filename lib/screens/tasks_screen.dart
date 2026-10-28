@@ -324,7 +324,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: selectedMember,
+                      initialValue: selectedMember,
                       decoration: const InputDecoration(
                         labelText: 'Assign to',
                         prefixIcon: Icon(
@@ -351,7 +351,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: selectedPriority,
+                      initialValue: selectedPriority,
                       decoration: const InputDecoration(
                         labelText: 'Priority',
                         prefixIcon: Icon(
@@ -512,7 +512,12 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool completed = task['status'] == 'Completed';
+    final String title = task['title']?.toString() ?? 'Untitled task';
+    final String description = task['description']?.toString() ?? '';
+    final String assignee = task['assignee']?.toString() ?? 'Unassigned';
+    final String dueDate = task['dueDate']?.toString() ?? '-';
+    final String priority = task['priority']?.toString() ?? 'Medium';
+    final bool completed = task['status']?.toString() == 'Completed';
 
     return Container(
       padding: const EdgeInsets.all(15),
@@ -559,7 +564,7 @@ class _TaskCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  task['title'],
+                  title,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -575,7 +580,7 @@ class _TaskCard extends StatelessWidget {
                 const SizedBox(height: 4),
 
                 Text(
-                  task['description'],
+                  description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -594,11 +599,15 @@ class _TaskCard extends StatelessWidget {
                       color: AppTheme.textSecondary,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      task['assignee'],
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        assignee,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -608,11 +617,15 @@ class _TaskCard extends StatelessWidget {
                       color: AppTheme.textSecondary,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      task['dueDate'],
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppTheme.textSecondary,
+                    Flexible(
+                      child: Text(
+                        dueDate,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                   ],
@@ -624,7 +637,7 @@ class _TaskCard extends StatelessWidget {
           const SizedBox(width: 8),
 
           _PriorityBadge(
-            priority: task['priority'],
+            priority: priority,
           ),
         ],
       ),

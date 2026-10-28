@@ -62,11 +62,20 @@ class StatCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(value, style: TextStyle(fontSize: valueSize, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: valueSize, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+                ),
+              ),
               const SizedBox(width: 5),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(change, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(change, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
+                ),
               ),
             ],
           ),

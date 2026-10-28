@@ -188,11 +188,11 @@ class SkeletonLeadCard extends StatelessWidget {
           SizedBox(height: 14),
           Row(
             children: [
-              SkeletonBox(width: 95, height: 22, borderRadius: 6),
+              Expanded(child: SkeletonBox(height: 22, borderRadius: 6)),
               SizedBox(width: 8),
-              SkeletonBox(width: 75, height: 22, borderRadius: 6),
+              Expanded(child: SkeletonBox(height: 22, borderRadius: 6)),
               SizedBox(width: 8),
-              SkeletonBox(width: 85, height: 22, borderRadius: 6),
+              Expanded(child: SkeletonBox(height: 22, borderRadius: 6)),
             ],
           ),
           SizedBox(height: 14),
@@ -318,14 +318,13 @@ class LeadsScreenSkeleton extends StatelessWidget {
           // Filter pills skeleton
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: const [
                 SkeletonBox(width: 60, height: 32, borderRadius: 16),
-                SizedBox(width: 8),
                 SkeletonBox(width: 65, height: 32, borderRadius: 16),
-                SizedBox(width: 8),
                 SkeletonBox(width: 80, height: 32, borderRadius: 16),
-                SizedBox(width: 8),
                 SkeletonBox(width: 75, height: 32, borderRadius: 16),
               ],
             ),

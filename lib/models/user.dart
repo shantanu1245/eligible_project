@@ -54,6 +54,14 @@ class UserModel {
     initial: 'P',
   );
 
+  static const UserModel executiveSneha = UserModel(
+    id: 'U-004',
+    name: 'Sneha Deshmukh',
+    email: 'sneha.d@eligiblecrm.com',
+    role: UserRole.salesExecutive,
+    initial: 'S',
+  );
+
   static const List<UserModel> demoUsers = [
     admin,
     executiveAmit,
@@ -63,5 +71,13 @@ class UserModel {
   static const List<UserModel> salesExecutives = [
     executiveAmit,
     executivePriya,
+    executiveSneha,
+  ];
+
+  static const List<UserModel> teamMembers = [
+    admin,
+    executiveAmit,
+    executivePriya,
+    executiveSneha,
   ];
 }
