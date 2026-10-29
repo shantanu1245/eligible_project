@@ -3,6 +3,7 @@ import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'meta_setup_screen.dart';
 import 'meta_account_details_screen.dart';
+import 'create_meta_campaign_screen.dart';
 
 class CampaignsScreen extends StatefulWidget {
   const CampaignsScreen({super.key});
@@ -225,19 +226,17 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
   }
 
   void _showCreateCampaignSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => _CreateCampaignBottomSheet(
-        onCreated: (newCamp) {
-          setState(() {
-            _campaigns.insert(0, newCamp);
-          });
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateMetaCampaignScreen(
+          onCampaignCreated: (newCamp) {
+            setState(() {
+              _campaigns.insert(0, newCamp);
+            });
+            _loadAllData();
+          },
+        ),
       ),
     );
   }
@@ -1293,7 +1292,7 @@ class _CreateCampaignBottomSheetState extends State<_CreateCampaignBottomSheet> 
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      initialValue: _selectedPlatform,
+                      value: _selectedPlatform,
                       decoration: const InputDecoration(labelText: 'Target Platform'),
                       items: const [
                         DropdownMenuItem(value: 'Facebook & Instagram', child: Text('FB & Instagram', style: TextStyle(fontSize: 13))),

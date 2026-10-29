@@ -627,7 +627,7 @@ class _LeadDetailsScreenState
                     : (items.any((item) => item.value == currentAssignedTo) ? currentAssignedTo : '');
 
                 return DropdownButtonFormField<String>(
-                  initialValue: selectedDropdownValue,
+                  value: selectedDropdownValue,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Allot to Team Member',
@@ -672,7 +672,7 @@ class _LeadDetailsScreenState
     return _sectionCard(
       title: 'Lead Status',
       child: DropdownButtonFormField<LeadStatus>(
-        initialValue: selectedStatus,
+        value: selectedStatus,
         isExpanded: true,
         decoration: const InputDecoration(
           contentPadding: EdgeInsets.symmetric(

@@ -194,7 +194,7 @@ class _TeamScreenState extends State<TeamScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
+                      value: selectedRole,
                       decoration: const InputDecoration(
                         labelText: 'Role',
                         prefixIcon: Icon(Icons.badge_outlined),
@@ -308,7 +308,7 @@ class _TeamScreenState extends State<TeamScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
+                      value: selectedRole,
                       decoration: const InputDecoration(
                         labelText: 'Role',
                         prefixIcon: Icon(Icons.badge_outlined),
