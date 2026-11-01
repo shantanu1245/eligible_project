@@ -325,12 +325,16 @@ class _FollowupDetailScreenState extends State<FollowupDetailScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        isCompleted ? 'Follow-up marked as completed' : 'Mark follow-up as completed',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: isCompleted ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                      Expanded(
+                        child: Text(
+                          isCompleted ? 'Follow-up marked as completed' : 'Mark follow-up as completed',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isCompleted ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                          ),
                         ),
                       ),
                       Switch(
@@ -527,13 +531,17 @@ class _FollowupDetailScreenState extends State<FollowupDetailScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'CALLING DISCUSSION REMARKS',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textSecondary,
-                          letterSpacing: 0.6,
+                      const Expanded(
+                        child: Text(
+                          'CALLING DISCUSSION REMARKS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textSecondary,
+                            letterSpacing: 0.6,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -713,6 +721,7 @@ class _FollowupDetailScreenState extends State<FollowupDetailScreen> {
                           backgroundColor: const Color(0xFF334155),
                           foregroundColor: Colors.white,
                           elevation: 0,
+                          minimumSize: const Size(0, 42),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),

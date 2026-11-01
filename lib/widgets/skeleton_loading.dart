@@ -126,7 +126,7 @@ class SkeletonStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -134,17 +134,19 @@ class SkeletonStatCard extends StatelessWidget {
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              SkeletonBox(width: 80, height: 14, borderRadius: 4),
-              SkeletonBox(width: 28, height: 28, borderRadius: 8),
+              Expanded(child: SkeletonBox(height: 14, borderRadius: 4)),
+              SizedBox(width: 8),
+              SkeletonBox(width: 18, height: 18, borderRadius: 8),
             ],
           ),
-          SkeletonBox(width: 50, height: 26, borderRadius: 6),
-          SkeletonBox(width: 90, height: 12, borderRadius: 4),
+          SizedBox(height: 5),
+          SkeletonBox(width: 48, height: 16, borderRadius: 6),
+          SizedBox(height: 4),
+          SkeletonBox(width: 76, height: 10, borderRadius: 4),
         ],
       ),
     );
@@ -270,19 +272,28 @@ class DashboardSkeleton extends StatelessWidget {
           const SizedBox(height: 18),
 
           // Stat cards 2x2 grid
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.45,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: const [
-              SkeletonStatCard(),
-              SkeletonStatCard(),
-              SkeletonStatCard(),
-              SkeletonStatCard(),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final aspectRatio = constraints.maxWidth < 320
+                  ? 1.15
+                  : constraints.maxWidth < 400
+                      ? 1.38
+                      : 1.5;
+              return GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: aspectRatio,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: const [
+                  SkeletonStatCard(),
+                  SkeletonStatCard(),
+                  SkeletonStatCard(),
+                  SkeletonStatCard(),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 22),
 

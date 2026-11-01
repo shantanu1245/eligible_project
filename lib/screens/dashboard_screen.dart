@@ -1427,7 +1427,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final aspectRatio =
             isCompact
-                ? 1.38
+                ? (constraints.maxWidth < 320 ? 1.15 : 1.38)
                 : 1.5;
 
         return GridView.count(

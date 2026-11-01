@@ -26,7 +26,7 @@ class StatCard extends StatelessWidget {
     final padding = compactPadding ?? 16.0;
     final iconSize = compactIconSize ?? 19.0;
     final valueSize = compactValueSize ?? 22.0;
-    final containerSize = compactPadding != null ? 32.0 : 36.0;
+    final containerSize = compactPadding != null ? 28.0 : 36.0;
     final borderRadius = compactPadding != null ? 8.0 : 10.0;
     final isCompact = compactPadding != null;
 
@@ -56,9 +56,9 @@ class StatCard extends StatelessWidget {
               Icon(Icons.more_horiz, size: iconSize, color: AppTheme.textSecondary),
             ],
           ),
-          SizedBox(height: isCompact ? 5 : 12),
-          Text(title, style: TextStyle(fontSize: isCompact ? 10 : 11, color: AppTheme.textSecondary)),
-          const SizedBox(height: 1),
+          SizedBox(height: isCompact ? 3 : 12),
+          Text(title, style: TextStyle(fontSize: isCompact ? 9 : 11, color: AppTheme.textSecondary)),
+          SizedBox(height: isCompact ? 0 : 1),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

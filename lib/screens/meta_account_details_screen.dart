@@ -484,10 +484,10 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _HeaderInfoItem(label: 'Campaigns', value: '${_campaigns.length} Active'),
-              _HeaderInfoItem(label: 'Total Leads', value: '$totalLeads Leads'),
-              _HeaderInfoItem(label: 'Total Spend', value: '₹${totalSpend.toStringAsFixed(0)}'),
-              _HeaderInfoItem(label: 'Ad Accounts', value: '${_adAccounts.length} Linked'),
+              Expanded(child: _HeaderInfoItem(label: 'Campaigns', value: '${_campaigns.length} Active')),
+              Expanded(child: _HeaderInfoItem(label: 'Total Leads', value: '$totalLeads Leads')),
+              Expanded(child: _HeaderInfoItem(label: 'Total Spend', value: '₹${totalSpend.toStringAsFixed(0)}')),
+              Expanded(child: _HeaderInfoItem(label: 'Ad Accounts', value: '${_adAccounts.length} Linked')),
             ],
           ),
         ],
@@ -574,9 +574,13 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('• Currency: $currency', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                Text('Lifetime Spent: ₹$spendFormatted', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primary)),
+                Expanded(
+                  child: Text('• Currency: $currency', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text('Lifetime Spent: ₹$spendFormatted', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primary)),
+                ),
               ],
             ),
           ),
@@ -605,16 +609,20 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.hub_outlined, size: 16, color: AppTheme.primary),
-              SizedBox(width: 6),
-              Text(
-                'Connected Meta Channels',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.textPrimary),
+              const Icon(Icons.hub_outlined, size: 16, color: AppTheme.primary),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Connected Meta Channels',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.textPrimary),
+                ),
               ),
-              Spacer(),
-              Text(
+              const Spacer(),
+              const Text(
                 '2 Channels Active',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
               ),
@@ -974,6 +982,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 36),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 ),
@@ -1321,6 +1330,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 40),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: _isSyncing
@@ -1607,7 +1617,9 @@ class _DetailMetricCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
+              ),
               Icon(icon, size: 18, color: color),
             ],
           ),

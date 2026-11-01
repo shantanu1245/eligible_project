@@ -190,11 +190,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 // 1. Administrator Account
                 _buildAutoFillTile(
                   roleName: 'Administrator',
-                  userName: 'Shantanu',
+                  userName: 'Kunal',
                   email: 'admin@eligiblecrm.com',
                   password: 'admin123',
                   badgeText: 'Full Access & Allotment • FCM Push Ready',
-                  tokenPreview: 'fcm_token_shantanu_admin_pixel_pro',
+                  tokenPreview: 'fcm_token_Kunal_admin_pixel_pro',
                   icon: Icons.shield_outlined,
                   color: AppTheme.primary,
                   bgColor: const Color(0xFFEFF6FF),
@@ -202,9 +202,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     email: 'admin@eligiblecrm.com',
                     password: 'admin123',
                     roleName: 'Administrator',
-                    userName: 'Shantanu',
+                    userName: 'Kunal',
                     userId: 'U-001',
-                    token: 'fcm_token_shantanu_admin_pixel_pro',
+                    token: 'fcm_token_Kunal_admin_pixel_pro',
                     deviceName: 'Admin Pixel Pro (Mobile)',
                     platform: 'android',
                   ),
@@ -743,7 +743,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Expanded(
                           child: _buildCompactRoleChip(
                             title: 'Admin',
-                            subtitle: 'Shantanu',
+                            subtitle: 'Kunal',
                             icon: Icons.shield_outlined,
                             color: AppTheme.primary,
                             bgColor: const Color(0xFFEFF6FF),
