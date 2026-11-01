@@ -267,6 +267,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
+                        minimumSize: const Size(0, 48),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () {
@@ -954,6 +955,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0668E1),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    minimumSize: const Size(0, 42),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () => _addLocationInput(_areaInputController.text),
@@ -1691,6 +1693,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _currentStep == 3 ? const Color(0xFF16A34A) : const Color(0xFF0668E1),
                     foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 46),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
@@ -2176,6 +2179,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                     backgroundColor: const Color(0xFF0668E1),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    minimumSize: const Size(0, 36),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () => _showLeadFormPreviewDialog(),
@@ -2535,6 +2539,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF16A34A),
                     foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 46),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () {
