@@ -5,7 +5,7 @@ import '../screens/add_lead_screen.dart';
 import '../screens/campaigns_screen.dart';
 import '../screens/meta_account_details_screen.dart';
 import '../screens/lead_allotment_screen.dart';
-import '../screens/login_screen.dart';
+import '../services/auth_service.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/team_screen.dart';
 import '../theme/app_theme.dart';
@@ -256,15 +256,9 @@ class AppDrawer extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginScreen(),
-                    ),
-                    (route) => false,
-                  );
+                  await AuthService.instance.logout(context);
                 },
               ),
             ),

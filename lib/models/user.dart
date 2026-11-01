@@ -30,6 +30,39 @@ class UserModel {
     }
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'role': role.name,
+      'initial': initial,
+    };
+  }
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    UserRole parseRole(dynamic r) {
+      if (r == null) return UserRole.administrator;
+      final str = r.toString().toLowerCase();
+      if (str.contains('executive') || str.contains('sales')) {
+        return UserRole.salesExecutive;
+      }
+      return UserRole.administrator;
+    }
+
+    final name = json['name']?.toString() ?? 'User';
+    final initial = json['initial']?.toString() ??
+        (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U');
+
+    return UserModel(
+      id: json['id']?.toString() ?? 'U-001',
+      name: name,
+      email: json['email']?.toString() ?? '',
+      role: parseRole(json['role']),
+      initial: initial,
+    );
+  }
+
   static const UserModel admin = UserModel(
     id: 'U-001',
     name: 'Shantanu',

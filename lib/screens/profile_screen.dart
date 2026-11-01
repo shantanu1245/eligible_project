@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../theme/app_theme.dart';
-import 'login_screen.dart';
+import '../services/auth_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   final UserModel user;
@@ -328,12 +328,8 @@ class ProfileScreen extends StatelessWidget {
 
           // Logout Button
           OutlinedButton.icon(
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
+            onPressed: () async {
+              await AuthService.instance.logout(context);
             },
             icon: const Icon(Icons.logout_rounded, color: Color(0xFFDC2626)),
             label: const Text(

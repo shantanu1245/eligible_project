@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -25,6 +26,8 @@ class _LeadDetailsScreenState
     extends State<LeadDetailsScreen> {
   late LeadStatus selectedStatus;
   late String currentAssignedTo;
+  late String currentNote;
+  bool _isAddingNote = false;
 
   final TextEditingController noteController =
       TextEditingController();
@@ -33,6 +36,7 @@ class _LeadDetailsScreenState
   void initState() {
     super.initState();
     selectedStatus = widget.lead.status;
+    currentNote = widget.lead.note;
     final initialAssigned = widget.lead.assignedTo.trim();
     if (initialAssigned.isEmpty ||
         initialAssigned.toLowerCase() == 'unassigned' ||
@@ -87,10 +91,11 @@ class _LeadDetailsScreenState
       backgroundColor: AppTheme.background,
 
       appBar: AppBar(
-        title: const Text(
-          'Lead Details',
-          style: TextStyle(
+        title: Text(
+          lead.name.isNotEmpty ? lead.name : 'Lead Details',
+          style: const TextStyle(
             fontWeight: FontWeight.w800,
+            fontSize: 18,
           ),
         ),
         actions: [
@@ -148,55 +153,53 @@ class _LeadDetailsScreenState
 
   Widget _buildProfileCard(Lead lead) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: AppTheme.border,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          CircleAvatar(
-            radius: 34,
-            backgroundColor: const Color(0xFFEFF6FF),
-            child: Text(
-              lead.initial,
-              style: const TextStyle(
-                fontSize: 25,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.primary,
-              ),
+          Text(
+            lead.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textPrimary,
+              letterSpacing: -0.3,
             ),
           ),
+
+          if (lead.email.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              lead.email,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
 
           const SizedBox(height: 12),
 
-          Text(
-            lead.name,
-            style: const TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-
-          const SizedBox(height: 5),
-
-          Text(
-            lead.email,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
           Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: 12,
+              horizontal: 14,
               vertical: 6,
             ),
             decoration: BoxDecoration(
@@ -208,7 +211,7 @@ class _LeadDetailsScreenState
               statusName(selectedStatus),
               style: TextStyle(
                 color: statusColor(selectedStatus),
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -638,19 +641,28 @@ class _LeadDetailsScreenState
                   ),
                   items: items,
                   onChanged: (newAssignee) {
-                    if (newAssignee != null) {
+                    if (newAssignee != null && newAssignee != currentAssignedTo) {
                       setState(() {
                         currentAssignedTo = newAssignee;
                       });
                       final updatedLead =
                           widget.lead.copyWith(assignedTo: newAssignee);
                       widget.onLeadUpdated?.call(updatedLead);
+
+                      if (newAssignee.isNotEmpty) {
+                        BackendService().allotLead(
+                          widget.lead.id,
+                          assignedTo: newAssignee,
+                          allottedBy: widget.currentUser?.name ?? 'Admin',
+                        );
+                      }
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
                             newAssignee.isEmpty
                                 ? 'Lead marked as Unassigned'
-                                : 'Lead allotted to $newAssignee',
+                                : 'Lead allotted to $newAssignee (Notification sent to their devices)',
                           ),
                           backgroundColor: const Color(0xFF16A34A),
                           behavior: SnackBarBehavior.floating,
@@ -690,12 +702,37 @@ class _LeadDetailsScreenState
             ),
           );
         }).toList(),
-        onChanged: (value) {
-          if (value == null) return;
+        onChanged: (newStatus) {
+          if (newStatus == null || newStatus == selectedStatus) return;
 
+          final oldStatus = selectedStatus;
           setState(() {
-            selectedStatus = value;
+            selectedStatus = newStatus;
           });
+
+          final updatedLead = widget.lead.copyWith(status: newStatus);
+          widget.onLeadUpdated?.call(updatedLead);
+
+          final agentName = widget.currentUser?.name ?? 'Sales Agent';
+          final oldName = statusName(oldStatus);
+          final newName = statusName(newStatus);
+
+          // Update backend and trigger real-time notification to Admin
+          BackendService().updateLeadStatus(
+            leadId: widget.lead.id,
+            status: newStatus.name,
+            previousStatus: oldStatus.name,
+            updatedBy: agentName,
+          );
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Status changed from "$oldName" to "$newName". Admin notified.'),
+              backgroundColor: const Color(0xFF16A34A),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         },
       ),
     );
@@ -902,17 +939,155 @@ class _LeadDetailsScreenState
     );
   }
 
+  Future<void> _addNote() async {
+    final text = noteController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a note before saving'),
+          backgroundColor: Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAddingNote = true);
+
+    final now = DateTime.now();
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final timeStr = '${now.day} ${months[now.month - 1]}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final author = widget.currentUser?.name ?? 'Admin';
+    final newEntry = '[$timeStr • $author]\n$text';
+
+    final updatedNote = currentNote.trim().isEmpty ? newEntry : '$newEntry\n\n$currentNote';
+
+    try {
+      await BackendService().addLeadNote(
+        leadId: widget.lead.id,
+        note: updatedNote,
+        author: author,
+      );
+
+      final updatedLead = widget.lead.copyWith(note: updatedNote);
+      widget.onLeadUpdated?.call(updatedLead);
+
+      if (mounted) {
+        setState(() {
+          currentNote = updatedNote;
+          _isAddingNote = false;
+          noteController.clear();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Note added successfully'),
+            backgroundColor: Color(0xFF16A34A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isAddingNote = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to add note: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildNotesCard() {
+    final noteBlocks = currentNote.trim().isNotEmpty
+        ? currentNote.trim().split(RegExp(r'\n{2,}'))
+        : <String>[];
+
     return _sectionCard(
-      title: 'Notes',
+      title: 'Notes & Remarks',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Existing notes list
+          if (noteBlocks.isNotEmpty) ...[
+            ...noteBlocks.map((block) {
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2, right: 10),
+                      child: Icon(Icons.sticky_note_2_outlined, size: 18, color: AppTheme.primary),
+                    ),
+                    Expanded(
+                      child: SelectableText(
+                        block,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF1E293B),
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const Divider(height: 20),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'No notes recorded yet for this lead.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.grey.shade500,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
+
+          // Add note input
           TextField(
             controller: noteController,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Add a note about this lead...',
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Write a note about this lead...',
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               alignLabelWithHint: true,
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+              ),
             ),
           ),
 
@@ -921,13 +1096,24 @@ class _LeadDetailsScreenState
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(
-                Icons.add,
-                size: 18,
+              onPressed: _isAddingNote ? null : _addNote,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
-              label: const Text(
-                'Add Note',
+              icon: _isAddingNote
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.add_comment_rounded, size: 18),
+              label: Text(
+                _isAddingNote ? 'Saving Note...' : 'Add Note',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
               ),
             ),
           ),

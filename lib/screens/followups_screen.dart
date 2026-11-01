@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lead.dart';
+import '../services/push_notification_service.dart';
 import '../theme/app_theme.dart';
-import '../screens/lead_detail.dart';
+import 'followup_detail_screen.dart';
 import '../widgets/skeleton_loading.dart';
 
 class FollowupsScreen extends StatefulWidget {
@@ -56,9 +57,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
             ? DateTime(now.year, now.month, now.day, 10 + (i % 7), (i * 15) % 60)
             : now.add(Duration(days: (i % 5) + 1, hours: (i % 4)));
 
-        final dateSlug =
-            '${scheduledDate.year}${scheduledDate.month.toString().padLeft(2, '0')}${scheduledDate.day.toString().padLeft(2, '0')}';
-        final uniqueNum = 'FUP-$dateSlug-${(i + 1).toString().padLeft(3, '0')}';
+        final uniqueNum = 'FUP-${(i + 1).toString().padLeft(3, '0')}';
 
         String remark;
         List<String> pendingDocs = [];
@@ -122,6 +121,111 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
+  }
+
+  Future<void> _openWhatsApp(String phone, {String name = ''}) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final text = Uri.encodeComponent(
+      'Hello $name, following up regarding your loan inquiry with Eligible CRM.',
+    );
+    final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  /// Schedule notification reminder for the agent at the exact follow-up date and time
+  Future<void> _scheduleFollowupNotification(FollowUp item) async {
+    final notifId = item.id.hashCode.abs() % 100000;
+    final timeStr = _formatDate(item.dateTime);
+    final title = '⏰ Follow-up Due: ${item.leadName}';
+    final body = item.remark.isNotEmpty
+        ? 'Follow-up scheduled for $timeStr\nRemark: ${item.remark}'
+        : 'Follow-up scheduled for $timeStr';
+
+    await PushNotificationService.instance.scheduleFollowupNotification(
+      id: notifId,
+      title: title,
+      body: body,
+      scheduledDate: item.dateTime,
+      payload: item.leadId,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⏰ 2s vibration reminder scheduled for $timeStr (${item.leadName})'),
+          backgroundColor: const Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  /// Delete a follow-up with confirmation dialog and cancel its notification
+  void _confirmDeleteFollowup(FollowUp item) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 22),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Delete Follow-up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete follow-up #${item.followupNumber} for ${item.leadName}? This will also cancel any scheduled reminder alerts.',
+            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final notifId = item.id.hashCode.abs() % 100000;
+                await PushNotificationService.instance.cancelNotification(notifId);
+
+                setState(() {
+                  followups.removeWhere((f) => f.id == item.id);
+                });
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Follow-up #${item.followupNumber} deleted successfully'),
+                      backgroundColor: const Color(0xFF1E293B),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -403,25 +507,36 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: lead != null
-              ? () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => LeadDetailsScreen(
-                        lead: lead!,
-                        onLeadUpdated: widget.onLeadUpdated,
-                      ),
-                    ),
-                  );
-                }
-              : null,
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => FollowupDetailScreen(
+                  followup: item,
+                  lead: lead,
+                  onFollowupUpdated: (updatedFup) {
+                    setState(() {
+                      final idx = followups.indexWhere((f) => f.id == updatedFup.id);
+                      if (idx != -1) {
+                        followups[idx] = updatedFup;
+                      }
+                    });
+                  },
+                  onFollowupDeleted: (deletedId) {
+                    setState(() {
+                      followups.removeWhere((f) => f.id == deletedId);
+                    });
+                  },
+                ),
+              ),
+            );
+          },
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Header: Unique Number & Status
+                // Top Header: Simple ID, Status & Delete Button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -456,61 +571,62 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    if (item.isCompleted)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCFCE7),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Completed',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF15803D),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (item.isCompleted)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Completed',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF15803D),
+                              ),
+                            ),
+                          )
+                        else if (isToday)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Due Today',
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: 'Delete Follow-up',
+                          icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFF94A3B8), size: 18),
+                          onPressed: () => _confirmDeleteFollowup(item),
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          style: IconButton.styleFrom(
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                         ),
-                      )
-                    else if (isToday)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Due Today',
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFFDC2626),
-                          ),
-                        ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
 
-                // Lead Name, Category & Call Action
+                // Lead Name (No Avatar!) & Actions (Call & WhatsApp)
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFFEFF6FF),
-                      child: Text(
-                        item.leadName.isNotEmpty
-                            ? item.leadName.substring(0, 1).toUpperCase()
-                            : 'L',
-                        style: const TextStyle(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,11 +635,11 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                             item.leadName,
                             style: const TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: AppTheme.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Row(
                             children: [
                               Flexible(
@@ -565,21 +681,42 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                         ],
                       ),
                     ),
-                    if (item.phone.isNotEmpty)
-                      IconButton(
-                        tooltip: 'Call Customer',
-                        icon: const Icon(Icons.phone, color: Color(0xFF16A34A)),
-                        onPressed: () => _makeCall(item.phone),
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFFDCFCE7),
-                        ),
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (item.phone.isNotEmpty) ...[
+                          IconButton(
+                            tooltip: 'Call Customer',
+                            icon: const Icon(Icons.phone_rounded, color: Color(0xFF16A34A), size: 18),
+                            onPressed: () => _makeCall(item.phone),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFDCFCE7),
+                              padding: const EdgeInsets.all(7),
+                              minimumSize: const Size(34, 34),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: 'Chat on WhatsApp',
+                            icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF059669), size: 18),
+                            onPressed: () => _openWhatsApp(item.phone, name: item.leadName),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFD1FAE5),
+                              padding: const EdgeInsets.all(7),
+                              minimumSize: const Size(34, 34),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
 
                 const SizedBox(height: 10),
 
-                // Scheduled Date & Time
+                // Scheduled Date & Time (Minimum Data card)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
@@ -597,7 +734,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: Color(0xFF1E293B),
                           ),
@@ -614,85 +751,11 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                           ),
                         ),
                       ],
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF94A3B8)),
                     ],
                   ),
                 ),
-
-                // Remark after calling
-                if (item.remark.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFEF3C7)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.chat_bubble_outline_rounded,
-                            size: 14, color: Color(0xFFD97706)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            item.remark,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF78350F),
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Pending documents after calling
-                if (item.pendingDocuments.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.pending_actions_rounded,
-                          size: 13, color: Color(0xFFDC2626)),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Pending Documents (${item.pendingDocuments.length}):',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: item.pendingDocuments.map((doc) {
-                      return Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFFFECACA)),
-                        ),
-                        child: Text(
-                          doc,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF991B1B),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
               ],
             ),
           ),
@@ -709,11 +772,9 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
     final remarkController = TextEditingController();
     final customDocController = TextEditingController();
 
-    // Generate unique follow-up number: FUP-YYYYMMDD-XXX
-    final dateStr =
-        '${selectedDate.year}${selectedDate.month.toString().padLeft(2, '0')}${selectedDate.day.toString().padLeft(2, '0')}';
+    // Generate simple unique follow-up number: FUP-XXX
     final uniqueFollowupNum =
-        'FUP-$dateStr-${(followups.length + 1).toString().padLeft(3, '0')}';
+        'FUP-${(followups.length + 1).toString().padLeft(3, '0')}';
 
     final availableDocuments = [
       'Aadhaar Card',
@@ -746,18 +807,23 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
               selectedTime.minute,
             );
 
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                MediaQuery.of(context).viewInsets.bottom + 20,
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.88,
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  16,
+                  20,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     Center(
                       child: Container(
                         width: 40,
@@ -1141,15 +1207,8 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
 
                                 Navigator.pop(ctx);
 
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Follow-up #$uniqueFollowupNum scheduled for ${selectedLead!.name}',
-                                    ),
-                                    backgroundColor: const Color(0xFF16A34A),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
+                                // Schedule 2-second vibration reminder notification for the exact scheduled date and time
+                                _scheduleFollowupNotification(newFup);
                               },
                         icon: const Icon(Icons.check_circle_outline, size: 18),
                         label: const Text(
@@ -1165,7 +1224,8 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                   ],
                 ),
               ),
-            );
+            ),
+          );
           },
         );
       },

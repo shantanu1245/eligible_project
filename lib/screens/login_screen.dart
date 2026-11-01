@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
-import '../services/backend_service.dart';
+import '../services/push_notification_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
 
@@ -19,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final passwordController = TextEditingController();
 
   bool obscurePassword = true;
-  bool rememberMe = false;
+  bool rememberMe = true;
   bool isLoading = false;
 
   @override
@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
         emailController.text = user!.email;
         passwordController.text = '••••••••';
       });
-      AuthService.instance.loginAs(user);
+      await AuthService.instance.loginAs(user);
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
@@ -62,33 +62,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (user != null) {
-      // Register device for multi-device push notification delivery
-      final fcmToken = user.isAdmin
-          ? 'fcm_token_shantanu_admin_pixel_pro'
-          : (user.id == 'U-002'
-              ? 'fcm_token_amit_patil_galaxy_s23'
-              : (user.id == 'U-003'
-                  ? 'fcm_token_priya_shah_iphone_15'
-                  : 'fcm_device_${user.id}_${DateTime.now().millisecondsSinceEpoch}'));
+      // Ensure persistent session is written so user stays logged in across restarts
+      await AuthService.instance.saveUserSession(user);
 
-      final deviceTitle = user.isAdmin
-          ? 'Admin Pixel Pro (Mobile)'
-          : (user.id == 'U-002'
-              ? 'Samsung Galaxy S23 (Mobile)'
-              : (user.id == 'U-003'
-                  ? 'iPhone 15 Pro (Mobile)'
-                  : 'Eligible App Client'));
-
-      final platform = user.id == 'U-003' ? 'ios' : 'android';
-
-      BackendService().registerFcmToken(
+      // Register device with real hardware FCM token and subscribe admin to admin_leads topic
+      PushNotificationService.instance.syncUserSession(
         userId: user.id,
-        name: user.name,
-        role: user.isAdmin ? 'admin' : 'sales_agent',
-        token: fcmToken,
-        deviceName: deviceTitle,
-        platform: platform,
+        userName: user.name,
+        isAdmin: user.isAdmin,
       );
+
+      if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
@@ -125,13 +109,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Immediately register active device FCM token for push notifications
     final role = roleName.toLowerCase().contains('admin') ? 'admin' : 'sales_agent';
-    BackendService().registerFcmToken(
+    PushNotificationService.instance.syncUserSession(
       userId: userId,
-      name: userName,
-      role: role,
-      token: token,
-      deviceName: deviceName,
-      platform: platform,
+      userName: userName,
+      isAdmin: role == 'admin',
     );
 
     ScaffoldMessenger.of(context).showSnackBar(

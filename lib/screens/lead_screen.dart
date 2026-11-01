@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
-import '../widgets/lead_card.dart';
 import '../widgets/skeleton_loading.dart';
 import 'add_lead_screen.dart';
+import 'lead_detail.dart';
+import 'recycle_bin_screen.dart';
 
 class LeadsScreen extends StatefulWidget {
   final List<Lead> leads;
@@ -14,6 +17,7 @@ class LeadsScreen extends StatefulWidget {
   final UserModel? currentUser;
   final Function(Lead)? onLeadUpdated;
   final Function(Lead)? onLeadAdded;
+  final Function(List<String>)? onLeadsDeleted;
   final VoidCallback? onOpenAllotment;
 
   const LeadsScreen({
@@ -24,6 +28,7 @@ class LeadsScreen extends StatefulWidget {
     this.currentUser,
     this.onLeadUpdated,
     this.onLeadAdded,
+    this.onLeadsDeleted,
     this.onOpenAllotment,
   });
 
@@ -34,11 +39,30 @@ class LeadsScreen extends StatefulWidget {
 class _LeadsScreenState extends State<LeadsScreen> {
   final searchController = TextEditingController();
 
+  late List<Lead> _localLeads;
   String searchQuery = '';
   LeadStatus? selectedStatus;
   String? selectedSourceFilter;
   String? selectedCategoryFilter;
   String selectedSort = 'date_desc';
+
+  // Multi-selection state for bulk delete
+  bool isSelectionMode = false;
+  final Set<String> selectedLeadIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _localLeads = List.from(widget.leads);
+  }
+
+  @override
+  void didUpdateWidget(covariant LeadsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.leads != widget.leads) {
+      _localLeads = List.from(widget.leads);
+    }
+  }
 
   @override
   void dispose() {
@@ -47,7 +71,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   List<Lead> get filteredLeads {
-    final list = widget.leads.where((lead) {
+    final list = _localLeads.where((lead) {
       final query = searchQuery.toLowerCase().trim();
 
       final matchesSearch = query.isEmpty ||
@@ -103,197 +127,706 @@ class _LeadsScreenState extends State<LeadsScreen> {
     return list;
   }
 
-  int get unassignedCount =>
-      widget.leads.where((l) => l.assignedTo.trim().isEmpty).length;
+  bool get _isAdmin => widget.currentUser?.isAdmin ?? true;
 
-  @override
-  Widget build(BuildContext context) {
-    final leads = filteredLeads;
-    final isAdmin = widget.currentUser?.isAdmin ?? true;
+  void _toggleLeadSelection(String id) {
+    setState(() {
+      if (selectedLeadIds.contains(id)) {
+        selectedLeadIds.remove(id);
+        if (selectedLeadIds.isEmpty) {
+          isSelectionMode = false;
+        }
+      } else {
+        selectedLeadIds.add(id);
+      }
+    });
+  }
 
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        titleSpacing: 16,
-        actionsPadding: const EdgeInsets.only(right: 8),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  void _toggleSelectAll(List<Lead> leads) {
+    setState(() {
+      final allFilteredIds = leads.map((l) => l.id).toSet();
+      if (selectedLeadIds.containsAll(allFilteredIds)) {
+        selectedLeadIds.removeAll(allFilteredIds);
+        if (selectedLeadIds.isEmpty) isSelectionMode = false;
+      } else {
+        selectedLeadIds.addAll(allFilteredIds);
+      }
+    });
+  }
+
+  Future<void> _openLeadDetail(Lead lead) async {
+    final updated = await Navigator.push<Lead>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LeadDetailsScreen(
+          lead: lead,
+          currentUser: widget.currentUser,
+          onLeadUpdated: (u) {
+            widget.onLeadUpdated?.call(u);
+            setState(() {
+              final idx = _localLeads.indexWhere((l) => l.id == u.id);
+              if (idx != -1) _localLeads[idx] = u;
+            });
+          },
+        ),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() {
+        final idx = _localLeads.indexWhere((l) => l.id == updated.id);
+        if (idx != -1) _localLeads[idx] = updated;
+      });
+    }
+  }
+
+  Future<void> _confirmDeleteSingleLead(Lead lead) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Row(
           children: [
-            Text(
-              isAdmin ? 'All Leads' : 'My Leads',
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            Text(
-              isAdmin
-                  ? '${widget.leads.length} total company leads'
-                  : 'Assigned to ${widget.currentUser?.name ?? "you"}',
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppTheme.textSecondary,
-              ),
-            ),
+            Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+            SizedBox(width: 8),
+            Text('Move to Recycle Bin'),
           ],
         ),
+        content: Text(
+          'Move "${lead.name}" to the Recycle Bin?\n\nIt will be kept for 30 days before permanent deletion. You can restore it anytime.',
+        ),
         actions: [
-          if (isAdmin && widget.onOpenAllotment != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: TextButton.icon(
-                onPressed: widget.onOpenAllotment,
-                icon: const Icon(Icons.assignment_ind, size: 18),
-                label: Text(
-                  unassignedCount > 0 ? 'Allot ($unassignedCount)' : 'Allot',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: unassignedCount > 0
-                      ? const Color(0xFFDC2626)
-                      : AppTheme.primary,
-                ),
-              ),
-            ),
-          IconButton(
-            tooltip: 'Add New Lead',
-            onPressed: _openAddLeadScreen,
-            icon: const Icon(Icons.person_add_alt_1_rounded),
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
           ),
-          IconButton(
-            tooltip: 'Sort & Filter Leads',
-            onPressed: _showSortAndFilterModal,
-            icon: Badge(
-              isLabelVisible: selectedSort != 'date_desc' ||
-                  selectedCategoryFilter != null ||
-                  selectedStatus != null ||
-                  selectedSourceFilter != null,
-              child: const Icon(Icons.tune_rounded),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Move to Bin'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final leadJson = lead.toJson();
+      final leadId = lead.id;
+      final leadName = lead.name;
+      setState(() {
+        _localLeads.removeWhere((l) => l.id == leadId);
+        selectedLeadIds.remove(leadId);
+      });
+
+      widget.onLeadsDeleted?.call([leadId]);
+      await BackendService().deleteLead(
+        leadId,
+        leadData: leadJson,
+        deletedBy: widget.currentUser?.name ?? 'Admin',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🗑️ Moved "$leadName" to Recycle Bin (kept for 30 days)'),
+            backgroundColor: const Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmBulkDelete() async {
+    final count = selectedLeadIds.length;
+    if (count == 0) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626)),
+            const SizedBox(width: 8),
+            Text('Move $count Leads to Bin?'),
+          ],
+        ),
+        content: Text(
+          'Move $count selected leads to the Recycle Bin?\n\nThey will be safely kept for 30 days before permanent deletion. You can restore them anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: Text('Move $count to Bin'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final idsToDelete = selectedLeadIds.toList();
+      final idSet = idsToDelete.toSet();
+      final targets = _localLeads.where((l) => idSet.contains(l.id)).toList();
+      final leadsData = targets.map((l) => l.toJson()).toList();
+
+      setState(() {
+        _localLeads.removeWhere((l) => idSet.contains(l.id));
+        selectedLeadIds.clear();
+        isSelectionMode = false;
+      });
+
+      widget.onLeadsDeleted?.call(idsToDelete);
+      await BackendService().deleteLeadsBulk(
+        idsToDelete,
+        leadsData: leadsData,
+        deletedBy: widget.currentUser?.name ?? 'Admin',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🗑️ Moved ${idsToDelete.length} leads to Recycle Bin (kept for 30 days)'),
+            backgroundColor: const Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showCategoryDeleteDialog() {
+    final salaryCount = _localLeads.where((l) => l.categoryKey == 'salary').length;
+    final homeCount = _localLeads.where((l) => l.categoryKey == 'home').length;
+    final businessCount = _localLeads.where((l) => l.categoryKey == 'business').length;
+    final otherCount = _localLeads.where((l) => l.categoryKey != 'salary' && l.categoryKey != 'home' && l.categoryKey != 'business').length;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626), size: 24),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Delete Leads Category-Wise',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Select a loan category to delete all corresponding leads permanently:',
+                  style: TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                _buildCategoryDeleteRow(
+                  emoji: '💼',
+                  title: 'Salaried Personal Loan',
+                  categoryKey: 'salary',
+                  count: salaryCount,
+                  sheetContext: ctx,
+                ),
+                _buildCategoryDeleteRow(
+                  emoji: '🏠',
+                  title: 'Home Loan / Mortgage',
+                  categoryKey: 'home',
+                  count: homeCount,
+                  sheetContext: ctx,
+                ),
+                _buildCategoryDeleteRow(
+                  emoji: '🏢',
+                  title: 'Business / MSME Loan',
+                  categoryKey: 'business',
+                  count: businessCount,
+                  sheetContext: ctx,
+                ),
+                if (otherCount > 0)
+                  _buildCategoryDeleteRow(
+                    emoji: '📋',
+                    title: 'Other / General Leads',
+                    categoryKey: 'other',
+                    count: otherCount,
+                    sheetContext: ctx,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryDeleteRow({
+    required String emoji,
+    required String title,
+    required String categoryKey,
+    required int count,
+    required BuildContext sheetContext,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  '$count leads available',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: count > 0 ? AppTheme.textSecondary : Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: count == 0
+                ? null
+                : () {
+                    Navigator.pop(sheetContext);
+                    _confirmDeleteCategory(categoryKey, title, count);
+                  },
+            icon: const Icon(Icons.delete_outline, size: 15),
+            label: const Text('Delete All', style: TextStyle(fontSize: 11.5)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmDeleteCategory(String key, String title, int count) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626)),
+            const SizedBox(width: 8),
+            Text('Move $count $title Leads to Bin?'),
+          ],
+        ),
+        content: Text(
+          'Move all $count $title leads to the Recycle Bin?\n\nThey will be safely kept for 30 days before permanent deletion. You can restore them anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: Text('Move $count to Bin'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final targets = _localLeads.where((l) {
+        if (key == 'salary') return l.categoryKey == 'salary';
+        if (key == 'home') return l.categoryKey == 'home';
+        if (key == 'business') return l.categoryKey == 'business';
+        return l.categoryKey != 'salary' && l.categoryKey != 'home' && l.categoryKey != 'business';
+      }).toList();
+
+      final deletedIds = targets.map((l) => l.id).toList();
+      final categoryLeads = targets.map((l) => l.toJson()).toList();
+
+      setState(() {
+        final idSet = deletedIds.toSet();
+        _localLeads.removeWhere((l) => idSet.contains(l.id));
+        selectedLeadIds.removeAll(idSet);
+      });
+
+      widget.onLeadsDeleted?.call(deletedIds);
+      await BackendService().deleteLeadsByCategory(
+        key,
+        categoryLeads: categoryLeads,
+        deletedBy: widget.currentUser?.name ?? 'Admin',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🗑️ Moved ${deletedIds.length} $title leads to Recycle Bin (kept for 30 days)'),
+            backgroundColor: const Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openRecycleBin() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecycleBinScreen(
+          currentUser: widget.currentUser,
+          onLeadRestored: (restoredLead) {
+            setState(() {
+              _localLeads.insert(0, restoredLead);
+            });
+            widget.onLeadAdded?.call(restoredLead);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openWhatsApp(String phone, String name) async {
+    final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final formatted = clean.startsWith('91') ? clean : '91$clean';
+    final text = 'Hello $name, contacting you regarding your loan enquiry at Eligible CRM.';
+    final uri = Uri.parse('https://wa.me/$formatted?text=${Uri.encodeComponent(text)}');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  Future<void> _callPhone(String phone) async {
+    final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('tel:$clean');
+    try {
+      await launchUrl(uri);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final leads = filteredLeads;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: isSelectionMode
+          // ── MULTI-SELECTION APP BAR ──
+          ? AppBar(
+              backgroundColor: const Color(0xFF1E293B),
+              foregroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  setState(() {
+                    isSelectionMode = false;
+                    selectedLeadIds.clear();
+                  });
+                },
+              ),
+              title: Text(
+                '${selectedLeadIds.length} Selected',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Select All',
+                  icon: const Icon(Icons.select_all_rounded),
+                  onPressed: () => _toggleSelectAll(leads),
+                ),
+                IconButton(
+                  tooltip: 'Delete Selected',
+                  icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFFCA5A5)),
+                  onPressed: selectedLeadIds.isEmpty ? null : _confirmBulkDelete,
+                ),
+              ],
+            )
+          // ── STANDARD APP BAR ──
+          : AppBar(
+              titleSpacing: 16,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isAdmin ? 'All Leads' : 'My Leads',
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    _isAdmin
+                        ? '${_localLeads.length} total company leads'
+                        : 'Assigned to ${widget.currentUser?.name ?? "you"}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                if (_isAdmin)
+                  IconButton(
+                    tooltip: 'Recycle Bin',
+                    icon: const Icon(Icons.auto_delete_outlined, color: Color(0xFFD97706)),
+                    onPressed: _openRecycleBin,
+                  ),
+                IconButton(
+                  tooltip: 'Add New Lead',
+                  onPressed: _openAddLeadScreen,
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                ),
+                if (_isAdmin)
+                  IconButton(
+                    tooltip: 'Select Leads',
+                    icon: const Icon(Icons.checklist_rounded),
+                    onPressed: () {
+                      setState(() {
+                        isSelectionMode = true;
+                      });
+                    },
+                  ),
+                if (_isAdmin)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: 'Lead Options',
+                    onSelected: (val) {
+                      if (val == 'recycle_bin') {
+                        _openRecycleBin();
+                      } else if (val == 'select_delete') {
+                        setState(() => isSelectionMode = true);
+                      } else if (val == 'category_delete') {
+                        _showCategoryDeleteDialog();
+                      } else if (val == 'allot' && widget.onOpenAllotment != null) {
+                        widget.onOpenAllotment!();
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      const PopupMenuItem(
+                        value: 'recycle_bin',
+                        child: Row(
+                          children: [
+                            Icon(Icons.auto_delete_outlined, size: 18, color: Color(0xFFD97706)),
+                            SizedBox(width: 10),
+                            Text('Recycle Bin (30 Days)'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'select_delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.checklist, size: 18),
+                            SizedBox(width: 10),
+                            Text('Bulk Delete Leads'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'category_delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_sweep, size: 18, color: Color(0xFFDC2626)),
+                            SizedBox(width: 10),
+                            Text('Delete Category-Wise', style: TextStyle(color: Color(0xFFDC2626))),
+                          ],
+                        ),
+                      ),
+                      if (widget.onOpenAllotment != null) ...[
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          value: 'allot',
+                          child: Row(
+                            children: [
+                              Icon(Icons.assignment_ind, size: 18, color: Color(0xFF1877F2)),
+                              SizedBox(width: 10),
+                              Text('Open Allotment Screen'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+              ],
+            ),
       body: Column(
         children: [
-          // Role context banner
-          if (isAdmin && unassignedCount > 0)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFECACA)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Color(0xFFDC2626), size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '$unassignedCount leads unassigned to executives',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFDC2626),
-                      ),
-                    ),
-                  ),
-                  if (widget.onOpenAllotment != null)
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFDC2626),
-                        minimumSize: const Size(70, 30),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      onPressed: widget.onOpenAllotment,
-                      child: const Text('Allot', style: TextStyle(fontSize: 11)),
-                    ),
-                ],
-              ),
-            )
-          else if (!isAdmin)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBBF7D0)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.verified_user_outlined,
-                      color: Color(0xFF16A34A), size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Viewing leads allotted to ${widget.currentUser?.name} (${widget.leads.length})',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF16A34A),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Search bar
+          // ── Search bar & Filter row (filter icon directly in search row) ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-            child: TextField(
-              controller: searchController,
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                });
-              },
-              decoration: const InputDecoration(
-                hintText: 'Search leads...',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        searchQuery = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search by customer name, phone, loan...',
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                searchController.clear();
+                                setState(() {
+                                  searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  height: 48,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: (selectedSort != 'date_desc' ||
+                            selectedCategoryFilter != null ||
+                            selectedStatus != null ||
+                            selectedSourceFilter != null)
+                        ? const Color(0xFFEFF6FF)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: (selectedSort != 'date_desc' ||
+                              selectedCategoryFilter != null ||
+                              selectedStatus != null ||
+                              selectedSourceFilter != null)
+                          ? const Color(0xFF1877F2)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: IconButton(
+                    tooltip: 'Sort & Filter Leads',
+                    onPressed: _showSortAndFilterModal,
+                    icon: Badge(
+                      isLabelVisible: selectedSort != 'date_desc' ||
+                          selectedCategoryFilter != null ||
+                          selectedStatus != null ||
+                          selectedSourceFilter != null,
+                      child: Icon(
+                        Icons.tune_rounded,
+                        size: 21,
+                        color: (selectedSort != 'date_desc' ||
+                                selectedCategoryFilter != null ||
+                                selectedStatus != null ||
+                                selectedSourceFilter != null)
+                            ? const Color(0xFF1877F2)
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
+          // Filters row
           _buildFilters(),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
 
+          // ── STREAMLINED LEADS LIST VIEW ──
           Expanded(
             child: widget.isLoading
                 ? const LeadsScreenSkeleton()
                 : leads.isEmpty
                     ? _buildEmptyState()
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        padding: const EdgeInsets.fromLTRB(0, 4, 0, 90),
                         itemCount: leads.length,
                         itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: LeadCard(
-                              lead: leads[index],
-                              currentUser: widget.currentUser,
-                              onLeadUpdated: widget.onLeadUpdated,
-                            ),
-                          );
+                          final lead = leads[index];
+                          final isSelected = selectedLeadIds.contains(lead.id);
+                          return _buildLeadListTile(lead, isSelected);
                         },
                       ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddLeadScreen,
-        backgroundColor: AppTheme.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text(
-          'Add Lead',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
+      floatingActionButton: isSelectionMode
+          ? FloatingActionButton.extended(
+              onPressed: selectedLeadIds.isEmpty ? null : _confirmBulkDelete,
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.delete_forever),
+              label: Text('Delete (${selectedLeadIds.length})'),
+            )
+          : FloatingActionButton.extended(
+              onPressed: _openAddLeadScreen,
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text(
+                'Add Lead',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
       bottomNavigationBar: AppBottomNavigation(
         currentIndex: 1,
         onChanged: (index) {
@@ -301,6 +834,321 @@ class _LeadsScreenState extends State<LeadsScreen> {
         },
       ),
     );
+  }
+
+  // ── CLEAN LIST VIEW ITEM ──
+  Widget _buildLeadListTile(Lead lead, bool isSelected) {
+    final isWhatsApp = lead.source.toLowerCase().contains('whatsapp') ||
+        lead.campaign.toLowerCase().contains('whatsapp') ||
+        lead.campaign.toLowerCase().contains("what's app");
+
+    final isUnassigned = lead.assignedTo.trim().isEmpty ||
+        lead.assignedTo.toLowerCase() == 'unassigned' ||
+        lead.assignedTo.toLowerCase() == 'available for claim';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isSelected
+              ? const Color(0xFF1877F2)
+              : (isWhatsApp ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0)),
+          width: isSelected ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          if (isSelectionMode) {
+            _toggleLeadSelection(lead.id);
+          } else {
+            _openLeadDetail(lead);
+          }
+        },
+        onLongPress: () {
+          if (!isSelectionMode && _isAdmin) {
+            setState(() {
+              isSelectionMode = true;
+              selectedLeadIds.add(lead.id);
+            });
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Selection Checkbox (only in multi-selection mode)
+              if (isSelectionMode)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Checkbox(
+                    value: isSelected,
+                    activeColor: const Color(0xFF1877F2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    onChanged: (_) => _toggleLeadSelection(lead.id),
+                  ),
+                ),
+
+              // Lead information
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lead.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildStatusChip(lead.status),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Category tag & Loan Amount
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _categoryBgColor(lead.categoryKey),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            lead.categoryDisplay,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: _categoryTextColor(lead.categoryKey),
+                            ),
+                          ),
+                        ),
+                        if (lead.requiredLoan != null && lead.requiredLoan! > 0) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatLoanAmount(lead.requiredLoan!),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+
+                    // Phone & Assignee
+                    Row(
+                      children: [
+                        Icon(Icons.phone_outlined, size: 12, color: AppTheme.textSecondary),
+                        const SizedBox(width: 3),
+                        Text(
+                          lead.phone,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppTheme.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          isUnassigned ? Icons.warning_amber_rounded : Icons.person_outline,
+                          size: 12,
+                          color: isUnassigned ? const Color(0xFFDC2626) : AppTheme.primary,
+                        ),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            isUnassigned ? 'Unassigned' : lead.assignedTo,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isUnassigned ? const Color(0xFFDC2626) : AppTheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // Trailing actions: Popup menu or chevron
+              if (!isSelectionMode)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, size: 18, color: AppTheme.textSecondary),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onSelected: (val) {
+                        if (val == 'details') _openLeadDetail(lead);
+                        if (val == 'delete') _confirmDeleteSingleLead(lead);
+                        if (val == 'whatsapp') _openWhatsApp(lead.phone, lead.name);
+                        if (val == 'call') _callPhone(lead.phone);
+                      },
+                      itemBuilder: (ctx) => [
+                        const PopupMenuItem(
+                          value: 'details',
+                          child: Row(
+                            children: [
+                              Icon(Icons.open_in_new, size: 16),
+                              SizedBox(width: 8),
+                              Text('View Details'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'whatsapp',
+                          child: Row(
+                            children: [
+                              Icon(Icons.chat, size: 16, color: Color(0xFF16A34A)),
+                              SizedBox(width: 8),
+                              Text('WhatsApp'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'call',
+                          child: Row(
+                            children: [
+                              Icon(Icons.phone, size: 16, color: Color(0xFF2563EB)),
+                              SizedBox(width: 8),
+                              Text('Call'),
+                            ],
+                          ),
+                        ),
+                        if (_isAdmin) ...[
+                          const PopupMenuDivider(),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, size: 16, color: Color(0xFFDC2626)),
+                                SizedBox(width: 8),
+                                Text('Delete Lead', style: TextStyle(color: Color(0xFFDC2626))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(LeadStatus status) {
+    Color bg;
+    Color fg;
+    String label;
+    switch (status) {
+      case LeadStatus.newLead:
+        bg = const Color(0xFFEFF6FF);
+        fg = const Color(0xFF1D4ED8);
+        label = 'New';
+        break;
+      case LeadStatus.contacted:
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFFB45309);
+        label = 'Contacted';
+        break;
+      case LeadStatus.qualified:
+        bg = const Color(0xFFF3E8FF);
+        fg = const Color(0xFF7E22CE);
+        label = 'Qualified';
+        break;
+      case LeadStatus.converted:
+        bg = const Color(0xFFDCFCE7);
+        fg = const Color(0xFF15803D);
+        label = 'Converted';
+        break;
+      case LeadStatus.lost:
+        bg = const Color(0xFFFEE2E2);
+        fg = const Color(0xFFB91C1C);
+        label = 'Rejected';
+        break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
+      ),
+    );
+  }
+
+  String _formatLoanAmount(double val) {
+    if (val >= 10000000) {
+      return '₹${(val / 10000000).toStringAsFixed(2)} Cr';
+    } else if (val >= 100000) {
+      return '₹${(val / 100000).toStringAsFixed(1)} Lakh';
+    }
+    return '₹${val.toInt()}';
+  }
+
+  Color _categoryBgColor(String key) {
+    switch (key) {
+      case 'salary':
+        return const Color(0xFFEFF6FF);
+      case 'home':
+        return const Color(0xFFFEF3C7);
+      case 'business':
+        return const Color(0xFFF3E8FF);
+      default:
+        return const Color(0xFFF1F5F9);
+    }
+  }
+
+  Color _categoryTextColor(String key) {
+    switch (key) {
+      case 'salary':
+        return const Color(0xFF1D4ED8);
+      case 'home':
+        return const Color(0xFFB45309);
+      case 'business':
+        return const Color(0xFF7E22CE);
+      default:
+        return const Color(0xFF475569);
+    }
   }
 
   Future<void> _openAddLeadScreen() async {
@@ -311,7 +1159,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
           currentUser: widget.currentUser ?? UserModel.admin,
           onLeadAdded: (lead) {
             widget.onLeadAdded?.call(lead);
-            if (mounted) setState(() {});
+            setState(() {
+              _localLeads.insert(0, lead);
+            });
           },
         ),
       ),
@@ -553,14 +1403,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         runSpacing: 8,
                         children: [
                           _modalCategoryChip('All Categories', null, setModalState),
-                          _modalCategoryChip('💼 Salary / Personal', 'salary', setModalState),
+                          _modalCategoryChip('💼 Salaried Personal', 'salary', setModalState),
                           _modalCategoryChip('🏠 Home Loan', 'home', setModalState),
                           _modalCategoryChip('🏢 Business Loan', 'business', setModalState),
                         ],
                       ),
                       const SizedBox(height: 18),
                       const Text(
-                        'LEAD STATUS',
+                        'SOURCE PLATFORM',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -573,36 +1423,27 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _modalStatusChip('All', null, setModalState),
-                          _modalStatusChip('New', LeadStatus.newLead, setModalState),
-                          _modalStatusChip('Contacted', LeadStatus.contacted, setModalState),
-                          _modalStatusChip('Qualified', LeadStatus.qualified, setModalState),
-                          _modalStatusChip('In Process', LeadStatus.converted, setModalState),
-                          _modalStatusChip('Rejected', LeadStatus.lost, setModalState),
+                          _modalSourceChip('All Sources', null, setModalState),
+                          _modalSourceChip('💬 WhatsApp Leads', 'whatsapp', setModalState),
+                          _modalSourceChip('🌐 Loan Calculator', 'calculator', setModalState),
                         ],
                       ),
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            setState(() {});
-                          },
-                          child: Text(
-                            'Apply (${filteredLeads.length} Leads)',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            'Apply Filter',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                           ),
                         ),
                       ),
@@ -617,132 +1458,119 @@ class _LeadsScreenState extends State<LeadsScreen> {
     );
   }
 
-  Widget _modalSortChip(String label, String key, StateSetter setModalState) {
-    final isSelected = selectedSort == key;
+  Widget _modalSortChip(String label, String value, StateSetter setModalState) {
+    final selected = selectedSort == value;
     return ChoiceChip(
       label: Text(label),
-      selected: isSelected,
+      selected: selected,
+      selectedColor: const Color(0xFFDBEAFE),
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        color: selected ? const Color(0xFF1D4ED8) : AppTheme.textPrimary,
+      ),
       onSelected: (val) {
         if (val) {
-          setModalState(() => selectedSort = key);
-          setState(() => selectedSort = key);
+          setModalState(() => selectedSort = value);
+          setState(() => selectedSort = value);
         }
       },
-      selectedColor: AppTheme.primary,
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : AppTheme.textPrimary,
-      ),
     );
   }
 
-  Widget _modalCategoryChip(String label, String? key, StateSetter setModalState) {
-    final isSelected = selectedCategoryFilter == key;
+  Widget _modalCategoryChip(String label, String? value, StateSetter setModalState) {
+    final selected = selectedCategoryFilter == value;
     return ChoiceChip(
       label: Text(label),
-      selected: isSelected,
-      onSelected: (_) {
-        setModalState(() => selectedCategoryFilter = key);
-        setState(() => selectedCategoryFilter = key);
-      },
-      selectedColor: const Color(0xFF2563EB),
+      selected: selected,
+      selectedColor: const Color(0xFFDBEAFE),
       labelStyle: TextStyle(
         fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : AppTheme.textPrimary,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        color: selected ? const Color(0xFF1D4ED8) : AppTheme.textPrimary,
       ),
+      onSelected: (val) {
+        if (val) {
+          setModalState(() => selectedCategoryFilter = value);
+          setState(() => selectedCategoryFilter = value);
+        }
+      },
     );
   }
 
-  Widget _modalStatusChip(String label, LeadStatus? status, StateSetter setModalState) {
-    final isSelected = selectedStatus == status;
+  Widget _modalSourceChip(String label, String? value, StateSetter setModalState) {
+    final selected = selectedSourceFilter == value;
     return ChoiceChip(
       label: Text(label),
-      selected: isSelected,
-      onSelected: (_) {
-        setModalState(() => selectedStatus = status);
-        setState(() => selectedStatus = status);
-      },
-      selectedColor: AppTheme.primary,
+      selected: selected,
+      selectedColor: const Color(0xFFDBEAFE),
       labelStyle: TextStyle(
         fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : AppTheme.textPrimary,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        color: selected ? const Color(0xFF1D4ED8) : AppTheme.textPrimary,
       ),
+      onSelected: (val) {
+        if (val) {
+          setModalState(() => selectedSourceFilter = value);
+          setState(() => selectedSourceFilter = value);
+        }
+      },
     );
   }
 
   Widget _filter(String title, LeadStatus? status) {
-    final selected = selectedStatus == status;
+    final isSelected = selectedStatus == status;
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
         label: Text(title),
-        selected: selected,
-        onSelected: (_) {
-          setState(() {
-            selectedStatus = status;
-          });
-        },
-        labelStyle: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: selected ? Colors.white : AppTheme.textSecondary,
-        ),
+        selected: isSelected,
         selectedColor: AppTheme.primary,
         backgroundColor: Colors.white,
         side: BorderSide(
-          color: selected ? AppTheme.primary : AppTheme.border,
+          color: isSelected ? AppTheme.primary : AppTheme.border,
         ),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : AppTheme.textSecondary,
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+        ),
+        onSelected: (value) {
+          setState(() => selectedStatus = status);
+        },
       ),
     );
   }
 
   Widget _buildEmptyState() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 70,
-              width: 70,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(
-                Icons.search_off_rounded,
-                size: 32,
-                color: AppTheme.primary,
-              ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.people_outline_rounded,
+            size: 64,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            searchQuery.isNotEmpty ? 'No leads match "$searchQuery"' : 'No leads found',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
             ),
-            const SizedBox(height: 16),
-            Text(
-              widget.currentUser?.isSalesExecutive == true
-                  ? 'No leads allotted yet'
-                  : 'No leads found',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Try adjusting your search terms or filters.',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
             ),
-            const SizedBox(height: 6),
-            Text(
-              widget.currentUser?.isSalesExecutive == true
-                  ? 'Leads will appear here as soon as the Administrator allots them to you.'
-                  : 'Try changing your search or filter.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

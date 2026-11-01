@@ -71,77 +71,22 @@ class NotificationService {
 
     console.log(`🔔 [Notification] Preparing new lead alerts for Admin & Sales Team: "${leadName}"`);
 
-    // 1. Save both notifications into Firebase Realtime Database
+    // 1. Save admin notification into Firebase Realtime Database
     if (this.firebaseService) {
       await this.firebaseService.saveNotification(adminNotification);
-      await this.firebaseService.saveNotification(salesNotification);
     }
 
-    // 2. Dispatch FCM Push Notifications
+    // 2. Dispatch High-Priority FCM Push Notification exclusively to Admin
     let fcmAdminSent = false;
-    let fcmSalesSent = false;
     let fcmError = null;
 
     if (admin && admin.apps && admin.apps.length > 0) {
-      // 2a. Broadcast to 'admin_leads' topic
-      try {
-        await withTimeout(
-          admin.messaging().send({
-            topic: 'admin_leads',
-            notification: {
-              title: adminNotification.title,
-              body: adminNotification.body,
-            },
-            data: {
-              type: 'NEW_LEAD',
-              role: 'admin',
-              leadId: String(lead.id || ''),
-              leadName: String(leadName),
-              phone: String(phone),
-              source: String(source),
-              click_action: 'FLUTTER_NOTIFICATION_CLICK',
-            },
-          }),
-          2500
-        );
-        fcmAdminSent = true;
-        console.log(`✅ [FCM] Push sent to topic 'admin_leads'`);
-      } catch (err) {
-        console.warn(`⚠️ [FCM] Could not send to topic 'admin_leads': ${err.message}`);
-        fcmError = err.message;
-      }
+      const adminTokens = await this.getRegisteredTokens('admin');
+      const leadTag = `lead_${lead.id || 'alert'}`;
 
-      // 2b. Broadcast to 'sales_agents' topic
-      try {
-        await withTimeout(
-          admin.messaging().send({
-            topic: 'sales_agents',
-            notification: {
-              title: salesNotification.title,
-              body: salesNotification.body,
-            },
-            data: {
-              type: 'NEW_LEAD',
-              role: 'sales_agent',
-              leadId: String(lead.id || ''),
-              leadName: String(leadName),
-              assignedTo: String(assignedTo),
-              source: String(source),
-              click_action: 'FLUTTER_NOTIFICATION_CLICK',
-            },
-          }),
-          2500
-        );
-        fcmSalesSent = true;
-        console.log(`✅ [FCM] Push sent to topic 'sales_agents'`);
-      } catch (err) {
-        console.warn(`⚠️ [FCM] Could not send to topic 'sales_agents': ${err.message}`);
-      }
-
-      // 2c. Direct push to registered device tokens
-      try {
-        const tokens = await this.getRegisteredTokens();
-        if (tokens.length > 0) {
+      if (adminTokens.length > 0) {
+        // 2a. Direct push exclusively to registered Admin device tokens (Single delivery)
+        try {
           const directMessage = {
             notification: {
               title: adminNotification.title,
@@ -149,15 +94,92 @@ class NotificationService {
             },
             data: {
               leadId: String(lead.id || ''),
+              leadName: String(leadName),
+              phone: String(phone),
+              source: String(source),
               type: 'NEW_LEAD',
+              role: 'admin',
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
             },
-            tokens,
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'admin_leads_channel',
+                tag: leadTag,
+                sound: 'default',
+                defaultSound: true,
+                defaultVibrateTimings: true,
+                priority: 'max',
+                visibility: 'public',
+              },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: 'default',
+                  badge: 1,
+                  contentAvailable: true,
+                },
+              },
+            },
+            tokens: adminTokens,
           };
-          const multResponse = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 2500);
-          console.log(`📱 [FCM] Sent direct push to ${multResponse.successCount} registered devices`);
+          const multResponse = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 3500);
+          fcmAdminSent = multResponse.successCount > 0;
+          console.log(`📱 [FCM] Sent single direct push to ${multResponse.successCount} registered Admin devices (${multResponse.failureCount} failed)`);
+        } catch (tokenErr) {
+          console.warn(`⚠️ [FCM] Admin multicast direct push note: ${tokenErr.message}`);
+          fcmError = tokenErr.message;
         }
-      } catch (tokenErr) {
-        console.warn(`⚠️ [FCM] Multicast direct push note: ${tokenErr.message}`);
+      } else {
+        // 2b. Fallback: Broadcast to 'admin_leads' topic ONLY if no individual admin device tokens are registered yet
+        try {
+          await withTimeout(
+            admin.messaging().send({
+              topic: 'admin_leads',
+              notification: {
+                title: adminNotification.title,
+                body: adminNotification.body,
+              },
+              data: {
+                type: 'NEW_LEAD',
+                role: 'admin',
+                leadId: String(lead.id || ''),
+                leadName: String(leadName),
+                phone: String(phone),
+                source: String(source),
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  channelId: 'admin_leads_channel',
+                  tag: leadTag,
+                  sound: 'default',
+                  defaultSound: true,
+                  defaultVibrateTimings: true,
+                  priority: 'max',
+                  visibility: 'public',
+                },
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: 'default',
+                    badge: 1,
+                    contentAvailable: true,
+                  },
+                },
+              },
+            }),
+            3000
+          );
+          fcmAdminSent = true;
+          console.log(`✅ [FCM] High-priority lead alert sent to Admin topic 'admin_leads' (Topic fallback mode)`);
+        } catch (err) {
+          console.warn(`⚠️ [FCM] Could not send to topic 'admin_leads': ${err.message}`);
+          fcmError = err.message;
+        }
       }
     }
 
@@ -278,39 +300,45 @@ class NotificationService {
     if (!admin || !admin.apps || admin.apps.length === 0) {
       console.warn(`   ├─ FCM Push: ⚠️ Firebase Admin SDK is NOT initialized (Local mode active). Push not sent to Google FCM.`);
     } else {
-      // 2a. Broadcast to FCM Topics
-      const topics = ['all_leads', 'admin_leads', 'sales_agents'];
-      for (const topic of topics) {
+      const allTokens = await this.getRegisteredTokens();
+      multicastResult.totalTokens = allTokens.length;
+      const leadTag = `lead_${lead.id || 'broadcast'}`;
+
+      if (allTokens.length > 0) {
+        // Direct Push exclusively to registered device tokens across all users (single delivery)
         try {
-          const res = await withTimeout(
-            admin.messaging().send({
-              topic,
-              notification: { title: notification.title, body: notification.body },
-              data: { type: 'NEW_LEAD', leadId: String(lead.id || ''), role: 'all', click_action: 'FLUTTER_NOTIFICATION_CLICK' },
-            }),
-            2500
-          );
-          topicResults[topic] = { success: true, messageId: res };
-          console.log(`   ├─ FCM Topic [${topic}]: ✅ SENT (Message ID: ${res})`);
-        } catch (err) {
-          topicResults[topic] = { success: false, error: err.message, code: err.code || 'UNKNOWN' };
-          console.error(`   ├─ FCM Topic [${topic}]: ❌ FAILED (${err.code || 'ERR'}: ${err.message})`);
-        }
-      }
-
-      // 2b. Direct Push to all registered device tokens across all users
-      try {
-        const allTokens = await this.getRegisteredTokens();
-        multicastResult.totalTokens = allTokens.length;
-
-        if (allTokens.length === 0) {
-          console.warn(`   ├─ Direct Device Push: ⚠️ 0 registered device tokens found in database!`);
-          console.info(`   │   ℹ️ No mobile devices have registered their FCM token yet. Tokens register automatically when users open the app.`);
-        } else {
-          console.log(`   ├─ Direct Device Push: Sending multicast to ${allTokens.length} active device token(s)...`);
+          console.log(`   ├─ Direct Device Push: Sending single multicast to ${allTokens.length} active device token(s)...`);
           const directMessage = {
             notification: { title: notification.title, body: notification.body },
-            data: { leadId: String(lead.id || ''), type: 'NEW_LEAD' },
+            data: {
+              leadId: String(lead.id || ''),
+              leadName: String(leadName),
+              phone: String(phone),
+              type: 'NEW_LEAD',
+              role: 'all',
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'admin_leads_channel',
+                tag: leadTag,
+                sound: 'default',
+                defaultSound: true,
+                defaultVibrateTimings: true,
+                priority: 'max',
+                visibility: 'public',
+              },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: 'default',
+                  badge: 1,
+                  contentAvailable: true,
+                },
+              },
+            },
             tokens: allTokens,
           };
           const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 3500);
@@ -330,10 +358,55 @@ class NotificationService {
               }
             });
           }
+        } catch (mErr) {
+          console.error(`   ├─ Direct Multicast Exception: ❌ ${mErr.message}`);
         }
-      } catch (err) {
-        console.error(`   ├─ Direct Device Push Error: ❌ ${err.message}`);
-        multicastResult.errors.push({ error: err.message });
+      } else {
+        // Fallback: Broadcast to 'admin_leads' topic ONLY if no device tokens are registered yet
+        console.log(`   ├─ No registered device tokens found. Broadcasting fallback to 'admin_leads' topic...`);
+        try {
+          const res = await withTimeout(
+            admin.messaging().send({
+              topic: 'admin_leads',
+              notification: { title: notification.title, body: notification.body },
+              data: {
+                type: 'NEW_LEAD',
+                leadId: String(lead.id || ''),
+                leadName: String(leadName),
+                phone: String(phone),
+                role: 'all',
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  channelId: 'admin_leads_channel',
+                  tag: leadTag,
+                  sound: 'default',
+                  defaultSound: true,
+                  defaultVibrateTimings: true,
+                  priority: 'max',
+                  visibility: 'public',
+                },
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: 'default',
+                    badge: 1,
+                    contentAvailable: true,
+                  },
+                },
+              },
+            }),
+            3000
+          );
+          topicResults['admin_leads'] = { success: true, messageId: res };
+          console.log(`   ├─ FCM Fallback Topic [admin_leads]: ✅ SENT (Message ID: ${res})`);
+        } catch (err) {
+          topicResults['admin_leads'] = { success: false, error: err.message, code: err.code || 'UNKNOWN' };
+          console.error(`   ├─ FCM Fallback Topic [admin_leads]: ❌ FAILED (${err.code || 'ERR'}: ${err.message})`);
+        }
       }
     }
 
@@ -418,7 +491,10 @@ class NotificationService {
     if (!admin || !admin.apps || admin.apps.length === 0) {
       console.warn(`   ├─ FCM Push: ⚠️ Firebase Admin SDK is NOT initialized (Local mode active).`);
     } else {
+      const leadTag = `lead_${lead.id || 'allotment'}`;
+
       if (userTokens.length > 0) {
+        // Direct Push to user's registered devices (single delivery)
         try {
           const directMessage = {
             notification: { title: notification.title, body: notification.body },
@@ -427,6 +503,18 @@ class NotificationService {
               leadId: String(lead.id || ''),
               assignedTo: String(assignedTo),
               click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'admin_leads_channel',
+                tag: leadTag,
+                sound: 'default',
+                defaultSound: true,
+                defaultVibrateTimings: true,
+                priority: 'max',
+                visibility: 'public',
+              },
             },
             tokens: userTokens,
           };
@@ -451,26 +539,36 @@ class NotificationService {
           directErrors.push({ error: err.message });
         }
       } else {
-        console.warn(`   ├─ Direct Device Push: ⚠️ User "${assignedTo}" has NO registered device tokens!`);
-        console.info(`   │   ℹ️ When "${assignedTo}" logs into the app, their device token will be added to the registry.`);
-      }
-
-      // Also dispatch to user-specific topic (e.g. user_amit_patil)
-      const cleanUserTopic = `user_${assignedTo.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
-      try {
-        const topicRes = await withTimeout(
-          admin.messaging().send({
-            topic: cleanUserTopic,
-            notification: { title: notification.title, body: notification.body },
-            data: { type: 'LEAD_ALLOTTED', leadId: String(lead.id || ''), assignedTo: String(assignedTo) },
-          }),
-          2500
-        );
-        topicResult = { success: true, messageId: topicRes };
-        console.log(`   ├─ User Topic [${cleanUserTopic}]: ✅ SENT (Message ID: ${topicRes})`);
-      } catch (err) {
-        topicResult = { success: false, error: err.message };
-        console.log(`   ├─ User Topic [${cleanUserTopic}]: ℹ️ Note: ${err.message}`);
+        // Fallback: Dispatch to user-specific topic ONLY when user has 0 registered device tokens
+        console.warn(`   ├─ Direct Device Push: ⚠️ User "${assignedTo}" has NO registered device tokens! Falling back to topic...`);
+        const cleanUserTopic = `user_${assignedTo.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
+        try {
+          const topicRes = await withTimeout(
+            admin.messaging().send({
+              topic: cleanUserTopic,
+              notification: { title: notification.title, body: notification.body },
+              data: { type: 'LEAD_ALLOTTED', leadId: String(lead.id || ''), assignedTo: String(assignedTo) },
+              android: {
+                priority: 'high',
+                notification: {
+                  channelId: 'admin_leads_channel',
+                  tag: leadTag,
+                  sound: 'default',
+                  defaultSound: true,
+                  defaultVibrateTimings: true,
+                  priority: 'max',
+                  visibility: 'public',
+                },
+              },
+            }),
+            2500
+          );
+          topicResult = { success: true, messageId: topicRes };
+          console.log(`   ├─ User Fallback Topic [${cleanUserTopic}]: ✅ SENT (Message ID: ${topicRes})`);
+        } catch (err) {
+          topicResult = { success: false, error: err.message };
+          console.log(`   ├─ User Fallback Topic [${cleanUserTopic}]: ℹ️ Note: ${err.message}`);
+        }
       }
     }
 
@@ -496,6 +594,303 @@ class NotificationService {
       notification,
       targetUser: assignedTo,
       deviceTokensFound: userTokens.length,
+      devicesNotified,
+      directErrors,
+      topicResult,
+    };
+  }
+
+  /**
+   * Dispatches a single consolidated allotment notification when an Admin allots multiple leads in bulk
+   */
+  async notifyBulkLeadAllotment({ leadCount = 1, leadNames = [], assignedTo, allottedBy = 'Admin' }) {
+    if (!assignedTo) return { success: false, message: 'No assignee provided' };
+
+    const timestamp = new Date().toISOString();
+    const notifId = `notif_bulk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const sampleNames = leadNames.filter(Boolean).slice(0, 3).join(', ');
+    const previewSuffix = leadCount > 3 ? ` and ${leadCount - 3} more` : '';
+    const sampleDetail = sampleNames ? ` (${sampleNames}${previewSuffix})` : '';
+
+    const notification = {
+      id: notifId,
+      type: 'LEADS_BULK_ALLOTTED',
+      title: `📋 ${leadCount} New Leads Assigned to You!`,
+      body: `Admin ${allottedBy} allotted ${leadCount} new lead${leadCount > 1 ? 's' : ''} to you${sampleDetail}. Tap to review and follow up.`,
+      leadCount: Number(leadCount),
+      sampleNames: leadNames.slice(0, 5),
+      assignedTo,
+      targetUserId: assignedTo,
+      targetUserName: assignedTo,
+      targetRole: 'sales_agent',
+      allottedBy,
+      read: false,
+      createdAt: timestamp,
+    };
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📋 [NOTIFICATION: BULK LEAD ALLOTMENT]`);
+    console.log(`   ├─ Lead Count: ${leadCount} | Assigned To: "${assignedTo}" | By: "${allottedBy}"`);
+
+    // 1. Save in Firebase Realtime Database
+    if (this.firebaseService) {
+      await this.firebaseService.saveNotification(notification);
+      console.log(`   ├─ In-App Alert: 💾 Saved to database for user "${assignedTo}" (ID: ${notification.id})`);
+    }
+
+    // 2. Look up devices for THIS user
+    let userTokens = [];
+    if (this.firebaseService) {
+      userTokens = await this.firebaseService.getUserDeviceTokens(assignedTo);
+    }
+
+    let devicesNotified = 0;
+    const directErrors = [];
+    let topicResult = null;
+
+    if (admin && admin.apps && admin.apps.length > 0) {
+      const bulkTag = `bulk_allot_${assignedTo}_${Date.now()}`;
+
+      if (userTokens.length > 0) {
+        try {
+          const directMessage = {
+            notification: { title: notification.title, body: notification.body },
+            data: {
+              type: 'LEADS_BULK_ALLOTTED',
+              count: String(leadCount),
+              assignedTo: String(assignedTo),
+              allottedBy: String(allottedBy),
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'admin_leads_channel',
+                tag: bulkTag,
+                sound: 'default',
+                defaultSound: true,
+                defaultVibrateTimings: true,
+                priority: 'max',
+                visibility: 'public',
+              },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: 'default',
+                  badge: 1,
+                  contentAvailable: true,
+                },
+              },
+            },
+            tokens: userTokens,
+          };
+          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 3500);
+          devicesNotified = res.successCount || 0;
+          console.log(`   ├─ Direct Multicast: ${res.successCount} delivered, ${res.failureCount} failed`);
+        } catch (err) {
+          console.error(`   ├─ Bulk Allotment Push Error: ❌ ${err.message}`);
+          directErrors.push({ error: err.message });
+        }
+      } else {
+        // Fallback to user topic
+        const cleanUserTopic = `user_${assignedTo.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
+        try {
+          const topicRes = await withTimeout(
+            admin.messaging().send({
+              topic: cleanUserTopic,
+              notification: { title: notification.title, body: notification.body },
+              data: {
+                type: 'LEADS_BULK_ALLOTTED',
+                count: String(leadCount),
+                assignedTo: String(assignedTo),
+                allottedBy: String(allottedBy),
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  channelId: 'admin_leads_channel',
+                  tag: bulkTag,
+                  sound: 'default',
+                  defaultSound: true,
+                  defaultVibrateTimings: true,
+                  priority: 'max',
+                  visibility: 'public',
+                },
+              },
+            }),
+            2500
+          );
+          topicResult = { success: true, messageId: topicRes };
+          console.log(`   ├─ User Fallback Topic [${cleanUserTopic}]: ✅ SENT (Message ID: ${topicRes})`);
+        } catch (err) {
+          topicResult = { success: false, error: err.message };
+        }
+      }
+    }
+
+    return {
+      success: true,
+      notification,
+      targetUser: assignedTo,
+      leadCount,
+      devicesNotified,
+      directErrors,
+      topicResult,
+    };
+  }
+
+  /**
+   * Dispatches a notification to Admin when a Sales Agent updates the status of a lead
+   */
+  async notifyLeadStatusChanged({ lead, previousStatus = 'newLead', newStatus, updatedBy = 'Sales Agent', note = '' }) {
+    if (!newStatus || previousStatus === newStatus) return { success: false, message: 'Status unchanged' };
+
+    const humanStatus = (s) => {
+      if (!s) return 'New Lead';
+      const str = String(s).toLowerCase();
+      if (str.includes('contacted')) return 'Contacted';
+      if (str.includes('qualified')) return 'Qualified';
+      if (str.includes('converted')) return 'Deal Converted 🎉';
+      if (str.includes('lost')) return 'Lost / Dropped';
+      return 'New Lead';
+    };
+
+    const oldLabel = humanStatus(previousStatus);
+    const newLabel = humanStatus(newStatus);
+    const leadName = lead.name || 'Prospect';
+    const timestamp = new Date().toISOString();
+    const notifId = `notif_status_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+    const notification = {
+      id: notifId,
+      type: 'LEAD_STATUS_CHANGED',
+      title: `📊 Lead Status: ${leadName} → ${newLabel}`,
+      body: `${updatedBy} updated status to "${newLabel}" (was "${oldLabel}"). Phone: ${lead.phone || 'N/A'}${note ? ` • Note: ${note}` : ''}`,
+      leadId: lead.id,
+      leadName,
+      leadPhone: lead.phone || '',
+      previousStatus,
+      newStatus,
+      updatedBy,
+      targetRole: 'admin',
+      read: false,
+      createdAt: timestamp,
+    };
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📊 [NOTIFICATION: LEAD STATUS CHANGED BY AGENT]`);
+    console.log(`   ├─ Lead: "${leadName}" (ID: ${lead.id})`);
+    console.log(`   ├─ Status Change: [${oldLabel}] ➔ [${newLabel}] by "${updatedBy}"`);
+
+    // 1. Save in Firebase Realtime Database
+    if (this.firebaseService) {
+      await this.firebaseService.saveNotification(notification);
+      console.log(`   ├─ In-App Alert: 💾 Saved to database for Admins (ID: ${notification.id})`);
+    }
+
+    // 2. Look up all Admin device tokens
+    let adminTokens = [];
+    if (this.firebaseService) {
+      adminTokens = await this.getRegisteredTokens('admin');
+    }
+
+    let devicesNotified = 0;
+    const directErrors = [];
+    let topicResult = null;
+
+    if (admin && admin.apps && admin.apps.length > 0) {
+      const statusTag = `status_${lead.id || 'lead'}`;
+
+      if (adminTokens.length > 0) {
+        // Direct Push to Admin devices (Single delivery)
+        try {
+          const directMessage = {
+            notification: { title: notification.title, body: notification.body },
+            data: {
+              type: 'LEAD_STATUS_CHANGED',
+              leadId: String(lead.id || ''),
+              leadName: String(leadName),
+              previousStatus: String(previousStatus),
+              newStatus: String(newStatus),
+              updatedBy: String(updatedBy),
+              role: 'admin',
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'admin_leads_channel',
+                tag: statusTag,
+                sound: 'default',
+                defaultSound: true,
+                defaultVibrateTimings: true,
+                priority: 'max',
+                visibility: 'public',
+              },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: 'default',
+                  badge: 1,
+                  contentAvailable: true,
+                },
+              },
+            },
+            tokens: adminTokens,
+          };
+          const res = await withTimeout(admin.messaging().sendEachForMulticast(directMessage), 3500);
+          devicesNotified = res.successCount || 0;
+          console.log(`   ├─ Admin Direct Multicast: ${res.successCount} delivered, ${res.failureCount} failed`);
+        } catch (err) {
+          console.error(`   ├─ Status Update Push Error: ❌ ${err.message}`);
+          directErrors.push({ error: err.message });
+        }
+      } else {
+        // Fallback to topic broadcast if no admin tokens registered
+        try {
+          const topicRes = await withTimeout(
+            admin.messaging().send({
+              topic: 'admin_leads',
+              notification: { title: notification.title, body: notification.body },
+              data: {
+                type: 'LEAD_STATUS_CHANGED',
+                leadId: String(lead.id || ''),
+                leadName: String(leadName),
+                previousStatus: String(previousStatus),
+                newStatus: String(newStatus),
+                updatedBy: String(updatedBy),
+                role: 'admin',
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  channelId: 'admin_leads_channel',
+                  tag: statusTag,
+                  sound: 'default',
+                  defaultSound: true,
+                  defaultVibrateTimings: true,
+                  priority: 'max',
+                  visibility: 'public',
+                },
+              },
+            }),
+            3000
+          );
+          topicResult = { success: true, messageId: topicRes };
+          console.log(`   ├─ Admin Fallback Topic [admin_leads]: ✅ SENT (Message ID: ${topicRes})`);
+        } catch (err) {
+          topicResult = { success: false, error: err.message };
+        }
+      }
+    }
+
+    return {
+      success: true,
+      notification,
+      targetRole: 'admin',
       devicesNotified,
       directErrors,
       topicResult,

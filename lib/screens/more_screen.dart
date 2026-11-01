@@ -6,7 +6,7 @@ import '../theme/app_theme.dart';
 import 'add_lead_screen.dart';
 import 'notifications_screen.dart';
 import 'lead_allotment_screen.dart';
-import 'login_screen.dart';
+import '../services/auth_service.dart';
 import 'profile_screen.dart';
 import 'tasks_screen.dart';
 import 'team_screen.dart';
@@ -524,15 +524,9 @@ class MoreScreen extends StatelessWidget {
                 backgroundColor: const Color(0xFFDC2626),
                 minimumSize: const Size(90, 40),
               ),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const LoginScreen(),
-                  ),
-                  (route) => false,
-                );
+                await AuthService.instance.logout(context);
               },
               child: const Text('Logout'),
             ),

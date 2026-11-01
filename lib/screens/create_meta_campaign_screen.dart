@@ -35,11 +35,8 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   String _conversionLocation = 'ON_AD'; // ON_AD (Instant Form), WHATSAPP, WEBSITE, CALLS
   String _locationStatus = 'HOME'; // 'HOME' (Living in this location), 'RECENT' (Living or recently in)
 
-  // Pincode targeting
-  final _pincodeInputController = TextEditingController();
+  // Target locations (Pincodes & Areas)
   final List<String> _targetedPincodes = ['411038', '411057', '411045', '411014'];
-
-  // Area & Locality targeting
   final _areaInputController = TextEditingController();
   final List<String> _targetedAreas = ['Hinjewadi', 'Kothrud', 'Baner', 'Viman Nagar', 'Wakad'];
   double _dropPinRadiusKm = 3.0; // 1 to 15 km
@@ -93,28 +90,28 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
     {
       'title': 'Personal / Salary Loan',
       'banner': '💼 Instant Personal Loan up to ₹40L • Low EMI • Fast Disbursal',
-      'gradient': [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+      'gradient': <Color>[const Color(0xFF1E3A8A), const Color(0xFF3B82F6)],
       'badge': 'Lowest ROI 10.49%',
       'icon': Icons.account_balance_wallet_rounded,
     },
     {
       'title': 'Home Loan & Balance Transfer',
       'banner': '🏠 Dream Home Loan @ 8.35% ROI • Zero Foreclosure Charges',
-      'gradient': [Color(0xFF065F46), Color(0xFF10B981)],
+      'gradient': <Color>[const Color(0xFF065F46), const Color(0xFF10B981)],
       'badge': 'Subsidy Eligible',
       'icon': Icons.home_work_rounded,
     },
     {
       'title': 'Collateral Free Business Loan',
       'banner': '🏢 Working Capital & Business Expansion up to ₹75 Lakhs',
-      'gradient': [Color(0xFF7C2D12), Color(0xFFF97316)],
+      'gradient': <Color>[const Color(0xFF7C2D12), const Color(0xFFF97316)],
       'badge': 'No Collateral',
       'icon': Icons.business_center_rounded,
     },
     {
       'title': 'Loan Against Property (LAP)',
       'banner': '📑 Unlock Your Property Value • Sanctions in 72 Hours',
-      'gradient': [Color(0xFF4C1D95), Color(0xFF8B5CF6)],
+      'gradient': <Color>[const Color(0xFF4C1D95), const Color(0xFF8B5CF6)],
       'badge': 'High Value Disbursals',
       'icon': Icons.domain_rounded,
     },
@@ -145,7 +142,6 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
     _campaignNameController.dispose();
     _budgetController.dispose();
     _adSetNameController.dispose();
-    _pincodeInputController.dispose();
     _areaInputController.dispose();
     _adNameController.dispose();
     _primaryTextController.dispose();
@@ -255,9 +251,12 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                       children: [
                         const Icon(Icons.tag, size: 14, color: AppTheme.primary),
                         const SizedBox(width: 4),
-                        Text(
-                          'ID: ${campaignData["meta_campaign_id"] ?? "act_meta_${DateTime.now().millisecondsSinceEpoch}"}',
-                          style: const TextStyle(fontFamily: 'monospace', fontSize: 11, fontWeight: FontWeight.bold),
+                        Flexible(
+                          child: Text(
+                            'ID: ${campaignData["meta_campaign_id"] ?? "act_meta_${DateTime.now().millisecondsSinceEpoch}"}',
+                            style: const TextStyle(fontFamily: 'monospace', fontSize: 11, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
@@ -328,15 +327,21 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Text(
-                  'Ads Manager • Create Ad',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                const Flexible(
+                  child: Text(
+                    'Ads Manager • Create Ad',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
             const Text(
               'Official 3-Level Campaign Setup with Pincode & Area Targeting',
               style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -368,88 +373,218 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
           // Main Step Content
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: _buildCurrentStepContent(),
             ),
           ),
         ],
       ),
-      bottomSheet: _buildBottomNavActions(),
+      bottomNavigationBar: _buildBottomNavActions(),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // STEP BAR WIDGET
+  // STEP BAR WIDGET (HIGH VISIBILITY STEPPER & PROGRESS BANNER)
   // ---------------------------------------------------------------------------
   Widget _buildStepBar() {
     final steps = [
-      {'num': '1', 'title': 'Campaign'},
-      {'num': '2', 'title': 'Ad Set & Areas'},
-      {'num': '3', 'title': 'Creative'},
-      {'num': '4', 'title': 'Review'},
+      {
+        'title': 'Campaign',
+        'subtitle': 'Objective, category & budget',
+        'icon': Icons.campaign_rounded,
+      },
+      {
+        'title': 'Ad Set & Targeting',
+        'subtitle': 'Pincodes, localities & radius',
+        'icon': Icons.pin_drop_rounded,
+      },
+      {
+        'title': 'Ad Creative',
+        'subtitle': 'Banners, copy & CTA',
+        'icon': Icons.brush_rounded,
+      },
+      {
+        'title': 'Review & Publish',
+        'subtitle': 'Audience reach & Meta launch',
+        'icon': Icons.rocket_launch_rounded,
+      },
     ];
 
+    final currentStepData = steps[_currentStep];
+    final progressPercent = ((_currentStep + 1) / steps.length);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+        boxShadow: [BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 2))],
       ),
-      child: Row(
-        children: List.generate(steps.length, (index) {
-          final isCompleted = _currentStep > index;
-          final isCurrent = _currentStep == index;
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 1. Horizontal Scrollable Step Pills (Always fully legible, never clipped)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: List.generate(steps.length, (index) {
+                final isCompleted = _currentStep > index;
+                final isCurrent = _currentStep == index;
+                final step = steps[index];
 
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _currentStep = index);
-              },
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: isCompleted
-                        ? const Color(0xFF16A34A)
-                        : isCurrent
+                return GestureDetector(
+                  onTap: () => setState(() => _currentStep = index),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: isCurrent
+                          ? const Color(0xFF0668E1)
+                          : isCompleted
+                              ? const Color(0xFFEFF6FF)
+                              : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isCurrent
                             ? const Color(0xFF0668E1)
-                            : const Color(0xFFE2E8F0),
-                    child: isCompleted
-                        ? const Icon(Icons.check, size: 13, color: Colors.white)
-                        : Text(
-                            steps[index]['num']!,
+                            : isCompleted
+                                ? const Color(0xFF93C5FD)
+                                : const Color(0xFFE2E8F0),
+                        width: isCurrent ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isCurrent
+                                ? Colors.white
+                                : isCompleted
+                                    ? const Color(0xFF16A34A)
+                                    : const Color(0xFFCBD5E1),
+                          ),
+                          child: Center(
+                            child: isCompleted
+                                ? const Icon(Icons.check, size: 13, color: Colors.white)
+                                : Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: isCurrent ? const Color(0xFF0668E1) : const Color(0xFF475569),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          step['title'] as String,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                            color: isCurrent
+                                ? Colors.white
+                                : isCompleted
+                                    ? const Color(0xFF1E40AF)
+                                    : const Color(0xFF475569),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+
+          // 2. Linear Progress Bar
+          LinearProgressIndicator(
+            value: progressPercent,
+            backgroundColor: const Color(0xFFE2E8F0),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              _currentStep == 3 ? const Color(0xFF16A34A) : const Color(0xFF0668E1),
+            ),
+            minHeight: 3,
+          ),
+
+          // 3. Prominent Active Step Banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: const Color(0xFFF8FAFC),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: _currentStep == 3 ? const Color(0xFFDCFCE7) : const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    currentStepData['icon'] as IconData,
+                    size: 18,
+                    color: _currentStep == 3 ? const Color(0xFF16A34A) : const Color(0xFF0668E1),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'STEP ${_currentStep + 1} OF ${steps.length}',
                             style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isCurrent ? Colors.white : const Color(0xFF64748B),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                              color: _currentStep == 3 ? const Color(0xFF15803D) : const Color(0xFF0668E1),
                             ),
                           ),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      steps[index]['title']!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-                        color: isCurrent ? const Color(0xFF0668E1) : const Color(0xFF64748B),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '•  ${currentStepData['subtitle']}',
+                              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(height: 1),
+                      Text(
+                        currentStepData['title'] as String,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  if (index < steps.length - 1)
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      height: 1,
-                      width: 12,
-                      color: const Color(0xFFCBD5E1),
-                    ),
-                ],
-              ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${(progressPercent * 100).toInt()}%',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF334155)),
+                  ),
+                ),
+              ],
             ),
-          );
-        }),
+          ),
+        ],
       ),
     );
   }
@@ -499,7 +634,9 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
               children: [
                 const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF0668E1)),
                 const SizedBox(width: 6),
-                const Text('SPECIAL AD CATEGORY (MANDATORY FOR LOANS)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                const Expanded(
+                  child: Text('SPECIAL AD CATEGORY (MANDATORY FOR LOANS)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -578,6 +715,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
                         value: _budgetType,
+                        isExpanded: true,
                         decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12)),
                         items: const [
                           DropdownMenuItem(value: 'DAILY', child: Text('Daily Budget', style: TextStyle(fontSize: 13))),
@@ -626,10 +764,25 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               value: _bidStrategy,
+              isExpanded: true,
               decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12)),
               items: const [
-                DropdownMenuItem(value: 'LOWEST_COST_WITHOUT_CAP', child: Text('Highest Volume (Lowest Cost per Lead)', style: TextStyle(fontSize: 13))),
-                DropdownMenuItem(value: 'COST_CAP', child: Text('Cost Cap (Strict target cost per lead)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(
+                  value: 'LOWEST_COST_WITHOUT_CAP',
+                  child: Text(
+                    'Highest Volume (Lowest Cost per Lead)',
+                    style: TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'COST_CAP',
+                  child: Text(
+                    'Cost Cap (Strict target cost per lead)',
+                    style: TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
               onChanged: (val) => setState(() => _bidStrategy = val ?? 'LOWEST_COST_WITHOUT_CAP'),
             ),
@@ -699,11 +852,24 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                         DropdownButton<String>(
                           value: _locationStatus,
                           isDense: true,
+                          isExpanded: true,
                           underline: const SizedBox(),
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                           items: const [
-                            DropdownMenuItem(value: 'HOME', child: Text('People living in this location (Recommended)')),
-                            DropdownMenuItem(value: 'RECENT', child: Text('People living in or recently in this location')),
+                            DropdownMenuItem(
+                              value: 'HOME',
+                              child: Text(
+                                'People living in this location (Recommended)',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'RECENT',
+                              child: Text(
+                                'People living in or recently in this location',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                           onChanged: (val) => setState(() => _locationStatus = val ?? 'HOME'),
                         ),
@@ -716,27 +882,71 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
 
             const SizedBox(height: 16),
 
-            // 1. PINCODE SECTION
+            // UNIFIED LOCATION & PINCODE TARGETING SECTION
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline_rounded, color: Color(0xFF0668E1), size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'What is Location & PIN Code Targeting?',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF1E40AF)),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Your Meta loan ads will only appear to borrowers living in your selected areas or postal codes. Enter any city, area name, or 6-digit PIN code below, or tap popular hotspots.',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF334155), height: 1.35),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('1. TARGET BY PINCODE (POSTAL CODES)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                Text('${_targetedPincodes.length} Pincodes added', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0668E1))),
+                const Expanded(
+                  child: Text(
+                    'TARGET AREAS & POSTAL PIN CODES',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_targetedAreas.length + _targetedPincodes.length} Selected',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0668E1)),
+                ),
               ],
             ),
             const SizedBox(height: 8),
+
+            // Smart unified input for both Area and PIN code
             Row(
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _pincodeInputController,
-                    keyboardType: TextInputType.number,
+                    controller: _areaInputController,
                     decoration: const InputDecoration(
-                      hintText: 'Enter 6-digit PIN code (e.g. 411038)',
-                      prefixIcon: Icon(Icons.markunread_mailbox_outlined, size: 18),
+                      hintText: 'Enter Area (e.g. Hinjewadi) or 6-digit PIN (e.g. 411038)',
+                      prefixIcon: Icon(Icons.add_location_alt_outlined, size: 18),
                       contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                     ),
-                    onSubmitted: (val) => _addPincode(val),
+                    onSubmitted: (val) => _addLocationInput(val),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -746,105 +956,118 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: () => _addPincode(_pincodeInputController.text),
-                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                  label: const Text('Add PIN', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  onPressed: () => _addLocationInput(_areaInputController.text),
+                  icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
+                  label: const Text('Add', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
 
-            // Pincode Chips
-            if (_targetedPincodes.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: _targetedPincodes.map((pin) {
-                  return Chip(
-                    avatar: const CircleAvatar(
-                      backgroundColor: Color(0xFFDBEAFE),
-                      child: Text('📮', style: TextStyle(fontSize: 10)),
-                    ),
-                    label: Text(pin, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF1E40AF))),
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    side: const BorderSide(color: Color(0xFFBFDBFE)),
-                    deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF1E40AF)),
-                    onDeleted: () {
-                      setState(() => _targetedPincodes.remove(pin));
-                    },
-                  );
-                }).toList(),
-              ),
+            const SizedBox(height: 12),
 
-            // Quick Pincode Presets for Quick Demo
-            const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildQuickPresetPill('+ Pune West (411057, 411038, 411045)', ['411057', '411038', '411045']),
-                  _buildQuickPresetPill('+ Pune East (411014, 411006, 411028)', ['411014', '411006', '411028']),
-                  _buildQuickPresetPill('+ Mumbai West (400050, 400053, 400058)', ['400050', '400053', '400058']),
-                ],
-              ),
+            // Quick Hotspot Badges (Tap to toggle)
+            const Text(
+              'QUICK SELECT POPULAR BORROWER HUBS:',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                {'name': 'Hinjewadi IT Park', 'pin': '411057'},
+                {'name': 'Kothrud & Karve Nagar', 'pin': '411038'},
+                {'name': 'Baner & Balewadi', 'pin': '411045'},
+                {'name': 'Wakad & Pimple Saudagar', 'pin': '411057'},
+                {'name': 'Viman Nagar & Kharadi', 'pin': '411014'},
+                {'name': 'Hadapsar & Magarpatta', 'pin': '411028'},
+                {'name': 'PCMC Industrial Area', 'pin': '411019'},
+                {'name': 'Shivajinagar & Camp', 'pin': '411005'},
+              ].map((loc) {
+                final isAdded = _targetedAreas.contains(loc['name']) || _targetedPincodes.contains(loc['pin']);
+                return FilterChip(
+                  avatar: Icon(isAdded ? Icons.check_circle : Icons.add_circle_outline, size: 14, color: isAdded ? const Color(0xFF15803D) : const Color(0xFF0668E1)),
+                  label: Text('${loc['name']} (${loc['pin']})'),
+                  selected: isAdded,
+                  selectedColor: const Color(0xFFDCFCE7),
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  side: BorderSide(color: isAdded ? const Color(0xFF86EFAC) : const Color(0xFFCBD5E1)),
+                  labelStyle: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isAdded ? FontWeight.bold : FontWeight.w500,
+                    color: isAdded ? const Color(0xFF15803D) : const Color(0xFF334155),
+                  ),
+                  onSelected: (_) => _toggleHotspot(loc['name']!, loc['pin']!),
+                );
+              }).toList(),
             ),
 
-            const Divider(height: 28),
+            const SizedBox(height: 14),
 
-            // 2. AREA & LOCALITY SECTION
+            // Active Location Chips
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('2. TARGET BY AREA / LOCALITY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                Text('${_targetedAreas.length} Areas', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0668E1))),
+                const Expanded(
+                  child: Text('ACTIVE LOCATIONS TARGETED:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                ),
+                if (_targetedAreas.isNotEmpty || _targetedPincodes.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _targetedAreas.clear();
+                        _targetedPincodes.clear();
+                      });
+                    },
+                    child: const Text('Clear All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+                  ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _areaInputController,
-                    decoration: const InputDecoration(
-                      hintText: 'Enter area / landmark (e.g. Hinjewadi)',
-                      prefixIcon: Icon(Icons.location_on_outlined, size: 18),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    ),
-                    onSubmitted: (val) => _addArea(val),
-                  ),
+            const SizedBox(height: 6),
+            if (_targetedAreas.isEmpty && _targetedPincodes.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () => _addArea(_areaInputController.text),
-                  icon: const Icon(Icons.add_location_alt_outlined, size: 16, color: Colors.white),
-                  label: const Text('Add Area', style: TextStyle(color: Colors.white, fontSize: 12)),
+                child: const Text(
+                  'No specific locations selected. Ad will target all of India by default. Add areas or PIN codes above for hyper-local results.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Area Chips
-            if (_targetedAreas.isNotEmpty)
+              )
+            else
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: _targetedAreas.map((area) {
-                  return Chip(
-                    avatar: const Icon(Icons.pin_drop, size: 14, color: Color(0xFF0F172A)),
-                    label: Text('$area (+${_dropPinRadiusKm.toInt()}km)', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    side: const BorderSide(color: Color(0xFFCBD5E1)),
-                    deleteIcon: const Icon(Icons.close, size: 14),
-                    onDeleted: () {
-                      setState(() => _targetedAreas.remove(area));
-                    },
-                  );
-                }).toList(),
+                children: [
+                  ..._targetedAreas.map((area) {
+                    return Chip(
+                      avatar: const Icon(Icons.location_on, size: 14, color: Color(0xFF0668E1)),
+                      label: Text('$area (+${_dropPinRadiusKm.toInt()}km)', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11)),
+                      backgroundColor: const Color(0xFFEFF6FF),
+                      side: const BorderSide(color: Color(0xFFBFDBFE)),
+                      deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF1E40AF)),
+                      onDeleted: () {
+                        setState(() => _targetedAreas.remove(area));
+                      },
+                    );
+                  }),
+                  ..._targetedPincodes.map((pin) {
+                    return Chip(
+                      avatar: const Icon(Icons.markunread_mailbox_rounded, size: 14, color: Color(0xFF16A34A)),
+                      label: Text('PIN: $pin', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Color(0xFF166534))),
+                      backgroundColor: const Color(0xFFF0FDF4),
+                      side: const BorderSide(color: Color(0xFFBBF7D0)),
+                      deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF166534)),
+                      onDeleted: () {
+                        setState(() => _targetedPincodes.remove(pin));
+                      },
+                    );
+                  }),
+                ],
               ),
 
             // Radius Slider
@@ -852,7 +1075,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Area Radius (Drop Pin reach):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                const Expanded(
+                  child: Text('Area Radius (Drop Pin reach):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: const Color(0xFF0668E1), borderRadius: BorderRadius.circular(6)),
@@ -872,7 +1098,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('EXCLUDED LOCATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                const Expanded(
+                  child: Text('EXCLUDED LOCATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                ),
+                const SizedBox(width: 8),
                 Text('${_excludedAreas.length} Excluded', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFDC2626))),
               ],
             ),
@@ -905,7 +1134,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Age Range:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const Expanded(
+                  child: Text('Age Range:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 8),
                 Text('${_minAge.toInt()} - ${_maxAge.toInt()} years old', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0668E1))),
               ],
             ),
@@ -1060,11 +1292,12 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_selectedPage, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        Text(_selectedInstagram, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                        Text(_selectedPage, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(_selectedInstagram, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 4),
                   const Icon(Icons.verified, size: 16, color: Color(0xFF0668E1)),
                 ],
               ),
@@ -1157,11 +1390,11 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                       margin: const EdgeInsets.only(right: 12),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: preset['gradient'] as List<Color>),
+                        gradient: LinearGradient(colors: (preset['gradient'] as List).cast<Color>()),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: isSelected ? Colors.amber : Colors.transparent, width: 2),
                         boxShadow: isSelected
-                            ? [BoxShadow(color: (preset['gradient'][0] as Color).withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 4))]
+                            ? [BoxShadow(color: ((preset['gradient'] as List).first as Color).withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 4))]
                             : null,
                       ),
                       child: Column(
@@ -1171,10 +1404,18 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Icon(preset['icon'] as IconData, color: Colors.white, size: 20),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4)),
-                                child: Text(preset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4)),
+                                  child: Text(
+                                    preset['badge'] as String,
+                                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -1215,13 +1456,14 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               value: _selectedCta,
+              isExpanded: true,
               decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12)),
               items: const [
-                DropdownMenuItem(value: 'APPLY_NOW', child: Text('Apply Now (Highest conversion for loans)')),
-                DropdownMenuItem(value: 'GET_QUOTE', child: Text('Get Quote')),
-                DropdownMenuItem(value: 'LEARN_MORE', child: Text('Learn More')),
-                DropdownMenuItem(value: 'WHATSAPP', child: Text('Send WhatsApp Message')),
-                DropdownMenuItem(value: 'CALL_NOW', child: Text('Call Now')),
+                DropdownMenuItem(value: 'APPLY_NOW', child: Text('Apply Now (Highest conversion for loans)', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'GET_QUOTE', child: Text('Get Quote', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'LEARN_MORE', child: Text('Learn More', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'WHATSAPP', child: Text('Send WhatsApp Message', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'CALL_NOW', child: Text('Call Now', overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (val) => setState(() => _selectedCta = val ?? 'APPLY_NOW'),
             ),
@@ -1302,7 +1544,15 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Meta Estimated Daily Results', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+                  const Expanded(
+                    child: Text(
+                      'Meta Estimated Daily Results',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: const Color(0xFF16A34A), borderRadius: BorderRadius.circular(6)),
@@ -1335,7 +1585,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         // Live Interactive Mockup Switcher
         _buildSectionCard(
           title: 'Live Ad Mockup Preview',
-          subtitle: 'Interactive real-time preview of how your ad renders in Meta apps',
+          subtitle: 'Interactive real-time preview of how your ad renders on borrower devices',
           icon: Icons.preview_rounded,
           children: [
             Row(
@@ -1347,131 +1597,38 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                 _buildPreviewTabPill('Stories & Reels', 'INSTAGRAM_STORY'),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // The Visual Feed Mockup
+            // Explanatory guidance note
             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  // Mockup header
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Color(0xFF0668E1),
-                          child: Icon(Icons.account_balance, color: Colors.white, size: 16),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedPage,
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                              ),
-                              const Row(
-                                children: [
-                                  Text('Sponsored • ', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                                  Icon(Icons.public, size: 11, color: AppTheme.textSecondary),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.more_horiz, color: Color(0xFF64748B)),
-                      ],
-                    ),
-                  ),
-
-                  // Primary Text
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  const Icon(Icons.touch_app_rounded, size: 16, color: Color(0xFF0668E1)),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      _primaryTextController.text,
-                      style: const TextStyle(fontSize: 13, height: 1.3),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Image / Banner Box
-                  Container(
-                    height: 180,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: activePreset['gradient'] as List<Color>),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
-                          child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 4),
-                            Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Bottom CTA bar
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    color: const Color(0xFFF8FAFC),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('ELIGIBLE.CO.IN', style: TextStyle(fontSize: 10, color: Color(0xFF64748B), letterSpacing: 0.5)),
-                              Text(
-                                _headlineController.text,
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0668E1),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(90, 34),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          onPressed: () {},
-                          child: Text(_ctaLabel(_selectedCta), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+                      'Previewing ${_previewPlatform == "FACEBOOK_FEED" ? "Facebook Feed Ad" : _previewPlatform == "INSTAGRAM_FEED" ? "Instagram Feed Ad" : "Instagram Stories & Reels Ad"}. Tap "Apply Now" on the preview to test the borrower lead capture form.',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF1E40AF)),
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+
+            // Dynamic platform mockup switcher
+            if (_previewPlatform == 'FACEBOOK_FEED')
+              _buildFacebookFeedMockup(activePreset)
+            else if (_previewPlatform == 'INSTAGRAM_FEED')
+              _buildInstagramFeedMockup(activePreset)
+            else
+              _buildInstagramStoryMockup(activePreset),
           ],
         ),
 
@@ -1505,58 +1662,66 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   // BOTTOM NAVIGATION BAR
   // ---------------------------------------------------------------------------
   Widget _buildBottomNavActions() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -3))],
-      ),
-      child: Row(
-        children: [
-          if (_currentStep > 0)
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(90, 46),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: _isPublishing ? null : () => setState(() => _currentStep--),
-              child: const Text('Back', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          if (_currentStep > 0) const SizedBox(width: 12),
-          Expanded(
-            child: SizedBox(
-              height: 46,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _currentStep == 3 ? const Color(0xFF16A34A) : const Color(0xFF0668E1),
-                  foregroundColor: Colors.white,
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -3))],
+        ),
+        child: Row(
+          children: [
+            if (_currentStep > 0)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(80, 46),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: _isPublishing
-                    ? null
-                    : () {
-                        if (_currentStep < 3) {
-                          setState(() => _currentStep++);
-                        } else {
-                          _publishCampaign();
-                        }
-                      },
-                icon: _isPublishing
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Icon(_currentStep == 3 ? Icons.rocket_launch_rounded : Icons.arrow_forward_rounded, size: 18),
-                label: Text(
-                  _isPublishing
-                      ? 'Publishing to Meta Ads...'
-                      : _currentStep == 3
-                          ? 'Publish Campaign to Meta'
-                          : 'Continue to Step ${_currentStep + 2}',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                onPressed: _isPublishing ? null : () => setState(() => _currentStep--),
+                icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                label: const Text('Back', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            if (_currentStep > 0) const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 46,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _currentStep == 3 ? const Color(0xFF16A34A) : const Color(0xFF0668E1),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  onPressed: _isPublishing
+                      ? null
+                      : () {
+                          if (_currentStep < 3) {
+                            setState(() => _currentStep++);
+                          } else {
+                            _publishCampaign();
+                          }
+                        },
+                  icon: _isPublishing
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Icon(_currentStep == 3 ? Icons.rocket_launch_rounded : Icons.arrow_forward_rounded, size: 18),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _isPublishing
+                          ? 'Publishing to Meta Ads...'
+                          : _currentStep == 3
+                              ? 'Publish Campaign to Meta'
+                              : 'Continue to Step ${_currentStep + 2}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1682,33 +1847,31 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   Widget _buildGenderTile(String key, String label) {
     final isSelected = _selectedGender == key;
     return Expanded(
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: isSelected ? const Color(0xFF0668E1) : Colors.white,
-          foregroundColor: isSelected ? Colors.white : const Color(0xFF334155),
-          side: BorderSide(color: isSelected ? const Color(0xFF0668E1) : const Color(0xFFCBD5E1)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: InkWell(
+        onTap: () => setState(() => _selectedGender = key),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF0668E1) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isSelected ? const Color(0xFF0668E1) : const Color(0xFFCBD5E1)),
+          ),
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : const Color(0xFF334155),
+                ),
+                maxLines: 1,
+              ),
+            ),
+          ),
         ),
-        onPressed: () => setState(() => _selectedGender = key),
-        child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-      ),
-    );
-  }
-
-  Widget _buildQuickPresetPill(String label, List<String> pincodes) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ActionChip(
-        label: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF0668E1), fontWeight: FontWeight.w600)),
-        backgroundColor: const Color(0xFFEFF6FF),
-        side: const BorderSide(color: Color(0xFFBFDBFE)),
-        onPressed: () {
-          setState(() {
-            for (final p in pincodes) {
-              if (!_targetedPincodes.contains(p)) _targetedPincodes.add(p);
-            }
-          });
-        },
       ),
     );
   }
@@ -1718,9 +1881,23 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       children: [
         Icon(icon, color: const Color(0xFF60A5FA), size: 16),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
+            maxLines: 1,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.white60, fontSize: 10),
+            maxLines: 1,
+          ),
+        ),
       ],
     );
   }
@@ -1728,14 +1905,31 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   Widget _buildPreviewTabPill(String label, String key) {
     final isSelected = _previewPlatform == key;
     return Expanded(
-      child: ChoiceChip(
-        label: Text(label),
-        selected: isSelected,
-        selectedColor: const Color(0xFF0668E1),
-        labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : const Color(0xFF334155)),
-        backgroundColor: Colors.white,
-        side: BorderSide(color: isSelected ? const Color(0xFF0668E1) : const Color(0xFFCBD5E1)),
-        onSelected: (_) => setState(() => _previewPlatform = key),
+      child: InkWell(
+        onTap: () => setState(() => _previewPlatform = key),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF0668E1) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isSelected ? const Color(0xFF0668E1) : const Color(0xFFCBD5E1)),
+          ),
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : const Color(0xFF334155),
+                ),
+                maxLines: 1,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1747,9 +1941,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 110,
             child: Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
           ),
@@ -1775,27 +1970,620 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
     }
   }
 
-  void _addPincode(String input) {
-    final clean = input.replaceAll(RegExp(r'[^0-9]'), '').trim();
-    if (clean.length == 6 && !_targetedPincodes.contains(clean)) {
-      setState(() {
-        _targetedPincodes.add(clean);
-        _pincodeInputController.clear();
-      });
-    } else if (clean.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 6-digit Indian PIN code (e.g. 411038)'), duration: Duration(seconds: 2)),
-      );
-    }
-  }
-
-  void _addArea(String input) {
+  void _addLocationInput(String input) {
     final clean = input.trim();
-    if (clean.isNotEmpty && !_targetedAreas.contains(clean)) {
+    if (clean.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter an area name (e.g. Hinjewadi) or 6-digit PIN code (e.g. 411038)'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Check if it's a 6-digit PIN code
+    final digitsOnly = clean.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.length == 6) {
+      if (_targetedPincodes.contains(digitsOnly)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PIN code $digitsOnly is already targeted'), duration: const Duration(seconds: 2)),
+        );
+      } else {
+        setState(() {
+          _targetedPincodes.add(digitsOnly);
+          _areaInputController.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF16A34A),
+            content: Text('Added PIN Code $digitsOnly to target audience'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Otherwise treat as Area / Locality name
+    if (_targetedAreas.any((a) => a.toLowerCase() == clean.toLowerCase())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Area "$clean" is already targeted'), duration: const Duration(seconds: 2)),
+      );
+    } else {
       setState(() {
         _targetedAreas.add(clean);
         _areaInputController.clear();
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF0668E1),
+          content: Text('Added Area "$clean" (${_dropPinRadiusKm.toInt()}km coverage) to target audience'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
+  }
+
+  void _toggleHotspot(String name, String pin) {
+    setState(() {
+      final hasArea = _targetedAreas.contains(name);
+      final hasPin = _targetedPincodes.contains(pin);
+
+      if (hasArea || hasPin) {
+        _targetedAreas.remove(name);
+        _targetedPincodes.remove(pin);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed $name ($pin)'), duration: const Duration(seconds: 1)),
+        );
+      } else {
+        _targetedAreas.add(name);
+        if (!_targetedPincodes.contains(pin)) {
+          _targetedPincodes.add(pin);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF16A34A),
+            content: Text('Added $name (PIN $pin)'),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    });
+  }
+
+  Widget _buildFacebookFeedMockup(Map<String, dynamic> activePreset) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Mockup header
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Color(0xFF0668E1),
+                  child: Icon(Icons.account_balance, color: Colors.white, size: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _selectedPage,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.verified, size: 14, color: Color(0xFF0668E1)),
+                        ],
+                      ),
+                      const Row(
+                        children: [
+                          Text('Sponsored • ', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                          Icon(Icons.public, size: 11, color: AppTheme.textSecondary),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.more_horiz, color: Color(0xFF64748B)),
+              ],
+            ),
+          ),
+
+          // Primary Text
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              _primaryTextController.text.isNotEmpty
+                  ? _primaryTextController.text
+                  : 'Get instant paperless loan approval with low interest rates and flexible tenure. Check your eligibility in 2 minutes!',
+              style: const TextStyle(fontSize: 13, height: 1.3),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Image / Banner Box
+          Container(
+            height: 180,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: (activePreset['gradient'] as List).cast<Color>()),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
+                  child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Bottom CTA bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            color: const Color(0xFFF8FAFC),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('ELIGIBLE.CO.IN', style: TextStyle(fontSize: 10, color: Color(0xFF64748B), letterSpacing: 0.5)),
+                      Text(
+                        _headlineController.text.isNotEmpty ? _headlineController.text : 'Check Loan Eligibility in 2 Mins',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0668E1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _showLeadFormPreviewDialog(),
+                  child: Text(_ctaLabel(_selectedCta), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+
+          // Social Proof row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(color: Color(0xFF0668E1), shape: BoxShape.circle),
+                  child: const Icon(Icons.thumb_up, size: 10, color: Colors.white),
+                ),
+                const SizedBox(width: 4),
+                const Text('184', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                const Spacer(),
+                const Flexible(
+                  child: Text(
+                    '38 comments • 14 shares',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstagramFeedMockup(Map<String, dynamic> activePreset) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Instagram Header
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)]),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.account_balance, color: Color(0xFF0668E1), size: 14),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedInstagram,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Text('Sponsored', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.more_vert, size: 18, color: Color(0xFF64748B)),
+              ],
+            ),
+          ),
+
+          // Square 1:1 Creative
+          Container(
+            height: 220,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: (activePreset['gradient'] as List).cast<Color>()),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
+                      child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                    const Icon(Icons.bolt_rounded, color: Colors.amber, size: 20),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Instagram Action Strip (Full-width Call to Action button)
+          InkWell(
+            onTap: () => _showLeadFormPreviewDialog(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              color: const Color(0xFF0668E1),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_ctaLabel(_selectedCta), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  const Icon(Icons.chevron_right, color: Colors.white, size: 18),
+                ],
+              ),
+            ),
+          ),
+
+          // Instagram Icons
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: Row(
+              children: [
+                Icon(Icons.favorite_border, size: 22, color: Color(0xFF0F172A)),
+                SizedBox(width: 14),
+                Icon(Icons.chat_bubble_outline, size: 20, color: Color(0xFF0F172A)),
+                SizedBox(width: 14),
+                Icon(Icons.send_outlined, size: 20, color: Color(0xFF0F172A)),
+                Spacer(),
+                Icon(Icons.bookmark_border, size: 22, color: Color(0xFF0F172A)),
+              ],
+            ),
+          ),
+
+          // Likes & Caption
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('1,248 likes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 4),
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF0F172A)),
+                    children: [
+                      TextSpan(text: '${_selectedInstagram.split(' ').first} ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      TextSpan(text: _headlineController.text.isNotEmpty ? _headlineController.text : 'Check your loan eligibility online.'),
+                    ],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstagramStoryMockup(Map<String, dynamic> activePreset) {
+    return Container(
+      height: 380,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: (activePreset['gradient'] as List).cast<Color>(),
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      child: Stack(
+        children: [
+          // Top Story Progress Segments
+          Positioned(
+            top: 10,
+            left: 12,
+            right: 12,
+            child: Row(
+              children: [
+                Expanded(child: Container(height: 2.5, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(width: 4),
+                Expanded(child: Container(height: 2.5, decoration: BoxDecoration(color: Colors.white38, borderRadius: BorderRadius.circular(2)))),
+              ],
+            ),
+          ),
+
+          // Story Top Header
+          Positioned(
+            top: 20,
+            left: 12,
+            right: 12,
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 14,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.account_balance, color: Color(0xFF0668E1), size: 14),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedInstagram,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Text('Sponsored', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.close, color: Colors.white70, size: 18),
+              ],
+            ),
+          ),
+
+          // Story Center Content
+          Positioned(
+            top: 90,
+            left: 20,
+            right: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(6)),
+                  child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  activePreset['title'] as String,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, height: 1.2),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  activePreset['banner'] as String,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+
+          // Bottom Swipe-Up Action Bar
+          Positioned(
+            bottom: 20,
+            left: 30,
+            right: 30,
+            child: Column(
+              children: [
+                const Icon(Icons.keyboard_arrow_up, color: Colors.white, size: 24),
+                GestureDetector(
+                  onTap: () => _showLeadFormPreviewDialog(),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _ctaLabel(_selectedCta),
+                        style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLeadFormPreviewDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.dynamic_form_rounded, color: Color(0xFF0668E1), size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Meta Instant Lead Form Preview', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                        Text('Opens instantly when prospects tap "Apply Now" on your ad', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                ],
+              ),
+              const Divider(height: 24),
+              const Text('PRE-FILLED BORROWER INFORMATION (META PROFILE AUTO-FILL):', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+              const SizedBox(height: 12),
+              _buildFormPreviewField('Full Name', 'Rahul Sharma', Icons.person_outline),
+              _buildFormPreviewField('Phone Number', '+91 98230 45678', Icons.phone_outlined),
+              _buildFormPreviewField('Email Address', 'rahul.sharma@example.com', Icons.email_outlined),
+              _buildFormPreviewField('City & PIN Code', 'Pune - 411038', Icons.pin_drop_outlined),
+              _buildFormPreviewField('Desired Loan Amount', '₹15,00,000', Icons.currency_rupee_rounded),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Interactive test successful! Leads from this form sync directly to Eligible CRM in real time.'),
+                        backgroundColor: Color(0xFF16A34A),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Test Submit (Syncs to CRM)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Center(
+                child: Text(
+                  '100% digital paperless Meta Instant Lead Form • Zero drop-off rate',
+                  style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormPreviewField(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: const Color(0xFF64748B)),
+            const SizedBox(width: 10),
+            Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+            const Spacer(),
+            Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+          ],
+        ),
+      ),
+    );
   }
 }

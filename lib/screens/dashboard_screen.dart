@@ -16,7 +16,10 @@ import 'more_screen.dart';
 import 'notifications_screen.dart';
 import 'add_lead_screen.dart';
 import '../services/backend_service.dart';
+import '../services/push_notification_service.dart';
 import '../widgets/skeleton_loading.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserModel user;
@@ -36,6 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   int _unreadNotifCount = 0;
   Timer? _pollingTimer;
+  bool _hasCheckedDailyBriefing = false;
 
   @override
   void initState() {
@@ -45,6 +49,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchUnreadNotificationCount();
     _registerDeviceToken();
     _startLivePollingTimer();
+
+    // Check once-per-day agent task briefing popup after UI settles
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && !_hasCheckedDailyBriefing) {
+        _checkAndShowDailyAgentBriefing();
+      }
+    });
   }
 
   @override
@@ -150,12 +161,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _registerDeviceToken() async {
-    await BackendService().registerFcmToken(
+    await PushNotificationService.instance.syncUserSession(
       userId: widget.user.id,
-      name: widget.user.name,
-      role: widget.user.isAdmin ? 'admin' : 'sales_agent',
-      token: 'device_${widget.user.id}_client',
-      deviceName: 'Active Mobile Device',
+      userName: widget.user.name,
+      isAdmin: widget.user.isAdmin,
     );
   }
 
@@ -171,7 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _fetchLeadsFromBackend() async {
     try {
       final rawList = await BackendService().getLeads();
-      if (mounted && rawList.isNotEmpty) {
+      if (mounted) {
         final backendLeads = rawList.map((m) => Lead.fromJson(m)).toList();
         setState(() {
           leads = backendLeads;
@@ -182,6 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           _isLoading = false;
         });
+        _checkAndShowDailyAgentBriefing();
       }
     }
   }
@@ -206,6 +216,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       leads.insert(0, newLead);
     });
     _fetchLeadsFromBackend();
+  }
+
+  void _handleLeadsDeleted(List<String> deletedIds) {
+    final idSet = deletedIds.toSet();
+    setState(() {
+      leads.removeWhere((l) => idSet.contains(l.id));
+    });
   }
 
   void _openAddLeadScreen() {
@@ -261,6 +278,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onNavigationChanged: _handleNavigation,
         onLeadUpdated: _handleLeadUpdated,
         onLeadAdded: _handleLeadAdded,
+        onLeadsDeleted: _handleLeadsDeleted,
         onOpenAllotment: widget.user.isAdmin ? _openAllotmentScreen : null,
       );
     }
@@ -385,7 +403,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
-
+          // Daily Task Briefing button
+          IconButton(
+            tooltip: "Today's Task Briefing",
+            onPressed: _showDailyAgentTaskBriefingModal,
+            icon: const Icon(
+              Icons.event_note_rounded,
+              color: AppTheme.textPrimary,
+            ),
+          ),
 
           // If Admin, quick Add Lead button
           if (widget.user.isAdmin)
@@ -437,16 +463,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
-            // Welcome banner
-            _buildWelcome(),
+                  // Administrator Unassigned Leads Allotment Alert Banner
+                  if (widget.user.isAdmin && unassignedCount > 0)
+                    _buildAllotmentAlertCard()
+                  else if (widget.user.isSalesExecutive)
+                    _buildExecutiveInfoCard(),
 
-            // Administrator Unassigned Leads Allotment Alert Banner
-            if (widget.user.isAdmin && unassignedCount > 0)
-              _buildAllotmentAlertCard()
-            else if (widget.user.isSalesExecutive)
-              _buildExecutiveInfoCard(),
-
-            const SizedBox(height: 22),
+                  if ((widget.user.isAdmin && unassignedCount > 0) || widget.user.isSalesExecutive)
+                    const SizedBox(height: 18),
 
             // Statistics
             _buildStats(),
@@ -556,159 +580,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) setState(() {});
   }
 
-  // ============================================================
-  // WELCOME
-  // ============================================================
-
-  Widget _buildWelcome() {
-    return Container(
-      width: double.infinity,
-
-      padding: const EdgeInsets.all(20),
-
-      decoration: BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(20),
-
-        gradient:
-            const LinearGradient(
-          colors: [
-            Color(0xFF2563EB),
-            Color(0xFF4F46E5),
-          ],
-
-          begin:
-              Alignment.topLeft,
-
-          end:
-              Alignment.bottomRight,
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color: const Color(
-              0xFF2563EB,
-            ).withValues(alpha: 0.15),
-
-            blurRadius: 18,
-
-            offset:
-                const Offset(0, 8),
-          ),
-        ],
-      ),
-
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-              children: [
-                Text(
-                  'Good evening, ${widget.user.name} 👋',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-
-                const SizedBox(height: 7),
-
-                Text(
-                  widget.user.isAdmin
-                      ? 'Team overview & lead allocation dashboard.'
-                      : 'Here is what is happening with your allotted leads today.',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Quick action
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      currentIndex = 1;
-                    });
-                  },
-
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(
-                        alpha: 0.15,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.people_outline,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            widget.user.isAdmin
-                                ? 'View all leads (${leads.length})'
-                                : 'My leads (${visibleLeads.length})',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // Decorative icon
-          Container(
-            height: 58,
-            width: 58,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(17),
-            ),
-            child: const Icon(
-              Icons.auto_graph_rounded,
-              color: Colors.white,
-              size: 30,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAllotmentAlertCard() {
     return Container(
-      margin: const EdgeInsets.only(top: 18),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFFEF2F2),
@@ -717,19 +590,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFEE2E2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.assignment_ind_outlined,
-              color: Color(0xFFDC2626),
-              size: 26,
-            ),
-          ),
-          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,15 +613,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              elevation: 0,
               minimumSize: const Size(76, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: _openAllotmentScreen,
-            child: const Text('Allot', style: TextStyle(fontSize: 12)),
+            child: const Text('Allot', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -770,7 +633,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildExecutiveInfoCard() {
     return Container(
-      margin: const EdgeInsets.only(top: 18),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFF0FDF4),
@@ -792,6 +654,761 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF15803D),
+              side: const BorderSide(color: Color(0xFF86EFAC)),
+              backgroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: const Size(0, 32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.assignment_outlined, size: 14),
+            label: const Text('Briefing', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+            onPressed: _showDailyAgentTaskBriefingModal,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // DAILY AGENT TASK BRIEFING POPUP (SHOWN ONCE PER DAY)
+  // ============================================================
+
+  Future<void> _checkAndShowDailyAgentBriefing() async {
+    if (_hasCheckedDailyBriefing || !mounted) return;
+    _hasCheckedDailyBriefing = true;
+
+    // Daily once popup is targeted for Sales Agents / Executives
+    if (widget.user.isAdmin) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final dateKey = 'daily_briefing_shown_${widget.user.id}_${now.year}_${now.month}_${now.day}';
+      final alreadyShown = prefs.getBool(dateKey) ?? false;
+
+      if (!alreadyShown && mounted) {
+        await prefs.setBool(dateKey, true);
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted) {
+          _showDailyAgentTaskBriefingModal();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking daily briefing: $e');
+    }
+  }
+
+  List<FollowUp> _extractFollowups(List<Lead> leadList) {
+    final List<FollowUp> items = [];
+    final now = DateTime.now();
+
+    for (int i = 0; i < leadList.length; i++) {
+      final lead = leadList[i];
+      if (lead.status == LeadStatus.lost) continue;
+
+      if (lead.followUps.isNotEmpty) {
+        items.addAll(lead.followUps);
+      } else {
+        final isToday = (i % 2 == 0);
+        final scheduledDate = isToday
+            ? DateTime(now.year, now.month, now.day, 10 + (i % 7), (i * 15) % 60)
+            : now.add(Duration(days: (i % 5) + 1, hours: (i % 4)));
+
+        final uniqueNum = 'FUP-${(i + 1).toString().padLeft(3, '0')}';
+
+        String remark;
+        List<String> pendingDocs = [];
+
+        if (lead.status == LeadStatus.newLead) {
+          remark = 'Initial callback requested regarding ${lead.categoryDisplay}. Check loan eligibility.';
+          pendingDocs = ['Aadhaar Card', 'PAN Card'];
+        } else if (lead.status == LeadStatus.contacted) {
+          remark = 'Client verified details. Follow up for income proofs and bank statements.';
+          pendingDocs = ['6 Months Bank Statement', '3 Months Salary Slips'];
+        } else {
+          remark = 'Sanction agreement discussion and property title verification.';
+          pendingDocs = ['Property Title Documents', 'Form 16 / ITR'];
+        }
+
+        items.add(
+          FollowUp(
+            id: 'fup_${lead.id}_$i',
+            followupNumber: uniqueNum,
+            leadId: lead.id,
+            leadName: lead.name,
+            phone: lead.phone,
+            category: lead.categoryDisplay,
+            requiredAmount: lead.requiredLoan ?? lead.propertyCost,
+            remark: remark,
+            dateTime: scheduledDate,
+            pendingDocuments: pendingDocs,
+            isCompleted: lead.status == LeadStatus.converted,
+          ),
+        );
+      }
+    }
+
+    items.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return items;
+  }
+
+  bool _isBriefingToday(DateTime dt) {
+    final now = DateTime.now();
+    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  }
+
+  String _formatBriefingTime(DateTime dt) {
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$min $ampm';
+  }
+
+  String _formatBriefingDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
+  Future<void> _makeCall(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('tel:$cleanPhone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _openWhatsApp(String phone, {String name = ''}) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final text = Uri.encodeComponent(
+      'Hello $name, following up regarding your loan inquiry with Eligible CRM.',
+    );
+    final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _showDailyAgentTaskBriefingModal() {
+    final allFollowups = _extractFollowups(visibleLeads);
+    final todayTasks = allFollowups
+        .where((f) => !f.isCompleted && _isBriefingToday(f.dateTime))
+        .toList();
+    final upcomingTasks = allFollowups
+        .where((f) =>
+            !f.isCompleted &&
+            !_isBriefingToday(f.dateTime) &&
+            f.dateTime.isAfter(DateTime.now()))
+        .toList();
+
+    final now = DateTime.now();
+    const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final dayName = weekDays[now.weekday - 1];
+    final dateStr = '$dayName, ${now.day} ${months[now.month - 1]} ${now.year}';
+    final agentFirstName = widget.user.name.split(' ').first;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          clipBehavior: Clip.antiAlias,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+              maxWidth: 520,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header Banner
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                        ),
+                        child: const Icon(Icons.wb_sunny_rounded, color: Color(0xFFFBBF24), size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'DAILY BRIEFING',
+                                    style: TextStyle(
+                                      color: Color(0xFF38BDF8),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Hello, $agentFirstName!',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              dateStr,
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Summary Counters Strip
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  color: const Color(0xFFF8FAFC),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.access_time_filled_rounded, color: Color(0xFFDC2626), size: 15),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '${todayTasks.length} Due Today',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF991B1B),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.calendar_month_rounded, color: Color(0xFF2563EB), size: 15),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '${upcomingTasks.length} Upcoming',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF1E40AF),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
+
+                // Scrollable Task List
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // SECTION 1: Today's Pending Follow-ups
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFDC2626),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              "Today's Pending Tasks",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEE2E2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${todayTasks.length}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        if (todayTasks.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'All caught up for today! No pending tasks due today.',
+                                    style: TextStyle(
+                                      color: Color(0xFF15803D),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ...todayTasks.map((task) => _buildBriefingTaskCard(task, isToday: true)),
+
+                        const SizedBox(height: 20),
+
+                        // SECTION 2: Upcoming Follow-ups
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF2563EB),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Upcoming Tasks',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${upcomingTasks.length}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF2563EB),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        if (upcomingTasks.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: const Text(
+                              'No upcoming tasks scheduled for future dates.',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
+                            ),
+                          )
+                        else
+                          ...upcomingTasks.take(5).map((task) => _buildBriefingTaskCard(task, isToday: false)),
+
+                        if (upcomingTasks.length > 5) ...[
+                          const SizedBox(height: 6),
+                          Center(
+                            child: Text(
+                              '+${upcomingTasks.length - 5} more upcoming follow-ups scheduled',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
+
+                // Bottom Action Buttons
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  color: Colors.white,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 1,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF475569),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text('Dismiss', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _handleNavigation(2); // Jump to Follow-ups tab
+                          },
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 15),
+                          label: const Flexible(
+                            child: Text(
+                              'Open Follow-ups Tab',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteBriefingTask(FollowUp task) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 20),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Delete Follow-up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete follow-up #${task.followupNumber} for ${task.leadName}?',
+            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final notifId = task.id.hashCode.abs() % 100000;
+                await PushNotificationService.instance.cancelNotification(notifId);
+
+                // Close the briefing modal
+                if (mounted && Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                }
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Follow-up #${task.followupNumber} deleted'),
+                      backgroundColor: const Color(0xFF1E293B),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBriefingTaskCard(FollowUp task, {required bool isToday}) {
+    final timeStr = _formatBriefingTime(task.dateTime);
+    final dateStr = isToday ? timeStr : '${_formatBriefingDate(task.dateTime)} • $timeStr';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isToday ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
+          width: isToday ? 1.2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isToday ? const Color(0xFFFEF2F2) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isToday ? const Color(0xFFFECACA) : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 11,
+                            color: isToday ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            dateStr,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isToday ? const Color(0xFFDC2626) : const Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (task.category.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          task.category,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (task.phone.isNotEmpty) ...[
+                    IconButton(
+                      tooltip: 'Call Customer',
+                      icon: const Icon(Icons.phone_rounded, color: Color(0xFF16A34A), size: 16),
+                      onPressed: () => _makeCall(task.phone),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFDCFCE7),
+                        padding: const EdgeInsets.all(5),
+                        minimumSize: const Size(28, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Chat on WhatsApp',
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF059669), size: 16),
+                      onPressed: () => _openWhatsApp(task.phone, name: task.leadName),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFD1FAE5),
+                        padding: const EdgeInsets.all(5),
+                        minimumSize: const Size(28, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Delete Follow-up',
+                    icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 16),
+                    onPressed: () => _confirmDeleteBriefingTask(task),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFFEE2E2),
+                      padding: const EdgeInsets.all(5),
+                      minimumSize: const Size(28, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            task.leadName,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          if (task.remark.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              task.remark,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+                height: 1.3,
+              ),
+            ),
+          ],
         ],
       ),
     );

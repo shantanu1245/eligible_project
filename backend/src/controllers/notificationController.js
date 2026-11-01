@@ -62,7 +62,7 @@ const NotificationController = {
    */
   async registerToken(req, res) {
     try {
-      const { userId, token, role = 'sales_agent', name = 'App User' } = req.body;
+      const { userId, token, role = 'sales_agent', name = 'App User', deviceName = 'Android Device', platform = 'android' } = req.body;
 
       if (!token) {
         return res.status(400).json({
@@ -76,6 +76,8 @@ const NotificationController = {
         token,
         role,
         name,
+        deviceName,
+        platform,
       });
 
       res.json({

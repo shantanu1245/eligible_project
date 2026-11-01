@@ -12,6 +12,7 @@ let resolvedDatabaseURL = '';
 const localDbPath = path.resolve(__dirname, '../../data/local_db.json');
 let localStore = {
   leads: [...dummyData.leads],
+  leads_bin: [],
   campaigns: [...dummyData.campaigns],
   tasks: [...dummyData.tasks],
   team: [...dummyData.team],
@@ -35,6 +36,7 @@ function ensureLocalDb() {
       const parsed = JSON.parse(fs.readFileSync(localDbPath, 'utf8'));
       localStore = {
         leads: parsed.leads || [...dummyData.leads],
+        leads_bin: parsed.leads_bin || [],
         campaigns: parsed.campaigns || [...dummyData.campaigns],
         tasks: parsed.tasks || [...dummyData.tasks],
         team: parsed.team || [...dummyData.team],
@@ -372,13 +374,24 @@ const FirebaseService = {
 
   async getLeads(filters = {}) {
     ensureLocalDb();
+    this.purgeExpiredBinLeads();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+    const binIdSet = new Set(localStore.leads_bin.map((l) => l.id));
 
     // Merge remote RTDB leads (Loan Calculator website submissions) with the
     // local store. Local wins on id collision so CRM edits are never lost.
     const remoteLeads = await fetchRtdbLeads();
     const merged = new Map();
-    remoteLeads.forEach((l) => merged.set(l.id, l));
-    localStore.leads.forEach((l) => merged.set(l.id, l));
+    remoteLeads.forEach((l) => {
+      if (!binIdSet.has(l.id) && !l.isDeleted) {
+        merged.set(l.id, l);
+      }
+    });
+    localStore.leads.forEach((l) => {
+      if (!binIdSet.has(l.id) && !l.isDeleted) {
+        merged.set(l.id, l);
+      }
+    });
 
     let list = [...merged.values()].sort(
       (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -421,6 +434,242 @@ const FirebaseService = {
       return localStore.leads[idx];
     }
     return null;
+  },
+
+  // ── RECYCLE BIN (30 DAYS RETENTION) ──
+
+  purgeExpiredBinLeads() {
+    ensureLocalDb();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+    const now = Date.now();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const expiredIds = [];
+
+    localStore.leads_bin = localStore.leads_bin.filter((item) => {
+      const deletedTime = new Date(item.deletedAt || item.createdAt || 0).getTime();
+      const isExpired = now - deletedTime >= THIRTY_DAYS_MS;
+      if (isExpired) expiredIds.push(item.id);
+      return !isExpired;
+    });
+
+    if (expiredIds.length > 0) {
+      persistLocalDb();
+      if (isLiveFirebase && rtdb) {
+        const binPath = config.firebase.paths.bin || 'leads_bin';
+        const updates = {};
+        expiredIds.forEach((id) => {
+          updates[`${binPath}/${id}`] = null;
+        });
+        rtdb.ref().update(updates).catch(() => {});
+      }
+    }
+  },
+
+  async deleteLead(id, deletedBy = 'Admin') {
+    ensureLocalDb();
+    this.purgeExpiredBinLeads();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+
+    const now = new Date();
+    const deletedAt = now.toISOString();
+    const purgeAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    let leadData = null;
+    const idx = localStore.leads.findIndex((l) => l.id === id);
+    if (idx >= 0) {
+      leadData = localStore.leads.splice(idx, 1)[0];
+    } else {
+      const remoteLeads = await fetchRtdbLeads();
+      leadData = remoteLeads.find((l) => l.id === id) || { id };
+    }
+
+    const binRecord = {
+      ...leadData,
+      id,
+      deletedAt,
+      purgeAt,
+      deletedBy,
+      isDeleted: true,
+    };
+
+    localStore.leads_bin = localStore.leads_bin.filter((l) => l.id !== id);
+    localStore.leads_bin.unshift(binRecord);
+    persistLocalDb();
+
+    // Invalidate RTDB leads cache
+    rtdbLeadsCache.leads = rtdbLeadsCache.leads.filter((l) => l.id !== id);
+
+    if (isLiveFirebase && rtdb) {
+      const leadsPath = config.firebase.paths.leads;
+      const binPath = config.firebase.paths.bin || 'leads_bin';
+      const updates = {};
+      updates[`${leadsPath}/${id}`] = null;
+      updates[`${binPath}/${id}`] = binRecord;
+      await rtdb.ref().update(updates).catch(() => {});
+    }
+
+    return binRecord;
+  },
+
+  async deleteLeadsBulk(ids = [], deletedBy = 'Admin') {
+    ensureLocalDb();
+    this.purgeExpiredBinLeads();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+
+    const idSet = new Set(ids);
+    const now = new Date();
+    const deletedAt = now.toISOString();
+    const purgeAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const remoteLeads = await fetchRtdbLeads();
+    const remoteMap = new Map(remoteLeads.map((l) => [l.id, l]));
+
+    const binRecords = [];
+    ids.forEach((id) => {
+      const local = localStore.leads.find((l) => l.id === id);
+      const remote = remoteMap.get(id);
+      const leadData = local || remote || { id };
+      binRecords.push({
+        ...leadData,
+        id,
+        deletedAt,
+        purgeAt,
+        deletedBy,
+        isDeleted: true,
+      });
+    });
+
+    localStore.leads = localStore.leads.filter((l) => !idSet.has(l.id));
+
+    const binSet = new Set(ids);
+    localStore.leads_bin = [
+      ...binRecords,
+      ...localStore.leads_bin.filter((l) => !binSet.has(l.id)),
+    ];
+    persistLocalDb();
+
+    rtdbLeadsCache.leads = rtdbLeadsCache.leads.filter((l) => !idSet.has(l.id));
+
+    if (isLiveFirebase && rtdb) {
+      const leadsPath = config.firebase.paths.leads;
+      const binPath = config.firebase.paths.bin || 'leads_bin';
+      const updates = {};
+      binRecords.forEach((rec) => {
+        updates[`${leadsPath}/${rec.id}`] = null;
+        updates[`${binPath}/${rec.id}`] = rec;
+      });
+      await rtdb.ref().update(updates).catch(() => {});
+    }
+
+    return { deletedCount: binRecords.length, records: binRecords };
+  },
+
+  async deleteLeadsByCategory(category, deletedBy = 'Admin') {
+    ensureLocalDb();
+    const cat = String(category).toLowerCase();
+    const remoteLeads = await fetchRtdbLeads();
+    const allLeadsMap = new Map();
+    remoteLeads.forEach((l) => allLeadsMap.set(l.id, l));
+    localStore.leads.forEach((l) => allLeadsMap.set(l.id, l));
+
+    const toDelete = [...allLeadsMap.values()].filter((l) => {
+      const type = (l.loanType || l.category || l.applicantType || l.categoryKey || l.propertyInterest || '').toLowerCase();
+      if (cat === 'salary' || cat === 'salaried') return type.includes('salary') || type.includes('salaried');
+      if (cat === 'home' || cat === 'homeloan') return type.includes('home');
+      if (cat === 'business' || cat === 'businessloan') return type.includes('business');
+      return type.includes(cat);
+    });
+
+    const ids = toDelete.map((l) => l.id);
+    return await this.deleteLeadsBulk(ids, deletedBy);
+  },
+
+  async getBinLeads() {
+    ensureLocalDb();
+    this.purgeExpiredBinLeads();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+
+    const binMap = new Map();
+    if (isLiveFirebase && rtdb) {
+      try {
+        const binPath = config.firebase.paths.bin || 'leads_bin';
+        const snapshot = await rtdb.ref(binPath).once('value');
+        const val = snapshot.val();
+        if (val && typeof val === 'object') {
+          Object.entries(val).forEach(([k, v]) => {
+            if (v && typeof v === 'object') binMap.set(k, { ...v, id: v.id || k });
+          });
+        }
+      } catch (_) {}
+    }
+
+    localStore.leads_bin.forEach((l) => binMap.set(l.id, l));
+
+    const list = [...binMap.values()].sort(
+      (a, b) => new Date(b.deletedAt || 0).getTime() - new Date(a.deletedAt || 0).getTime()
+    );
+    return list;
+  },
+
+  async restoreLeadFromBin(id) {
+    ensureLocalDb();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+
+    const idx = localStore.leads_bin.findIndex((l) => l.id === id);
+    let record = null;
+    if (idx >= 0) {
+      record = localStore.leads_bin.splice(idx, 1)[0];
+    } else {
+      const binList = await this.getBinLeads();
+      record = binList.find((l) => l.id === id);
+    }
+
+    if (!record) return null;
+
+    delete record.deletedAt;
+    delete record.purgeAt;
+    delete record.deletedBy;
+    record.isDeleted = false;
+    record.updatedAt = new Date().toISOString();
+
+    localStore.leads.unshift(record);
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      const leadsPath = config.firebase.paths.leads;
+      const binPath = config.firebase.paths.bin || 'leads_bin';
+      const updates = {};
+      updates[`${binPath}/${id}`] = null;
+      updates[`${leadsPath}/${id}`] = record;
+      await rtdb.ref().update(updates).catch(() => {});
+    }
+
+    return record;
+  },
+
+  async permanentDeleteLead(id) {
+    ensureLocalDb();
+    if (!localStore.leads_bin) localStore.leads_bin = [];
+    localStore.leads_bin = localStore.leads_bin.filter((l) => l.id !== id);
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      const binPath = config.firebase.paths.bin || 'leads_bin';
+      await rtdb.ref(`${binPath}/${id}`).remove().catch(() => {});
+    }
+    return { success: true, id };
+  },
+
+  async emptyBin() {
+    ensureLocalDb();
+    localStore.leads_bin = [];
+    persistLocalDb();
+
+    if (isLiveFirebase && rtdb) {
+      const binPath = config.firebase.paths.bin || 'leads_bin';
+      await rtdb.ref(binPath).remove().catch(() => {});
+    }
+    return { success: true };
   },
 
   // ===================== CAMPAIGNS =====================

@@ -620,6 +620,57 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     final budget = notif['budget'] ?? '';
     final source = notif['source'] ?? 'Meta Ads';
 
+    final type = notif['type']?.toString().toUpperCase() ?? '';
+    final isStatusChange = type == 'LEAD_STATUS_CHANGED';
+    final isBulkAllot = type == 'LEADS_BULK_ALLOTTED';
+    final isSingleAllot = type == 'LEAD_ALLOTTED_TO_YOU' || type == 'LEAD_ALLOTTED';
+
+    final badgeLabel = isStatusChange
+        ? 'STATUS UPDATE'
+        : (isBulkAllot
+            ? 'BULK ALLOTMENT'
+            : (isSingleAllot
+                ? 'ALLOTTED TO YOU'
+                : (isAdmin ? 'ADMIN ALERT' : 'SALES TEAM')));
+
+    final badgeBgColor = isStatusChange
+        ? const Color(0xFFDCFCE7)
+        : (isBulkAllot
+            ? const Color(0xFFEDE9FE)
+            : (isSingleAllot
+                ? const Color(0xFFFEF3C7)
+                : (isAdmin ? const Color(0xFFDBEAFE) : const Color(0xFFFEF3C7))));
+
+    final badgeTextColor = isStatusChange
+        ? const Color(0xFF15803D)
+        : (isBulkAllot
+            ? const Color(0xFF6D28D9)
+            : (isSingleAllot
+                ? const Color(0xFFB45309)
+                : (isAdmin ? const Color(0xFF1E40AF) : const Color(0xFF92400E))));
+
+    final iconData = isStatusChange
+        ? Icons.published_with_changes_rounded
+        : (isBulkAllot
+            ? Icons.assignment_turned_in_rounded
+            : (isSingleAllot
+                ? Icons.assignment_ind_rounded
+                : (isAdmin ? Icons.admin_panel_settings : Icons.trending_up)));
+
+    final iconColor = isStatusChange
+        ? const Color(0xFF16A34A)
+        : (isBulkAllot
+            ? const Color(0xFF7C3AED)
+            : (isSingleAllot
+                ? const Color(0xFFD97706)
+                : (isAdmin ? const Color(0xFF1877F2) : const Color(0xFFD97706))));
+
+    final iconBgColor = isStatusChange
+        ? const Color(0xFFF0FDF4)
+        : (isBulkAllot
+            ? const Color(0xFFF5F3FF)
+            : (isAdmin ? const Color(0xFFEFF6FF) : const Color(0xFFFEF3C7)));
+
     return Container(
       decoration: BoxDecoration(
         color: isRead ? Colors.white : const Color(0xFFF8FAFC),
@@ -652,12 +703,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isAdmin ? const Color(0xFFEFF6FF) : const Color(0xFFFEF3C7),
+                      color: iconBgColor,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      isAdmin ? Icons.admin_panel_settings : Icons.trending_up,
-                      color: isAdmin ? const Color(0xFF1877F2) : const Color(0xFFD97706),
+                      iconData,
+                      color: iconColor,
                       size: 20,
                     ),
                   ),
@@ -671,15 +722,15 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: isAdmin ? const Color(0xFFDBEAFE) : const Color(0xFFFEF3C7),
+                                color: badgeBgColor,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                isAdmin ? 'ADMIN ALERT' : 'SALES TEAM',
+                                badgeLabel,
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
-                                  color: isAdmin ? const Color(0xFF1E40AF) : const Color(0xFF92400E),
+                                  color: badgeTextColor,
                                 ),
                               ),
                             ),

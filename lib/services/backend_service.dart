@@ -514,10 +514,16 @@ class BackendService {
     _loanCalculatorUrl = url.replaceAll(RegExp(r'/+$'), '');
   }
 
-  /// Firebase Realtime Database REST endpoint where the Loan Calculator website
-  /// stores leads directly. Public read — same project config the website uses.
+  /// Firebase Realtime Database REST endpoints
+  static const String _firebaseRtdbRoot =
+      'https://eligiblecrmdatabase-default-rtdb.firebaseio.com';
   static const String _firebaseRtdbLeadsUrl =
-      'https://eligiblecrmdatabase-default-rtdb.firebaseio.com/leads.json';
+      '$_firebaseRtdbRoot/leads.json';
+  static const String _firebaseRtdbBinUrl =
+      '$_firebaseRtdbRoot/leads_bin.json';
+
+  /// In-memory cache of deleted lead IDs to prevent stale reads
+  static final Set<String> _deletedLeadIds = {};
 
   /// Map website/Firebase status values to the CRM's camelCase conventions.
   static String _normalizeLeadStatus(dynamic status) {
@@ -630,6 +636,13 @@ class BackendService {
         }
       }
     }
+
+    // Filter out deleted/bin leads so they never appear in active lists
+    merged.removeWhere((id, lead) {
+      if (_deletedLeadIds.contains(id)) return true;
+      if (lead['isDeleted'] == true || lead['deletedAt'] != null) return true;
+      return false;
+    });
 
     var list = merged.values.toList()
       ..sort((a, b) {
@@ -1020,6 +1033,440 @@ class BackendService {
     } catch (e) {
       debugPrint('❌ [BackendService:allotLead] Error: $e');
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Bulk allot multiple leads to a sales agent and trigger a single consolidated notification
+  Future<Map<String, dynamic>> bulkAllotLeads({
+    required List<String> leadIds,
+    required String assignedTo,
+    String allottedBy = 'Admin',
+  }) async {
+    try {
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('[BackendService:bulkAllotLeads] Allotting ${leadIds.length} leads -> assignedTo: "$assignedTo" by "$allottedBy"');
+
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/leads/bulk-allot'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'leadIds': leadIds,
+              'assignedTo': assignedTo,
+              'allottedBy': allottedBy,
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+
+      debugPrint('[BackendService:bulkAllotLeads] Status: ${res.statusCode}');
+      debugPrint('[BackendService:bulkAllotLeads] Body: ${res.body}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('❌ [BackendService:bulkAllotLeads] Error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Update the status of a lead and trigger high-priority alert to Admin
+  Future<Map<String, dynamic>> updateLeadStatus({
+    required String leadId,
+    required String status,
+    required String updatedBy,
+    String? previousStatus,
+    String note = '',
+  }) async {
+    try {
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('[BackendService:updateLeadStatus] Lead $leadId -> Status: "$status" by "$updatedBy" (Prev: "$previousStatus")');
+
+      final res = await http
+          .patch(
+            Uri.parse('$_baseUrl/leads/$leadId/status'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'status': status,
+              'updatedBy': updatedBy,
+              'previousStatus': previousStatus,
+              'note': note,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      debugPrint('[BackendService:updateLeadStatus] Status: ${res.statusCode}');
+      debugPrint('[BackendService:updateLeadStatus] Body: ${res.body}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('❌ [BackendService:updateLeadStatus] Error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Add / update a note on a lead in Firebase Realtime Database & Backend
+  Future<Map<String, dynamic>> addLeadNote({
+    required String leadId,
+    required String note,
+    String author = 'Admin',
+  }) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Direct atomic patch to Firebase Realtime Database
+    try {
+      final patchBody = {
+        'leads/$leadId/note': note,
+        'leads/$leadId/updatedAt': now,
+      };
+      await http
+          .patch(
+            Uri.parse('$_firebaseRtdbRoot/.json'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(patchBody),
+          )
+          .timeout(const Duration(seconds: 5));
+      debugPrint('[BackendService:addLeadNote] 🔥 Updated note on Firebase RTDB for lead $leadId');
+    } catch (e) {
+      debugPrint('[BackendService:addLeadNote] ⚠️ Firebase RTDB direct patch note: $e');
+    }
+
+    // 2. Also notify Backend API
+    try {
+      final res = await http
+          .patch(
+            Uri.parse('$_baseUrl/leads/$leadId'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'note': note,
+              'updatedBy': author,
+              'updatedAt': now,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true, 'note': note};
+    }
+  }
+
+  /// Move a single lead to Recycle Bin (Direct Firebase RTDB atomic PATCH + Backend sync)
+  /// Kept in bin for 30 days before permanent deletion.
+  Future<Map<String, dynamic>> deleteLead(
+    String leadId, {
+    Map<String, dynamic>? leadData,
+    String deletedBy = 'Admin',
+  }) async {
+    _deletedLeadIds.add(leadId);
+    final now = DateTime.now().toUtc();
+    final purgeAt = now.add(const Duration(days: 30));
+
+    final binRecord = Map<String, dynamic>.from(leadData ?? {'id': leadId})
+      ..addAll({
+        'id': leadId,
+        'deletedAt': now.toIso8601String(),
+        'purgeAt': purgeAt.toIso8601String(),
+        'deletedBy': deletedBy,
+        'isDeleted': true,
+      });
+
+    // 1. Direct Atomic update to Firebase Realtime Database
+    //    Atomically removes 'leads/$leadId' and sets 'leads_bin/$leadId'
+    try {
+      final patchBody = {
+        'leads/$leadId': null,
+        'leads_bin/$leadId': binRecord,
+      };
+      await http
+          .patch(
+            Uri.parse('$_firebaseRtdbRoot/.json'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(patchBody),
+          )
+          .timeout(const Duration(seconds: 5));
+      debugPrint('[BackendService:deleteLead] 🔥 Atomically moved lead $leadId to Firebase RTDB leads_bin.');
+    } catch (e) {
+      debugPrint('[BackendService:deleteLead] ⚠️ Firebase RTDB direct patch note: $e');
+    }
+
+    // 2. Also notify Backend API (updates local_db.json & backend RTDB)
+    try {
+      final res = await http
+          .delete(
+            Uri.parse('$_baseUrl/leads/$leadId'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'deletedBy': deletedBy}),
+          )
+          .timeout(const Duration(seconds: 5));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true, 'message': 'Lead moved to Recycle Bin (30-day retention)'};
+    }
+  }
+
+  /// Bulk delete leads: Moves multiple leads to Recycle Bin (kept for 30 days)
+  Future<Map<String, dynamic>> deleteLeadsBulk(
+    List<String> leadIds, {
+    List<Map<String, dynamic>>? leadsData,
+    String deletedBy = 'Admin',
+  }) async {
+    if (leadIds.isEmpty) return {'success': true, 'deletedCount': 0};
+    _deletedLeadIds.addAll(leadIds);
+
+    final now = DateTime.now().toUtc();
+    final purgeAt = now.add(const Duration(days: 30));
+
+    // 1. Direct Atomic multi-path update to Firebase RTDB
+    try {
+      final patchBody = <String, dynamic>{};
+      for (var i = 0; i < leadIds.length; i++) {
+        final id = leadIds[i];
+        final data = (leadsData != null && i < leadsData.length)
+            ? leadsData[i]
+            : {'id': id};
+        final binRecord = Map<String, dynamic>.from(data)
+          ..addAll({
+            'id': id,
+            'deletedAt': now.toIso8601String(),
+            'purgeAt': purgeAt.toIso8601String(),
+            'deletedBy': deletedBy,
+            'isDeleted': true,
+          });
+        patchBody['leads/$id'] = null;
+        patchBody['leads_bin/$id'] = binRecord;
+      }
+
+      await http
+          .patch(
+            Uri.parse('$_firebaseRtdbRoot/.json'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(patchBody),
+          )
+          .timeout(const Duration(seconds: 8));
+      debugPrint('[BackendService:deleteLeadsBulk] 🔥 Atomically moved ${leadIds.length} leads to RTDB leads_bin.');
+    } catch (e) {
+      debugPrint('[BackendService:deleteLeadsBulk] ⚠️ Firebase RTDB patch note: $e');
+    }
+
+    // 2. Also notify Backend API
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/leads/bulk-delete'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'leadIds': leadIds, 'deletedBy': deletedBy}),
+          )
+          .timeout(const Duration(seconds: 8));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true, 'deletedCount': leadIds.length};
+    }
+  }
+
+  /// Delete leads by category: Moves all category leads to Recycle Bin (kept for 30 days)
+  Future<Map<String, dynamic>> deleteLeadsByCategory(
+    String category, {
+    List<Map<String, dynamic>>? categoryLeads,
+    String deletedBy = 'Admin',
+  }) async {
+    if (categoryLeads != null && categoryLeads.isNotEmpty) {
+      final ids = categoryLeads
+          .map((m) => m['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      return await deleteLeadsBulk(ids, leadsData: categoryLeads, deletedBy: deletedBy);
+    }
+
+    // Fallback: Notify backend
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/leads/delete-by-category'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'category': category, 'deletedBy': deletedBy}),
+          )
+          .timeout(const Duration(seconds: 8));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true, 'category': category};
+    }
+  }
+
+  /// Fetch all leads currently in the Recycle Bin (auto-purging any older than 30 days)
+  Future<List<Map<String, dynamic>>> getBinLeads() async {
+    final binMap = <String, Map<String, dynamic>>{};
+    final now = DateTime.now().toUtc();
+    final expiredIds = <String>[];
+
+    // 1. Fetch directly from Firebase RTDB leads_bin
+    try {
+      final res = await http
+          .get(Uri.parse(_firebaseRtdbBinUrl))
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic>) {
+          data.forEach((k, v) {
+            if (v is! Map) return;
+            final map = Map<String, dynamic>.from(v);
+            final id = map['id']?.toString() ?? k;
+            map['id'] = id;
+
+            // Check 30-day expiration
+            final deletedAtStr = map['deletedAt']?.toString();
+            final purgeAtStr = map['purgeAt']?.toString();
+            bool isExpired = false;
+            if (purgeAtStr != null) {
+              final purgeAt = DateTime.tryParse(purgeAtStr);
+              if (purgeAt != null && now.isAfter(purgeAt)) isExpired = true;
+            } else if (deletedAtStr != null) {
+              final deletedAt = DateTime.tryParse(deletedAtStr);
+              if (deletedAt != null && now.difference(deletedAt).inDays >= 30) {
+                isExpired = true;
+              }
+            }
+
+            if (isExpired) {
+              expiredIds.add(id);
+            } else {
+              binMap[id] = map;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService:getBinLeads] Firebase RTDB bin fetch note: $e');
+    }
+
+    // Auto-purge expired entries older than 30 days from RTDB
+    if (expiredIds.isNotEmpty) {
+      try {
+        final purgePatch = <String, dynamic>{};
+        for (final id in expiredIds) {
+          purgePatch['leads_bin/$id'] = null;
+        }
+        http.patch(
+          Uri.parse('$_firebaseRtdbRoot/.json'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(purgePatch),
+        );
+      } catch (_) {}
+    }
+
+    // 2. Also merge from Backend API
+    try {
+      final res = await http
+          .get(Uri.parse('$_baseUrl/leads/bin'))
+          .timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        final list = json['data'] as List<dynamic>?;
+        if (list != null) {
+          for (final item in list) {
+            if (item is Map) {
+              final map = Map<String, dynamic>.from(item);
+              final id = map['id']?.toString();
+              if (id != null && !binMap.containsKey(id)) {
+                binMap[id] = map;
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    final result = binMap.values.toList()
+      ..sort((a, b) {
+        final aTime = DateTime.tryParse(a['deletedAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = DateTime.tryParse(b['deletedAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+
+    return result;
+  }
+
+  /// Restore a lead from Recycle Bin back to Active Leads
+  Future<Map<String, dynamic>> restoreLeadFromBin(
+    String leadId, {
+    Map<String, dynamic>? leadData,
+  }) async {
+    _deletedLeadIds.remove(leadId);
+    final restoredRecord = Map<String, dynamic>.from(leadData ?? {'id': leadId})
+      ..remove('deletedAt')
+      ..remove('purgeAt')
+      ..remove('deletedBy')
+      ..['isDeleted'] = false
+      ..['status'] = 'newLead'
+      ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+
+    // 1. Atomic restoration in Firebase RTDB
+    try {
+      final patchBody = {
+        'leads_bin/$leadId': null,
+        'leads/$leadId': restoredRecord,
+      };
+      await http
+          .patch(
+            Uri.parse('$_firebaseRtdbRoot/.json'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(patchBody),
+          )
+          .timeout(const Duration(seconds: 5));
+      debugPrint('[BackendService:restoreLeadFromBin] 🔥 Restored lead $leadId to active leads');
+    } catch (e) {
+      debugPrint('[BackendService:restoreLeadFromBin] ⚠️ RTDB restore note: $e');
+    }
+
+    // 2. Also notify Backend API
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/leads/bin/$leadId/restore'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'id': leadId}),
+          )
+          .timeout(const Duration(seconds: 5));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true, 'data': restoredRecord};
+    }
+  }
+
+  /// Permanently delete a lead from Recycle Bin (before 30-day auto-purge)
+  Future<Map<String, dynamic>> permanentDeleteFromBin(String leadId) async {
+    // 1. Direct delete from Firebase RTDB
+    try {
+      await http
+          .delete(Uri.parse('$_firebaseRtdbRoot/leads_bin/$leadId.json'))
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
+
+    // 2. Notify Backend API
+    try {
+      final res = await http
+          .delete(Uri.parse('$_baseUrl/leads/bin/$leadId'))
+          .timeout(const Duration(seconds: 5));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true, 'id': leadId};
+    }
+  }
+
+  /// Permanently empty the entire Recycle Bin
+  Future<Map<String, dynamic>> emptyBin() async {
+    try {
+      await http
+          .delete(Uri.parse(_firebaseRtdbBinUrl))
+          .timeout(const Duration(seconds: 6));
+    } catch (_) {}
+
+    try {
+      final res = await http
+          .delete(Uri.parse('$_baseUrl/leads/bin'))
+          .timeout(const Duration(seconds: 6));
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': true};
     }
   }
 

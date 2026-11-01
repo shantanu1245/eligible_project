@@ -18,6 +18,7 @@ const config = {
       : null,
     paths: {
       leads: process.env.FIREBASE_LEADS_PATH || 'leads',
+      bin: process.env.FIREBASE_BIN_PATH || 'leads_bin',
       campaigns: process.env.FIREBASE_CAMPAIGNS_PATH || 'campaigns',
       logs: process.env.FIREBASE_LOGS_PATH || 'webhook_logs',
       settings: 'settings',

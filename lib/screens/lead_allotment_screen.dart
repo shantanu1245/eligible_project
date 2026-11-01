@@ -109,9 +109,12 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
 
     widget.onLeadsUpdated(_currentLeads);
 
-    for (final lead in targets) {
-      BackendService().allotLead(lead.id, assignedTo: executive.name);
-    }
+    // Trigger consolidated bulk allotment notification with exact lead count
+    BackendService().bulkAllotLeads(
+      leadIds: targets.map((l) => l.id).toList(),
+      assignedTo: executive.name,
+      allottedBy: 'Admin',
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -135,7 +138,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
       widget.onLeadsUpdated(_currentLeads);
 
       // Trigger targeted notification to this executive's devices
-      BackendService().allotLead(lead.id, assignedTo: executive.name);
+
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -169,10 +172,12 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
 
     widget.onLeadsUpdated(_currentLeads);
 
-    // Trigger targeted backend allotment notifications
-    for (final id in idsToAllot) {
-      BackendService().allotLead(id, assignedTo: executive.name);
-    }
+    // Trigger consolidated bulk allotment notification with exact lead count
+    BackendService().bulkAllotLeads(
+      leadIds: idsToAllot,
+      assignedTo: executive.name,
+      allottedBy: 'Admin',
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

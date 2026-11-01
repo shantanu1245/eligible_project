@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "821177840242",
+    "firebase_url": "https://eligiblecrmdatabase-default-rtdb.firebaseio.com",
+    "project_id": "eligiblecrmdatabase",
+    "storage_bucket": "eligiblecrmdatabase.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:821177840242:android:d54600a59b3d83e5a0c8eb",
+        "android_client_info": {
+          "package_name": "com.example.eligible_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuu7g-DHE6cqMGUz-n5DMGhp0gh9acx70"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
