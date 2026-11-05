@@ -41,6 +41,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     {'key': 'last_7d', 'label': 'Last 7 Days'},
     {'key': 'last_30d', 'label': 'Last 30 Days'},
     {'key': 'this_month', 'label': 'This Month'},
+    {'key': 'maximum', 'label': 'All Time'},
   ];
 
   @override
@@ -628,8 +629,16 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
   }
 
   Widget _buildKpiMetricsGrid() {
-    final double totalSpend = (_insightsSummary['spend'] as num?)?.toDouble() ??
+    double totalSpend = (_insightsSummary['spend'] as num?)?.toDouble() ??
         _campaigns.fold<double>(0, (sum, c) => sum + ((c['spend'] as num?)?.toDouble() ?? 0));
+
+    // When All Time is selected, display total account lifetime spend
+    if ((_selectedDatePreset == 'maximum' || _selectedDatePreset == 'all_time') && totalSpend == 0) {
+      final accountSpent = (_currentAccount?['amountSpent'] as num?)?.toDouble();
+      if (accountSpent != null && accountSpent > 0) {
+        totalSpend = accountSpent;
+      }
+    }
 
     final int totalLeads = (_insightsSummary['leads'] as num?)?.toInt() ??
         _campaigns.fold<int>(0, (sum, c) => sum + ((c['leadsCount'] as num?)?.toInt() ?? (c['leads'] as num?)?.toInt() ?? 0));

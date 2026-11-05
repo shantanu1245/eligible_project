@@ -36,6 +36,14 @@ class MetaService {
     console.log(`🔄 [MetaService] Credentials updated: Page="${this.pageName || this.pageId}", AdAccount="${this.adAccountName || this.adAccountId}"`);
   }
 
+  _normalizeDatePreset(preset) {
+    if (!preset) return 'last_30d';
+    if (preset === 'all_time' || preset === 'lifetime' || preset === 'maximum') {
+      return 'maximum';
+    }
+    return preset;
+  }
+
   isConfigured() {
     return Boolean(
       this.accessToken &&
@@ -358,7 +366,7 @@ class MetaService {
     }
 
     const formattedAccountId = targetAccountId.startsWith('act_') ? targetAccountId : `act_${targetAccountId}`;
-    const datePreset = options.datePreset || 'last_30d';
+    const datePreset = this._normalizeDatePreset(options.datePreset);
 
     try {
       const params = {
@@ -449,7 +457,7 @@ class MetaService {
     if (!this.isConfigured() || !targetAccountId) return [];
 
     const formattedAccountId = targetAccountId.startsWith('act_') ? targetAccountId : `act_${targetAccountId}`;
-    const datePreset = options.datePreset || 'last_30d';
+    const datePreset = this._normalizeDatePreset(options.datePreset);
 
     try {
       const endpoint = options.campaignId ? `/${options.campaignId}/adsets` : `/${formattedAccountId}/adsets`;
@@ -522,7 +530,7 @@ class MetaService {
     if (!this.isConfigured() || !targetAccountId) return [];
 
     const formattedAccountId = targetAccountId.startsWith('act_') ? targetAccountId : `act_${targetAccountId}`;
-    const datePreset = options.datePreset || 'last_30d';
+    const datePreset = this._normalizeDatePreset(options.datePreset);
 
     try {
       let endpoint = `/${formattedAccountId}/ads`;
@@ -639,7 +647,7 @@ class MetaService {
     if (timeRange && timeRange.since && timeRange.until) {
       params.time_range = JSON.stringify(timeRange);
     } else {
-      params.date_preset = datePreset;
+      params.date_preset = this._normalizeDatePreset(datePreset);
     }
 
     if (timeIncrement) {
