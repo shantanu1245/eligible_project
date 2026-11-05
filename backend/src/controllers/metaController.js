@@ -80,26 +80,74 @@ const MetaController = {
       const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
       const targetAccount = adAccountId || metaService.adAccountId;
 
-      const liveCampaigns = await metaService.getCampaigns(targetAccount, { datePreset, status, forceRefresh });
+      // 1. Fetch campaigns from local/Firebase database (ensures all created campaigns exist)
+      const dbCampaigns = await firebaseService.getCampaigns();
 
-      if (liveCampaigns !== null) {
-        return res.json({
-          success: true,
-          source: 'meta_live',
-          adAccountId: targetAccount,
-          count: liveCampaigns.length,
-          data: liveCampaigns,
-        });
+      // 2. Fetch live campaigns from Meta Marketing API (if connected)
+      let liveCampaigns = null;
+      try {
+        liveCampaigns = await metaService.getCampaigns(targetAccount, { datePreset, status, forceRefresh });
+      } catch (liveErr) {
+        console.warn('⚠️ [MetaController] Live Meta campaigns note:', liveErr.message);
       }
 
-      // Fallback to database stored campaigns if live credentials not yet set
-      const dbCampaigns = await firebaseService.getCampaigns();
+      // 3. Normalizer to ensure both camelCase and snake_case are present for Flutter UI
+      const formatCampaign = (c) => {
+        const id = c.id || c.meta_campaign_id;
+        const dailyBudget = c.dailyBudget != null ? c.dailyBudget : (c.daily_budget != null ? c.daily_budget : 1000);
+        const leadsCount = c.leadsCount != null ? c.leadsCount : (c.leads_count != null ? c.leads_count : (c.leads || 0));
+        const spend = c.spend != null ? parseFloat(c.spend) : 0;
+        const effectiveStatus = (c.effective_status || c.effectiveStatus || c.status || 'ACTIVE').toUpperCase();
+        return {
+          ...c,
+          id,
+          meta_campaign_id: c.meta_campaign_id || id,
+          name: c.name || 'Untitled Campaign',
+          dailyBudget,
+          daily_budget: dailyBudget,
+          leadsCount,
+          leads_count: leadsCount,
+          spend,
+          status: effectiveStatus,
+          effectiveStatus,
+          platform: c.platform || 'Facebook & Instagram',
+          created_time: c.created_time || c.startTime || new Date().toISOString(),
+        };
+      };
+
+      const mergedMap = new Map();
+
+      // Populate local database campaigns
+      for (const dbc of (dbCampaigns || [])) {
+        const item = formatCampaign(dbc);
+        const key = item.id;
+        if (key) mergedMap.set(key, item);
+      }
+
+      // Overlay live Meta campaigns (updates live status, spend, impressions from Meta)
+      if (Array.isArray(liveCampaigns)) {
+        for (const lc of liveCampaigns) {
+          const item = formatCampaign(lc);
+          const key = item.id;
+          const existing = mergedMap.get(key) || {};
+          mergedMap.set(key, { ...existing, ...item });
+        }
+      }
+
+      const finalCampaigns = Array.from(mergedMap.values());
+      // Sort newest first
+      finalCampaigns.sort((a, b) => {
+        const tA = new Date(a.created_time || a.startTime || 0).getTime();
+        const tB = new Date(b.created_time || b.startTime || 0).getTime();
+        return tB - tA;
+      });
+
       res.json({
         success: true,
-        source: 'database_fallback',
+        source: liveCampaigns ? 'meta_live_and_db' : 'database_fallback',
         adAccountId: targetAccount || 'local',
-        count: dbCampaigns.length,
-        data: dbCampaigns,
+        count: finalCampaigns.length,
+        data: finalCampaigns,
       });
     } catch (err) {
       console.error('❌ [MetaController:getCampaigns] Error:', err.message);

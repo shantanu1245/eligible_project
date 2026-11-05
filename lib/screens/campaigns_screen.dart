@@ -93,6 +93,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
       _backend.getMetaCampaigns(
         adAccountId: _selectedAdAccountId,
         datePreset: _selectedDatePreset,
+        forceRefresh: true,
       ),
       _backend.getMetaAdSets(
         adAccountId: _selectedAdAccountId,
@@ -109,69 +110,48 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
         datePreset: _selectedDatePreset,
       ),
       _backend.getMetaSyncStatus(),
+      _backend.getCampaigns(),
     ]);
 
     if (mounted) {
-      final campaignsData = futures[0] as List<Map<String, dynamic>>;
+      final metaCampaignsData = futures[0] as List<Map<String, dynamic>>;
       final adSetsData = futures[1] as List<Map<String, dynamic>>;
       final adsData = futures[2] as List<Map<String, dynamic>>;
       final insightsData = futures[3] as Map<String, dynamic>;
       final syncData = futures[4] as Map<String, dynamic>;
+      final dbCampaignsData = futures[5] as List<Map<String, dynamic>>;
+
+      // Merge backend campaigns, live Meta campaigns, and currently held campaigns
+      final Map<String, Map<String, dynamic>> combined = {};
+
+      for (final c in dbCampaignsData) {
+        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+        if (id != null) combined[id] = Map<String, dynamic>.from(c);
+      }
+      for (final c in metaCampaignsData) {
+        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+        if (id != null) {
+          final existing = combined[id] ?? {};
+          combined[id] = {...existing, ...c};
+        }
+      }
+      // Preserve any campaign that was just published during this session
+      for (final c in _campaigns) {
+        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+        if (id != null && !combined.containsKey(id)) {
+          combined[id] = c;
+        }
+      }
+
+      final mergedList = combined.values.toList();
+      mergedList.sort((a, b) {
+        final tA = DateTime.tryParse(a['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+        final tB = DateTime.tryParse(b['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+        return tB.compareTo(tA);
+      });
 
       setState(() {
-        _campaigns = campaignsData.isNotEmpty
-            ? campaignsData
-            : [
-                {
-                  'id': 'camp_1',
-                  'name': 'Pune Luxury Property Campaign',
-                  'objective': 'OUTCOME_LEADS',
-                  'platform': 'Facebook & Instagram',
-                  'leadsCount': 87,
-                  'spend': 14200.0,
-                  'dailyBudget': 1000.0,
-                  'status': 'ACTIVE',
-                  'effectiveStatus': 'ACTIVE',
-                  'impressions': 48920,
-                  'clicks': 1420,
-                  'reach': 32400,
-                  'ctr': 2.9,
-                  'costPerLead': 163.21,
-                },
-                {
-                  'id': 'camp_2',
-                  'name': 'Mumbai Express Booking Campaign',
-                  'objective': 'OUTCOME_LEADS',
-                  'platform': 'Facebook',
-                  'leadsCount': 42,
-                  'spend': 8400.0,
-                  'dailyBudget': 800.0,
-                  'status': 'ACTIVE',
-                  'effectiveStatus': 'ACTIVE',
-                  'impressions': 24100,
-                  'clicks': 680,
-                  'reach': 18900,
-                  'ctr': 2.8,
-                  'costPerLead': 200.0,
-                },
-                {
-                  'id': 'camp_3',
-                  'name': 'General Consultation Retargeting',
-                  'objective': 'OUTCOME_LEADS',
-                  'platform': 'Instagram',
-                  'leadsCount': 31,
-                  'spend': 4500.0,
-                  'dailyBudget': 500.0,
-                  'status': 'PAUSED',
-                  'effectiveStatus': 'PAUSED',
-                  'impressions': 15200,
-                  'clicks': 410,
-                  'reach': 11200,
-                  'ctr': 2.7,
-                  'costPerLead': 145.16,
-                },
-              ];
-
+        _campaigns = mergedList;
         _adSets = adSetsData;
         _ads = adsData;
         _insightsSummary = (insightsData['summary'] as Map<String, dynamic>?) ?? {};
@@ -227,20 +207,28 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     }
   }
 
-  void _showCreateCampaignSheet() {
-    Navigator.push(
+  Future<void> _showCreateCampaignSheet() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CreateMetaCampaignScreen(
           onCampaignCreated: (newCamp) {
             setState(() {
+              _campaigns.removeWhere((c) => (c['id'] ?? c['meta_campaign_id']) == (newCamp['id'] ?? newCamp['meta_campaign_id']));
               _campaigns.insert(0, newCamp);
             });
-            _loadAllData();
           },
         ),
       ),
     );
+
+    if (result != null && result is Map<String, dynamic>) {
+      setState(() {
+        _campaigns.removeWhere((c) => (c['id'] ?? c['meta_campaign_id']) == (result['id'] ?? result['meta_campaign_id']));
+        _campaigns.insert(0, result);
+      });
+    }
+    await _loadAllData();
   }
 
   Future<void> _toggleStatus(Map<String, dynamic> campaign) async {

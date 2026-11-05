@@ -422,7 +422,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                       ),
                       onPressed: () {
                         Navigator.pop(ctx); // Close dialog
-                        Navigator.pop(context); // Back to campaigns screen
+                        Navigator.pop(context, campaignData); // Back to caller with newly created campaign
                       },
                       child: const Text('View in Meta Ads Manager', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),

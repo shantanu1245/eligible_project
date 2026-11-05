@@ -9,6 +9,8 @@ import '../widgets/app_drawer.dart';
 import '../widgets/lead_card.dart';
 import '../widgets/stat_card.dart';
 import 'analytics_screen.dart';
+import 'campaigns_screen.dart';
+import 'create_meta_campaign_screen.dart';
 import 'followups_screen.dart';
 import 'lead_allotment_screen.dart';
 import 'lead_screen.dart';
@@ -40,6 +42,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _unreadNotifCount = 0;
   Timer? _pollingTimer;
   bool _hasCheckedDailyBriefing = false;
+  List<Map<String, dynamic>> _dashboardCampaigns = [];
+
+  Future<void> _fetchDashboardCampaigns() async {
+    try {
+      final futures = await Future.wait([
+        BackendService().getCampaigns(),
+        BackendService().getMetaCampaigns(datePreset: 'maximum'),
+      ]);
+      final dbCamps = futures[0];
+      final metaCamps = futures[1];
+
+      final Map<String, Map<String, dynamic>> map = {};
+      for (final c in dbCamps) {
+        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+        if (id != null) map[id] = Map<String, dynamic>.from(c);
+      }
+      for (final c in metaCamps) {
+        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+        if (id != null) {
+          final existing = map[id] ?? {};
+          map[id] = {...existing, ...c};
+        }
+      }
+
+      final list = map.values.toList();
+      list.sort((a, b) {
+        final tA = DateTime.tryParse(a['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+        final tB = DateTime.tryParse(b['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+        return tB.compareTo(tA);
+      });
+
+      if (mounted) {
+        setState(() {
+          _dashboardCampaigns = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] _fetchDashboardCampaigns error: $e');
+    }
+  }
+
 
   @override
   void initState() {
@@ -47,6 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     leads = List.from(_demoLeads);
     _fetchLeadsFromBackend();
     _fetchUnreadNotificationCount();
+    _fetchDashboardCampaigns();
     _registerDeviceToken();
     _startLivePollingTimer();
 
@@ -475,7 +519,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // Statistics
             _buildStats(),
 
-            const SizedBox(height: 26),
+            const SizedBox(height: 18),
+
+            // Meta Ad Campaigns Section
+            _buildMetaCampaignsDashboardCard(),
+
+            const SizedBox(height: 22),
 
             // Recent leads header
             _buildSectionHeader(),
@@ -576,6 +625,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Future.wait([
       _fetchLeadsFromBackend(),
       _fetchUnreadNotificationCount(),
+      _fetchDashboardCampaigns(),
     ]);
     if (mounted) setState(() {});
   }
@@ -1417,6 +1467,226 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ============================================================
   // STATISTICS
   // ============================================================
+
+  Widget _buildMetaCampaignsDashboardCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Card Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              children: [
+                Container(
+                  height: 36,
+                  width: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.campaign_rounded, color: Color(0xFF0668E1), size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Meta Ad Campaigns',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        _dashboardCampaigns.isNotEmpty
+                            ? '${_dashboardCampaigns.length} campaigns • Facebook & Instagram'
+                            : 'Run high-intent borrower ads on Meta',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const CampaignsScreen()),
+                    ).then((_) => _fetchDashboardCampaigns());
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF0668E1),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('View All', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      Icon(Icons.chevron_right, size: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppTheme.border),
+
+          // Campaigns List or Empty State
+          if (_dashboardCampaigns.isNotEmpty) ...[
+            ..._dashboardCampaigns.take(2).map((camp) {
+              final name = camp['name']?.toString() ?? 'Loan Campaign';
+              final status = (camp['effectiveStatus'] ?? camp['status'] ?? 'ACTIVE').toString().toUpperCase();
+              final isActive = status == 'ACTIVE';
+              final budget = (camp['dailyBudget'] ?? camp['daily_budget']) != null
+                  ? '₹${camp['dailyBudget'] ?? camp['daily_budget']}/day'
+                  : '₹1,500/day';
+              final platform = camp['platform']?.toString() ?? 'Facebook & Instagram';
+              final leads = camp['leadsCount'] ?? camp['leads_count'] ?? camp['leads'] ?? 0;
+              final spend = (camp['spend'] as num?)?.toDouble() ?? 0;
+
+              return InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CampaignsScreen()),
+                  ).then((_) => _fetchDashboardCampaigns());
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    isActive ? 'ACTIVE' : status,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: isActive ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '$platform • $budget • Spend: ₹${spend.toStringAsFixed(0)}',
+                              style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$leads',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0668E1),
+                            ),
+                          ),
+                          const Text('Leads', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text('No active Meta ads', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        SizedBox(height: 2),
+                        Text('Launch high-intent loan ads with instant lead capture forms.', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CreateMetaCampaignScreen(
+                            onCampaignCreated: (_) => _fetchDashboardCampaigns(),
+                          ),
+                        ),
+                      ).then((_) => _fetchDashboardCampaigns());
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0668E1),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Create Ad', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildStats() {
     return LayoutBuilder(
