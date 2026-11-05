@@ -119,6 +119,7 @@ const MetaController = {
 
       // Populate local database campaigns
       for (const dbc of (dbCampaigns || [])) {
+        if (dbc.id && dbc.id.startsWith('camp_meta_')) continue;
         const item = formatCampaign(dbc);
         const key = item.id;
         if (key) mergedMap.set(key, item);
