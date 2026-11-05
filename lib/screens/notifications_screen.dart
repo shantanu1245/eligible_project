@@ -28,7 +28,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   late TabController _tabController;
   bool _isLoading = true;
-  bool _isSendingTest = false;
   List<Map<String, dynamic>> _allNotifications = [];
   int _unreadCount = 0;
 
@@ -184,160 +183,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
-  Future<void> _triggerTestAlert() async {
-    setState(() => _isSendingTest = true);
 
-    // Create an immediate test notification item for instant feedback
-    final now = DateTime.now();
-    final newTestNotif = {
-      'id': 'notif_test_${now.millisecondsSinceEpoch}',
-      'title': '🚨 New High-Value Lead Received!',
-      'body': 'Kishor Shinde requested ₹20.0L Business Loan in Sangli.',
-      'type': 'lead_alert',
-      'targetRole': 'admin',
-      'leadName': 'Kishor Shinde',
-      'leadPhone': '9822114455',
-      'loanType': 'business',
-      'budget': '₹20,00,000',
-      'read': false,
-      'createdAt': now.toIso8601String(),
-    };
-
-    try {
-      final res = await _backend.sendTestNotification();
-      if (mounted) {
-        if (res['success'] == true) {
-          _loadNotifications();
-        } else {
-          // Add local preview if backend is waking up
-          setState(() {
-            _allNotifications.insert(0, newTestNotif);
-            _unreadCount += 1;
-          });
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _allNotifications.insert(0, newTestNotif);
-          _unreadCount += 1;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSendingTest = false);
-        _showInAppHeadsUpBanner(newTestNotif);
-      }
-    }
-  }
-
-  void _showInAppHeadsUpBanner(Map<String, dynamic> notif) {
-    try {
-      HapticFeedback.vibrate();
-    } catch (_) {}
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.notifications_active, color: Color(0xFFDC2626), size: 24),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'New Lead Alert',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              notif['title'] ?? 'Lead Received',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              notif['body'] ?? '',
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          notif['leadName'] ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          notif['leadPhone'] ?? '',
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      notif['budget'] ?? '₹20.0L',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Dismiss'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _openLeadDetail(notif);
-            },
-            child: const Text('View Lead'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _openLeadDetail(Map<String, dynamic> notif) {
     final leadId = notif['leadId'];
@@ -459,7 +305,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             icon: const Icon(Icons.more_vert, size: 20),
             onSelected: (val) {
               if (val == 'mark_all_read') _markAllRead();
-              if (val == 'test_alert') _triggerTestAlert();
               if (val == 'clear_all') _confirmClearAllNotifications();
             },
             itemBuilder: (ctx) => [
@@ -473,17 +318,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   ],
                 ),
               ),
-              if (_isAdminUser)
-                const PopupMenuItem(
-                  value: 'test_alert',
-                  child: Row(
-                    children: [
-                      Icon(Icons.bolt, size: 18, color: Color(0xFF1877F2)),
-                      SizedBox(width: 10),
-                      Text('Send Test Lead Alert'),
-                    ],
-                  ),
-                ),
               if (_isAdminUser)
                 const PopupMenuItem(
                   value: 'clear_all',
@@ -538,40 +372,17 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           border: Border(top: BorderSide(color: AppTheme.border)),
         ),
         child: SafeArea(
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _unreadCount == 0 ? null : _markAllRead,
-                  icon: const Icon(Icons.done_all, size: 16),
-                  label: const Text('Mark All Read'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _unreadCount == 0 ? null : _markAllRead,
+              icon: const Icon(Icons.done_all, size: 18),
+              label: const Text('Mark All Read', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isSendingTest ? null : _triggerTestAlert,
-                  icon: _isSendingTest
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add_alert, size: 16),
-                  label: const Text('Send Test Alert'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -614,16 +425,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
               ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _isSendingTest ? null : _triggerTestAlert,
-                icon: const Icon(Icons.bolt, size: 16),
-                label: const Text('Trigger Test Lead Notification'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                ),
-              ),
+
             ],
           ),
         ),
