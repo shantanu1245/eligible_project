@@ -13,6 +13,8 @@ router.post('/discover', metaController.discover);
 router.post('/test-connection', metaController.testConnection);
 router.post('/extend-token', metaController.extendToken);
 router.get('/lead-forms', metaController.getLeadForms);
+router.get('/leadgen-forms', metaController.getLeadForms);
+router.post('/lead-forms', metaController.createLeadForm);
 
 // Meta Marketing API Assets (Ad Accounts, Campaigns, Ad Sets, Ads)
 router.get('/accounts', metaController.getAccounts);

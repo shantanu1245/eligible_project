@@ -93,6 +93,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       'gradient': <Color>[const Color(0xFF1E3A8A), const Color(0xFF3B82F6)],
       'badge': 'Lowest ROI 10.49%',
       'icon': Icons.account_balance_wallet_rounded,
+      'imageUrl': 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1080',
     },
     {
       'title': 'Home Loan & Balance Transfer',
@@ -100,6 +101,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       'gradient': <Color>[const Color(0xFF065F46), const Color(0xFF10B981)],
       'badge': 'Subsidy Eligible',
       'icon': Icons.home_work_rounded,
+      'imageUrl': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1080',
     },
     {
       'title': 'Collateral Free Business Loan',
@@ -107,6 +109,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       'gradient': <Color>[const Color(0xFF7C2D12), const Color(0xFFF97316)],
       'badge': 'No Collateral',
       'icon': Icons.business_center_rounded,
+      'imageUrl': 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=1080',
     },
     {
       'title': 'Loan Against Property (LAP)',
@@ -114,6 +117,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       'gradient': <Color>[const Color(0xFF4C1D95), const Color(0xFF8B5CF6)],
       'badge': 'High Value Disbursals',
       'icon': Icons.domain_rounded,
+      'imageUrl': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1080',
     },
   ];
 
@@ -137,8 +141,60 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   // Preview Mode
   String _previewPlatform = 'FACEBOOK_FEED'; // FACEBOOK_FEED, INSTAGRAM_FEED, INSTAGRAM_STORY
 
+  // Meta Lead Forms State
+  List<Map<String, dynamic>> _metaLeadForms = [];
+  String? _selectedFormId;
+  String? _selectedFormName;
+  bool _isLoadingForms = false;
+  final _customFormIdController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetaLeadForms();
+  }
+
+  Future<void> _loadMetaLeadForms() async {
+    setState(() => _isLoadingForms = true);
+    final forms = await _backend.getMetaLeadForms();
+    if (mounted) {
+      setState(() {
+        _metaLeadForms = forms;
+        _isLoadingForms = false;
+        if (_metaLeadForms.isNotEmpty && _selectedFormId == null) {
+          _selectedFormId = _metaLeadForms.first['id']?.toString();
+          _selectedFormName = _metaLeadForms.first['name']?.toString();
+        }
+      });
+    }
+  }
+
+  Future<void> _generateDefaultLeadForm() async {
+    setState(() => _isLoadingForms = true);
+    final res = await _backend.createMetaLeadForm(name: 'Eligible Fast Loan Application');
+    final newForm = res['data'];
+    if (newForm != null && newForm['id'] != null) {
+      setState(() {
+        _selectedFormId = newForm['id'].toString();
+        _selectedFormName = newForm['name']?.toString() ?? 'Eligible Fast Loan Application';
+      });
+      await _loadMetaLeadForms();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ New Meta Instant Lead Form created on Facebook Page!'),
+            backgroundColor: Color(0xFF16A34A),
+          ),
+        );
+      }
+    } else {
+      setState(() => _isLoadingForms = false);
+    }
+  }
+
   @override
   void dispose() {
+    _customFormIdController.dispose();
     _campaignNameController.dispose();
     _budgetController.dispose();
     _adSetNameController.dispose();
@@ -192,6 +248,14 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         ..._targetedAreas.map((a) => 'Area: $a (${_dropPinRadiusKm.toInt()}km)'),
       ];
 
+      final selectedPreset = _creativePresets[_selectedCreativePresetIndex];
+      final imageUrl = selectedPreset['imageUrl'] as String?;
+      final effectiveFormId = _selectedFormId?.trim().isNotEmpty == true
+          ? _selectedFormId
+          : (_customFormIdController.text.trim().isNotEmpty
+              ? _customFormIdController.text.trim()
+              : null);
+
       final res = await _backend.createCampaign(
         name: name,
         dailyBudget: budget,
@@ -201,6 +265,9 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         targetLocations: allLocations.isNotEmpty ? allLocations : ['IN'],
         headline: _headlineController.text.trim(),
         bodyText: _primaryTextController.text.trim(),
+        imageUrl: imageUrl,
+        formId: effectiveFormId,
+        specialAdCategory: _specialAdCategory,
       );
 
       if (mounted) {
@@ -821,6 +888,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             _buildDestinationTile('WHATSAPP', '💬 WhatsApp Chat', 'Direct click-to-WhatsApp conversation to qualify borrower in real-time'),
             _buildDestinationTile('WEBSITE', '🌐 Website / EMI Calculator', 'Send traffic to eligible.co.in or dedicated loan landing pages'),
             _buildDestinationTile('CALLS', '📞 Direct Phone Calls', 'Show "Call Now" button for direct inbound phone inquiries'),
+            if (_conversionLocation == 'ON_AD') ...[
+              const SizedBox(height: 12),
+              _buildMetaLeadFormSelector(),
+            ],
           ],
         ),
 
@@ -1653,6 +1724,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             _buildReviewRow('Demographics', 'Age ${_minAge.toInt()}-${_maxAge.toInt()} • $_selectedGender'),
             _buildReviewRow('Placements', _useAdvantagePlacements ? 'Advantage+ (Automatic FB & IG)' : 'Manual Selection'),
             _buildReviewRow('Ad Format', _adFormat == 'SINGLE_IMAGE' ? 'Single Image / Video' : 'Carousel'),
+            _buildReviewRow('Connected Lead Form', _selectedFormName ?? _selectedFormId ?? 'Eligible Default Form'),
             _buildReviewRow('Lead Questions (${_formQuestions.length})', _formQuestions.join(', ')),
           ],
         ),
@@ -1823,6 +1895,134 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         ),
         subtitle: Text(description, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
         onChanged: (val) => setState(() => _selectedObjective = val ?? 'OUTCOME_LEADS'),
+      ),
+    );
+  }
+
+  Widget _buildMetaLeadFormSelector() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.dynamic_form_rounded, color: Color(0xFF16A34A), size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Connected Meta Lead Form (Live Ads)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF166534)),
+                ),
+              ),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.refresh, size: 16, color: Color(0xFF15803D)),
+                onPressed: _loadMetaLeadForms,
+                tooltip: 'Refresh Forms',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoadingForms)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+            )
+          else if (_metaLeadForms.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedFormId,
+                  isExpanded: true,
+                  hint: const Text('Select a Meta Lead Form', style: TextStyle(fontSize: 12)),
+                  items: _metaLeadForms.map((f) {
+                    return DropdownMenuItem<String>(
+                      value: f['id']?.toString(),
+                      child: Text(
+                        '${f['name']} (ID: ${f['id']})',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedFormId = val;
+                      final form = _metaLeadForms.firstWhere((f) => f['id']?.toString() == val, orElse: () => {});
+                      _selectedFormName = form['name']?.toString();
+                    });
+                  },
+                ),
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+              child: const Text(
+                'No existing lead forms found on your Facebook Page. Tap below to automatically create one with Borrower Name, Phone, Email & City questions.',
+                style: TextStyle(fontSize: 11, color: Color(0xFF475569)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _generateDefaultLeadForm,
+                    icon: const Icon(Icons.add_circle_outline, size: 16),
+                    label: const Text('Auto-Create Loan Lead Form', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          TextField(
+            controller: _customFormIdController,
+            decoration: InputDecoration(
+              labelText: 'Or enter Meta Form ID manually',
+              hintText: 'e.g. 1354679121056277_form',
+              isDense: true,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+            ),
+            onChanged: (val) {
+              if (val.trim().isNotEmpty) {
+                setState(() {
+                  _selectedFormId = val.trim();
+                  _selectedFormName = 'Custom Form ($val)';
+                });
+              }
+            },
+          ),
+        ],
       ),
     );
   }

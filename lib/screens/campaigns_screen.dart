@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'meta_setup_screen.dart';
@@ -344,6 +345,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                 children: [
                   _buildAccountSelector(),
+                  _buildMetaBillingBalanceCard(),
                   const SizedBox(height: 14),
                   _buildDateFilterRow(),
                   const SizedBox(height: 14),
@@ -437,6 +439,152 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                 Text('Active', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic>? get _currentAccount {
+    if (_adAccounts.isEmpty) return null;
+    return _adAccounts.firstWhere(
+      (a) => a['id'] == _selectedAdAccountId,
+      orElse: () => _adAccounts.first,
+    );
+  }
+
+  Widget _buildMetaBillingBalanceCard() {
+    final account = _currentAccount;
+    if (account == null) return const SizedBox();
+
+    final currency = account['currency'] ?? 'INR';
+    final currencySymbol = currency == 'INR' ? '₹' : '$currency ';
+    final balance = (account['balance'] as num?)?.toDouble() ?? 0.0;
+    final amountSpent = (account['amountSpent'] as num?)?.toDouble() ?? 0.0;
+    final status = (account['status'] ?? 'ACTIVE').toString().toUpperCase();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Color(0x18000000), blurRadius: 10, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0668E1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Meta Ad Account Wallet',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: status == 'ACTIVE' ? const Color(0xFF15803D) : const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('CURRENT DUE / BALANCE', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$currencySymbol${balance.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 32, color: const Color(0xFF334155)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('LIFETIME AD SPENT', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$currencySymbol${amountSpent.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Color(0xFF60A5FA), fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    final uri = Uri.parse('https://adsmanager.facebook.com/billing');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.add_card_rounded, size: 16),
+                  label: const Text('Add Funds / Recharge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Color(0xFF475569)),
+                  minimumSize: const Size(0, 38),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () async {
+                  setState(() => _isLoading = true);
+                  await _initializeData();
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Refresh', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
         ],
       ),

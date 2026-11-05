@@ -190,7 +190,10 @@ class BackendService {
     List<String> targetLocations = const ['IN'],
     String? headline,
     String? bodyText,
+    String? imageUrl,
     String? formId,
+    String? pageId,
+    String specialAdCategory = 'CREDIT',
   }) async {
     try {
       final res = await http
@@ -204,7 +207,10 @@ class BackendService {
               'targetLocations': targetLocations,
               'headline': headline,
               'bodyText': bodyText,
+              'imageUrl': imageUrl,
               'formId': formId,
+              'pageId': pageId,
+              'specialAdCategory': specialAdCategory,
               'status': 'ACTIVE',
             }),
           )
@@ -490,7 +496,8 @@ class BackendService {
       if (pageId != null) query['pageId'] = pageId;
       if (forceRefresh) query['refresh'] = 'true';
 
-      final res = await _safeGet('meta/leadgen-forms', query: query.isNotEmpty ? query : null);
+      var res = await _safeGet('meta/lead-forms', query: query.isNotEmpty ? query : null);
+      res ??= await _safeGet('meta/leadgen-forms', query: query.isNotEmpty ? query : null);
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
@@ -504,6 +511,24 @@ class BackendService {
       debugPrint('[BackendService] getMetaLeadForms error: $e');
     }
     return [];
+  }
+
+  /// Create a new Lead Form on Meta Facebook Page
+  Future<Map<String, dynamic>> createMetaLeadForm({String? pageId, String name = 'Eligible Loan Application'}) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/meta/lead-forms'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'pageId': pageId, 'name': name}),
+          )
+          .timeout(const Duration(seconds: 12));
+      clearMetaCache();
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('[BackendService] createMetaLeadForm error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
   /// Loan Calculator Web App & Database Base URL (default local port 3000)

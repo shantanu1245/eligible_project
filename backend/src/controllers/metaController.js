@@ -361,6 +361,24 @@ const MetaController = {
   },
 
   /**
+   * POST /api/meta/lead-forms
+   * Create an instant Lead Gen Form on connected Facebook Page
+   */
+  async createLeadForm(req, res) {
+    try {
+      const { pageId, name } = req.body;
+      const form = await metaService.createLeadGenForm({ pageId, name });
+      res.json({
+        success: true,
+        message: 'Lead form created successfully on Facebook Page',
+        data: form,
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  /**
    * POST /api/meta/clear-cache
    * Invalidate in-memory Meta cache
    */

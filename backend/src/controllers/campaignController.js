@@ -59,6 +59,8 @@ const CampaignController = {
         formId,
         headline,
         bodyText,
+        imageUrl,
+        specialAdCategory,
         status = 'ACTIVE',
       } = req.body;
 
@@ -66,7 +68,7 @@ const CampaignController = {
         return res.status(400).json({ success: false, message: 'Campaign name is required' });
       }
 
-      console.log(`✨ [CampaignController] Creating new Meta Ads Campaign: "${name}"`);
+      console.log(`✨ [CampaignController] Creating new Meta Ads Campaign: "${name}" (Form: ${formId || 'none'})`);
 
       // Execute Meta Marketing API creation pipeline
       const metaResult = await metaService.createFullLeadCampaign({
@@ -76,8 +78,10 @@ const CampaignController = {
         targetLocations: Array.isArray(targetLocations) ? targetLocations : ['IN'],
         pageId,
         formId,
-        headline: headline || `${name} - Exclusive Enquiries`,
-        bodyText: bodyText || 'Book your site visit today. Fast response guaranteed.',
+        headline: headline || `${name} - Instant Loan Approval`,
+        bodyText: bodyText || 'Check your loan eligibility in 2 minutes. Quick paperless sanction guaranteed.',
+        imageUrl: imageUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1080',
+        specialAdCategory: specialAdCategory || 'CREDIT',
         status: status || 'ACTIVE',
       });
 
