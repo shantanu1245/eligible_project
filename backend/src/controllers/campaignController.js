@@ -60,6 +60,11 @@ const CampaignController = {
         headline,
         bodyText,
         imageUrl,
+        imageHash,
+        minAge,
+        maxAge,
+        gender,
+        interests,
         specialAdCategory,
         status = 'ACTIVE',
       } = req.body;
@@ -81,6 +86,11 @@ const CampaignController = {
         headline: headline || `${name} - Instant Loan Approval`,
         bodyText: bodyText || 'Check your loan eligibility in 2 minutes. Quick paperless sanction guaranteed.',
         imageUrl: imageUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1080',
+        imageHash: imageHash || null,
+        minAge: minAge || null,
+        maxAge: maxAge || null,
+        gender: gender || null,
+        interests: interests || null,
         specialAdCategory: specialAdCategory || 'CREDIT',
         status: status || 'ACTIVE',
       });

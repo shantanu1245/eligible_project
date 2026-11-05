@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 
@@ -13,6 +15,62 @@ class CreateMetaCampaignScreen extends StatefulWidget {
 
 class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   final BackendService _backend = BackendService();
+  final ImagePicker _picker = ImagePicker();
+  Uint8List? _customBannerBytes;
+  String? _customBannerName;
+
+  Future<void> _pickCustomImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          _customBannerBytes = bytes;
+          _customBannerName = pickedFile.name;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Custom banner attached: ${pickedFile.name}')),
+                ],
+              ),
+              backgroundColor: const Color(0xFF16A34A),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick image: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
+  void _clearCustomImage() {
+    setState(() {
+      _customBannerBytes = null;
+      _customBannerName = null;
+    });
+  }
+
 
   int _currentStep = 0; // 0: Campaign, 1: Ad Set & Targeting, 2: Ad Creative, 3: Review & Publish
   bool _isPublishing = false;
@@ -249,7 +307,27 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       ];
 
       final selectedPreset = _creativePresets[_selectedCreativePresetIndex];
-      final imageUrl = selectedPreset['imageUrl'] as String?;
+      String? imageUrl = selectedPreset['imageUrl'] as String?;
+      String? imageHash;
+
+      // If user selected a custom banner, upload directly to Meta Ad Images
+      if (_customBannerBytes != null) {
+        final uploadRes = await _backend.uploadAdImage(
+          imageBytes: _customBannerBytes!,
+          filename: _customBannerName ?? 'ad_banner.jpg',
+        );
+
+        if (uploadRes['success'] == true) {
+          imageHash = uploadRes['hash'];
+          if (uploadRes['url'] != null) {
+            imageUrl = uploadRes['url'];
+          }
+          debugPrint('[CreateCampaign] Custom image uploaded to Meta. Hash: $imageHash');
+        } else {
+          debugPrint('[CreateCampaign] Image upload fallback note: ${uploadRes["message"]}');
+        }
+      }
+
       final effectiveFormId = _selectedFormId?.trim().isNotEmpty == true
           ? _selectedFormId
           : (_customFormIdController.text.trim().isNotEmpty
@@ -266,6 +344,11 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         headline: _headlineController.text.trim(),
         bodyText: _primaryTextController.text.trim(),
         imageUrl: imageUrl,
+        imageHash: imageHash,
+        minAge: _minAge.toInt(),
+        maxAge: _maxAge.toInt(),
+        gender: _selectedGender,
+        interests: _selectedInterests.toList(),
         formId: effectiveFormId,
         specialAdCategory: _specialAdCategory,
       );
@@ -1286,6 +1369,136 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   // ===========================================================================
   // STEP 3: CREATIVE & PLACEMENTS
   // ===========================================================================
+  Widget _buildCustomBannerPicker() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _customBannerBytes != null ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _customBannerBytes != null ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
+          width: _customBannerBytes != null ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _customBannerBytes != null ? const Color(0xFFDCFCE7) : const Color(0xFFE0E7FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _customBannerBytes != null ? Icons.image_rounded : Icons.add_photo_alternate_rounded,
+                  size: 18,
+                  color: _customBannerBytes != null ? const Color(0xFF16A34A) : const Color(0xFF4338CA),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _customBannerBytes != null ? 'Custom Ad Banner Attached' : 'Upload Custom Banner / Flyer',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                    ),
+                    Text(
+                      _customBannerBytes != null
+                          ? '${_customBannerName ?? "banner.jpg"} • Used for Live Meta Ad Creative'
+                          : 'Pick from your phone gallery or camera to use your own banner for the ad',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _customBannerBytes != null ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_customBannerBytes != null)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.red, size: 20),
+                  tooltip: 'Remove Custom Banner',
+                  onPressed: _clearCustomImage,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_customBannerBytes != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  Image.memory(
+                    _customBannerBytes!,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle_rounded, color: Color(0xFF4ADE80), size: 14),
+                          SizedBox(width: 4),
+                          Text('ACTIVE AD CREATIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickCustomImage(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_rounded, size: 16),
+                  label: Text(_customBannerBytes == null ? 'Choose from Gallery' : 'Replace Image'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0668E1),
+                    side: const BorderSide(color: Color(0xFFBFDBFE)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    minimumSize: const Size(0, 42),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _pickCustomImage(ImageSource.camera),
+                icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                label: const Text('Camera'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF334155),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  minimumSize: const Size(0, 42),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStep3AdCreative() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1442,6 +1655,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
 
             const SizedBox(height: 16),
 
+            _buildCustomBannerPicker(),
             const Text('SELECT LOAN BANNER PRESET', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
             const SizedBox(height: 8),
             SingleChildScrollView(
@@ -2324,33 +2538,41 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
           const SizedBox(height: 10),
 
           // Image / Banner Box
-          Container(
-            height: 180,
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: (activePreset['gradient'] as List).cast<Color>()),
+          if (_customBannerBytes != null)
+            Image.memory(
+              _customBannerBytes!,
+              height: 200,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            )
+          else
+            Container(
+              height: 180,
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: (activePreset['gradient'] as List).cast<Color>()),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
+                    child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 4),
+                      Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
-                  child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 4),
-                    Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  ],
-                ),
-              ],
-            ),
-          ),
 
           // Bottom CTA bar
           Container(
@@ -2466,39 +2688,47 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
           ),
 
           // Square 1:1 Creative
-          Container(
-            height: 220,
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: (activePreset['gradient'] as List).cast<Color>()),
+          if (_customBannerBytes != null)
+            Image.memory(
+              _customBannerBytes!,
+              height: 220,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            )
+          else
+            Container(
+              height: 220,
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: (activePreset['gradient'] as List).cast<Color>()),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
+                        child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      const Icon(Icons.bolt_rounded, color: Colors.amber, size: 20),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 6),
+                      Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
-                      child: Text(activePreset['badge'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                    const Icon(Icons.bolt_rounded, color: Colors.amber, size: 20),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(activePreset['title'] as String, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 6),
-                    Text(activePreset['banner'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  ],
-                ),
-              ],
-            ),
-          ),
 
           // Instagram Action Strip (Full-width Call to Action button)
           InkWell(
@@ -2564,11 +2794,21 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       height: 380,
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: (activePreset['gradient'] as List).cast<Color>(),
-        ),
+        color: Colors.black,
+        image: _customBannerBytes != null
+            ? DecorationImage(
+                image: MemoryImage(_customBannerBytes!),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.35), BlendMode.darken),
+              )
+            : null,
+        gradient: _customBannerBytes == null
+            ? LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: (activePreset['gradient'] as List).cast<Color>(),
+              )
+            : null,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))],
       ),

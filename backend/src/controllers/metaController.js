@@ -382,6 +382,38 @@ const MetaController = {
    * POST /api/meta/clear-cache
    * Invalidate in-memory Meta cache
    */
+    /**
+   * POST /api/meta/upload-image
+   * Uploads an ad banner/image to Meta Marketing API
+   * Accepts { imageBase64, filename }
+   */
+  async uploadImage(req, res) {
+    try {
+      const { imageBase64, filename } = req.body;
+      if (!imageBase64) {
+        return res.status(400).json({ success: false, message: 'imageBase64 is required' });
+      }
+
+      const result = await metaService.uploadAdImage({
+        imageBase64,
+        filename: filename || 'ad_creative.jpg',
+      });
+
+      res.json({
+        success: true,
+        message: 'Image uploaded successfully to Meta Ad Account',
+        data: result,
+      });
+    } catch (err) {
+      console.error('❌ [Upload Ad Image Error]:', err.message);
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message,
+        details: err.response?.data?.error || null,
+      });
+    }
+  },
+
   async clearCache(req, res) {
     metaService.clearCache();
     res.json({ success: true, message: 'Meta cache cleared successfully' });

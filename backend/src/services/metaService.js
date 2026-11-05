@@ -1179,12 +1179,128 @@ class MetaService {
     });
   }
 
+  /**
+   * Upload an Ad Image to Meta Ad Account
+   * Accepts base64 encoded image data and returns image hash and URL
+   */
+  async uploadAdImage({ imageBase64, filename = 'ad_creative.jpg' }) {
+    if (!this.isConfigured()) {
+      const mockHash = crypto.createHash('md5').update(Date.now().toString()).digest('hex');
+      return {
+        success: true,
+        hash: mockHash,
+        url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1080',
+        simulated: true,
+      };
+    }
+
+    try {
+      let cleanBase64 = imageBase64;
+      if (cleanBase64.includes(';base64,')) {
+        cleanBase64 = cleanBase64.split(';base64,')[1];
+      }
+
+      const res = await this._request('POST', `/${this.adAccountId}/adimages`, {
+        bytes: cleanBase64,
+        filename: filename || 'ad_image.jpg',
+      });
+
+      let hash = null;
+      let url = null;
+      if (res && res.images) {
+        const firstKey = Object.keys(res.images)[0];
+        if (firstKey && res.images[firstKey]) {
+          hash = res.images[firstKey].hash;
+          url = res.images[firstKey].url;
+        }
+      }
+
+      if (!hash) {
+        throw new Error('Meta did not return an image hash');
+      }
+
+      console.log(`✅ [MetaService] Ad image uploaded successfully. Hash: ${hash}`);
+      return {
+        success: true,
+        hash,
+        url,
+      };
+    } catch (err) {
+      console.error('❌ [MetaService] uploadAdImage error:', err.response?.data?.error || err.message);
+      throw err;
+    }
+  }
+
   async createAdSet(params) {
     if (!this.isConfigured()) {
       return { id: `sim_adset_${Date.now()}`, ...params };
     }
-    const { campaignId, name, dailyBudget = 1000, countries = ['IN'], pageId = this.pageId, status = 'ACTIVE' } = params;
+    const {
+      campaignId,
+      name,
+      dailyBudget = 1000,
+      targetLocations = ['IN'],
+      countries: legacyCountries,
+      minAge,
+      maxAge,
+      gender,
+      interests,
+      pageId = this.pageId,
+      status = 'ACTIVE',
+    } = params;
     const startTime = new Date(Date.now() + 60000).toISOString();
+
+    // Parse targeting: Extract 6-digit Indian PIN codes, separate ISO country codes
+    const countries = [];
+    const zips = [];
+    const rawLocs = Array.isArray(targetLocations)
+      ? targetLocations
+      : Array.isArray(legacyCountries)
+      ? legacyCountries
+      : [targetLocations || legacyCountries || 'IN'];
+
+    for (const loc of rawLocs) {
+      if (!loc) continue;
+      const str = String(loc).trim();
+      const pinMatches = str.match(/\b\d{6}\b/g);
+      if (pinMatches) {
+        for (const pin of pinMatches) {
+          zips.push({ key: `IN:${pin}` });
+        }
+      } else if (str.length === 2 && /^[A-Za-z]{2}$/.test(str)) {
+        countries.push(str.toUpperCase());
+      }
+    }
+
+    if (countries.length === 0) {
+      countries.push('IN');
+    }
+
+    const geoLocations = { countries };
+    if (zips.length > 0) {
+      geoLocations.zips = zips;
+    }
+
+    const targeting = {
+      geo_locations: geoLocations,
+    };
+
+    if (minAge) {
+      targeting.age_min = Math.max(18, Math.min(65, parseInt(minAge, 10)));
+    }
+    if (maxAge) {
+      targeting.age_max = Math.max(18, Math.min(65, parseInt(maxAge, 10)));
+    }
+
+    if (gender) {
+      const gUpper = String(gender).toUpperCase();
+      if (gUpper === 'MEN' || gUpper === 'MALE') {
+        targeting.genders = [1];
+      } else if (gUpper === 'WOMEN' || gUpper === 'FEMALE') {
+        targeting.genders = [2];
+      }
+    }
+
     return await this._request('POST', `/${this.adAccountId}/adsets`, {
       name: `${name} - Ad Set`,
       campaign_id: campaignId,
@@ -1195,28 +1311,37 @@ class MetaService {
       start_time: startTime,
       status,
       promoted_object: { page_id: pageId },
-      targeting: { geo_locations: { countries } },
+      targeting,
     });
   }
 
-  async createAdCreative({ name, pageId = this.pageId, leadFormId, headline, bodyText, imageUrl }) {
+  async createAdCreative({ name, pageId = this.pageId, leadFormId, headline, bodyText, imageUrl, imageHash }) {
     if (!this.isConfigured()) {
       return { id: `sim_creative_${Date.now()}`, name };
     }
+    const linkData = {
+      call_to_action: {
+        type: 'SIGN_UP',
+        value: { lead_gen_form_id: leadFormId },
+      },
+      link: `http://facebook.com/${pageId}`,
+      message: bodyText || 'Discover premier residential and commercial properties with Eligible CRM.',
+      name: headline || 'Exclusive Property Enquiries & Tours',
+    };
+
+    if (imageHash) {
+      linkData.image_hash = imageHash;
+    } else if (imageUrl) {
+      linkData.picture = imageUrl;
+    } else {
+      linkData.picture = 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1080';
+    }
+
     const payload = {
       name: `${name} - Creative`,
       object_story_spec: {
         page_id: pageId,
-        link_data: {
-          call_to_action: {
-            type: 'SIGN_UP',
-            value: { lead_gen_form_id: leadFormId },
-          },
-          link: `http://facebook.com/${pageId}`,
-          message: bodyText || 'Discover premier residential and commercial properties with Eligible CRM.',
-          name: headline || 'Exclusive Property Enquiries & Tours',
-          picture: imageUrl || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
-        },
+        link_data: linkData,
       },
     };
     return await this._request('POST', `/${this.adAccountId}/adcreatives`, payload);

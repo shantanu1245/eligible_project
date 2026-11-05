@@ -182,6 +182,45 @@ class BackendService {
     return [];
   }
 
+  /// Upload Ad Image to Meta Graph API via Backend
+  /// Accepts image bytes and returns { success, hash, url }
+  Future<Map<String, dynamic>> uploadAdImage({
+    required List<int> imageBytes,
+    String filename = 'ad_creative.jpg',
+  }) async {
+    try {
+      final base64String = base64Encode(imageBytes);
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/meta/upload-image'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'imageBase64': base64String,
+              'filename': filename,
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        return {
+          'success': true,
+          'hash': data['data']?['hash'],
+          'url': data['data']?['url'],
+        };
+      } else {
+        final err = jsonDecode(res.body);
+        return {
+          'success': false,
+          'message': err['message'] ?? err['error'] ?? 'Image upload failed',
+        };
+      }
+    } catch (e) {
+      debugPrint('[BackendService] uploadAdImage error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   /// Create a new Meta Ads Campaign from Eligible CRM
   Future<Map<String, dynamic>> createCampaign({
     required String name,
@@ -191,6 +230,11 @@ class BackendService {
     String? headline,
     String? bodyText,
     String? imageUrl,
+    String? imageHash,
+    int? minAge,
+    int? maxAge,
+    String? gender,
+    List<String>? interests,
     String? formId,
     String? pageId,
     String specialAdCategory = 'CREDIT',
@@ -208,13 +252,18 @@ class BackendService {
               'headline': headline,
               'bodyText': bodyText,
               'imageUrl': imageUrl,
+              'imageHash': imageHash,
+              'minAge': minAge,
+              'maxAge': maxAge,
+              'gender': gender,
+              'interests': interests,
               'formId': formId,
               'pageId': pageId,
               'specialAdCategory': specialAdCategory,
               'status': 'ACTIVE',
             }),
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 18));
 
       final data = jsonDecode(res.body);
       return data;
