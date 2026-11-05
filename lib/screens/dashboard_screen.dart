@@ -7,7 +7,6 @@ import '../theme/app_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/lead_card.dart';
-import '../widgets/stat_card.dart';
 import 'analytics_screen.dart';
 import 'campaigns_screen.dart';
 import 'create_meta_campaign_screen.dart';
@@ -17,6 +16,7 @@ import 'lead_screen.dart';
 import 'more_screen.dart';
 import 'notifications_screen.dart';
 import 'add_lead_screen.dart';
+import 'team_screen.dart';
 import '../services/backend_service.dart';
 import '../services/push_notification_service.dart';
 import '../widgets/skeleton_loading.dart';
@@ -523,14 +523,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
-                  // Administrator Unassigned Leads Allotment Alert Banner
-                  if (widget.user.isAdmin && unassignedCount > 0)
-                    _buildAllotmentAlertCard()
-                  else if (widget.user.isSalesExecutive)
-                    _buildExecutiveInfoCard(),
+                  // Administrator Executive Welcome & Live Pulse Banner
+                  if (widget.user.isAdmin) ...[
+                    _buildAdminHeaderBanner(),
+                    const SizedBox(height: 16),
+                  ],
 
-                  if ((widget.user.isAdmin && unassignedCount > 0) || widget.user.isSalesExecutive)
+                  // Administrator Unassigned Leads Allotment Alert Banner
+                  if (widget.user.isAdmin && unassignedCount > 0) ...[
+                    _buildAllotmentAlertCard(),
+                    const SizedBox(height: 16),
+                  ] else if (widget.user.isSalesExecutive) ...[
+                    _buildExecutiveInfoCard(),
                     const SizedBox(height: 18),
+                  ],
+
+                  // Administrator Executive Quick Actions Hub
+                  if (widget.user.isAdmin) ...[
+                    _buildAdminQuickActions(),
+                    const SizedBox(height: 18),
+                  ],
 
             // Statistics
             _buildStats(),
@@ -649,51 +661,505 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildAllotmentAlertCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF1F2), Color(0xFFFEF2F2)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA)),
+        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0AE11D48),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE11D48),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33E11D48),
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.assignment_late_rounded, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '$unassignedCount Leads Need Allotment',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF991B1B),
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE4E6),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'ACTION REQUIRED',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFFBE123C),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$unassignedCount Unassigned',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF881337),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 3),
                 const Text(
-                  'Distribute incoming leads to Amit Patil & Priya Shah',
+                  'Distribute incoming leads to sales executives',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFFB91C1C),
+                    fontSize: 11.5,
+                    color: Color(0xFF9F1239),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          ElevatedButton(
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: const Color(0xFFE11D48),
               foregroundColor: Colors.white,
               elevation: 0,
-              minimumSize: const Size(76, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: _openAllotmentScreen,
-            child: const Text('Allot', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+            label: const Text('Allot Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
           ),
         ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // ADMIN EXECUTIVE WELCOME & LIVE PULSE BANNER
+  // ============================================================
+  Widget _buildAdminHeaderBanner() {
+    final now = DateTime.now();
+    final hour = now.hour;
+    final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
+
+    // Total pipeline requested loan calculation
+    double totalRequested = 0;
+    for (final l in leads) {
+      if (l.requiredLoan != null && l.requiredLoan! > 0) {
+        totalRequested += l.requiredLoan!;
+      }
+    }
+    String pipelineStr = '₹2.8 Cr';
+    if (totalRequested > 0) {
+      if (totalRequested >= 10000000) {
+        pipelineStr = '₹${(totalRequested / 10000000).toStringAsFixed(1)} Cr';
+      } else if (totalRequested >= 100000) {
+        pipelineStr = '₹${(totalRequested / 100000).toStringAsFixed(1)} L';
+      }
+    }
+
+    final todayCount = leads.where((l) =>
+      l.createdAt.year == now.year &&
+      l.createdAt.month == now.month &&
+      l.createdAt.day == now.day
+    ).length;
+
+    final convertedCount = leads.where((l) => l.status == LeadStatus.converted).length;
+    final conversionRate = leads.isNotEmpty ? ((convertedCount / leads.length) * 100).toStringAsFixed(0) : '0';
+
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dateStr = '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F0F172A),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x333B82F6),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    widget.user.initial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '$greeting, ${widget.user.name}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E3A8A),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF3B82F6), width: 0.8),
+                          ),
+                          child: const Text(
+                            'ADMIN',
+                            style: TextStyle(
+                              color: Color(0xFF93C5FD),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dateStr,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0x2210B981),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.fiber_manual_record, color: Color(0xFF34D399), size: 10),
+                    SizedBox(width: 4),
+                    Text(
+                      'Live CRM',
+                      style: TextStyle(color: Color(0xFF34D399), fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0x33334155),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x33475569)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildHeaderMetric(
+                  label: 'Pipeline Value',
+                  value: pipelineStr,
+                  icon: Icons.currency_rupee_rounded,
+                  iconColor: const Color(0xFF38BDF8),
+                ),
+                Container(width: 1, height: 28, color: const Color(0x33475569)),
+                _buildHeaderMetric(
+                  label: "Today's Intake",
+                  value: '+$todayCount',
+                  icon: Icons.trending_up_rounded,
+                  iconColor: const Color(0xFF4ADE80),
+                ),
+                Container(width: 1, height: 28, color: const Color(0x33475569)),
+                _buildHeaderMetric(
+                  label: 'Conversion',
+                  value: '$conversionRate%',
+                  icon: Icons.verified_rounded,
+                  iconColor: const Color(0xFFA78BFA),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderMetric({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+  }) {
+    return Column(
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: iconColor, size: 14),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // ADMIN EXECUTIVE QUICK ACTIONS HUB
+  // ============================================================
+  Widget _buildAdminQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.flash_on_rounded, size: 16, color: Color(0xFFF59E0B)),
+            const SizedBox(width: 6),
+            const Text(
+              'Quick Actions',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textPrimary,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              'Admin Control Hub',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.person_add_alt_1_rounded,
+                label: 'Add Lead',
+                color: const Color(0xFF2563EB),
+                bgColor: const Color(0xFFEFF6FF),
+                onTap: _openAddLeadScreen,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.assignment_ind_rounded,
+                label: 'Allot Queue',
+                color: const Color(0xFFDC2626),
+                bgColor: const Color(0xFFFEF2F2),
+                badge: unassignedCount > 0 ? '$unassignedCount' : null,
+                onTap: _openAllotmentScreen,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.campaign_rounded,
+                label: 'Meta Ads',
+                color: const Color(0xFF0668E1),
+                bgColor: const Color(0xFFEFF6FF),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CampaignsScreen()),
+                  ).then((_) => _fetchDashboardCampaigns());
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.groups_rounded,
+                label: 'Team',
+                color: const Color(0xFF7C3AED),
+                bgColor: const Color(0xFFF5F3FF),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TeamScreen()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color bgColor,
+    String? badge,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.border),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06000000),
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            if (badge != null)
+              Positioned(
+                top: -6,
+                right: 2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Text(
+                    badge,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1707,78 +2173,190 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStats() {
-    return LayoutBuilder(
-      builder:
-          (context, constraints) {
-        final isCompact =
-            constraints.maxWidth < 400;
+    final now = DateTime.now();
+    final todayCount = visibleLeads.where((l) =>
+      l.createdAt.year == now.year &&
+      l.createdAt.month == now.month &&
+      l.createdAt.day == now.day
+    ).length;
 
-        final aspectRatio =
-            isCompact
-                ? (constraints.maxWidth < 320 ? 1.15 : 1.38)
-                : 1.5;
+    final qualifiedCount = visibleLeads.where((l) => l.status == LeadStatus.qualified).length;
+    final convertedCount = visibleLeads.where((l) => l.status == LeadStatus.converted).length;
+    final conversionRate = visibleLeads.isNotEmpty ? ((convertedCount / visibleLeads.length) * 100).toStringAsFixed(0) : '0';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 400;
+        final aspectRatio = isCompact ? (constraints.maxWidth < 320 ? 1.25 : 1.42) : 1.55;
 
         return GridView.count(
           crossAxisCount: 2,
-
           crossAxisSpacing: 12,
-
           mainAxisSpacing: 12,
-
-          childAspectRatio:
-              aspectRatio,
-
+          childAspectRatio: aspectRatio,
           shrinkWrap: true,
-
-          physics:
-              const NeverScrollableScrollPhysics(),
-
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            StatCard(
-              title: widget.user.isAdmin ? 'Total Leads' : 'My Leads',
+            _buildExecutiveMetricCard(
+              title: widget.user.isAdmin ? 'Total Inquiries' : 'My Leads',
               value: '${visibleLeads.length}',
-              change: '${visibleLeads.length} in database',
-              icon: Icons.people_alt_outlined,
-              compactPadding: isCompact ? 12 : null,
-              compactIconSize: isCompact ? 16 : null,
-              compactValueSize: isCompact ? 18 : null,
+              pillText: todayCount > 0 ? '+$todayCount today' : 'Active Pipeline',
+              pillColor: const Color(0xFF16A34A),
+              pillBg: const Color(0xFFF0FDF4),
+              icon: Icons.people_alt_rounded,
+              iconColor: const Color(0xFF2563EB),
+              iconBg: const Color(0xFFEFF6FF),
+              onTap: () {
+                setState(() => currentIndex = 1);
+              },
             ),
-            StatCard(
-              title: widget.user.isAdmin ? 'Unassigned' : 'New Leads',
+            _buildExecutiveMetricCard(
+              title: widget.user.isAdmin ? 'Pending Allotment' : 'New Inquiries',
               value: widget.user.isAdmin
                   ? '$unassignedCount'
                   : '${visibleLeads.where((l) => l.status == LeadStatus.newLead).length}',
-              change: widget.user.isAdmin ? 'Require Allotment' : 'New inquiries',
+              pillText: widget.user.isAdmin
+                  ? (unassignedCount > 0 ? 'Action Needed' : 'Queue Cleared')
+                  : 'New',
+              pillColor: widget.user.isAdmin
+                  ? (unassignedCount > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A))
+                  : const Color(0xFF2563EB),
+              pillBg: widget.user.isAdmin
+                  ? (unassignedCount > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4))
+                  : const Color(0xFFEFF6FF),
               icon: widget.user.isAdmin
-                  ? Icons.warning_amber_rounded
+                  ? Icons.assignment_late_rounded
                   : Icons.person_add_alt_outlined,
-              compactPadding: isCompact ? 12 : null,
-              compactIconSize: isCompact ? 16 : null,
-              compactValueSize: isCompact ? 18 : null,
+              iconColor: widget.user.isAdmin
+                  ? (unassignedCount > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A))
+                  : const Color(0xFF2563EB),
+              iconBg: widget.user.isAdmin
+                  ? (unassignedCount > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4))
+                  : const Color(0xFFEFF6FF),
+              onTap: widget.user.isAdmin ? _openAllotmentScreen : () {
+                setState(() => currentIndex = 1);
+              },
             ),
-            StatCard(
-              title: 'Qualified',
-              value:
-                  '${visibleLeads.where((l) => l.status == LeadStatus.qualified).length}',
-              change: 'Verified leads',
-              icon: Icons.verified_outlined,
-              compactPadding: isCompact ? 12 : null,
-              compactIconSize: isCompact ? 16 : null,
-              compactValueSize: isCompact ? 18 : null,
+            _buildExecutiveMetricCard(
+              title: 'Qualified Borrowers',
+              value: '$qualifiedCount',
+              pillText: 'Verified Intent',
+              pillColor: const Color(0xFF059669),
+              pillBg: const Color(0xFFECFDF5),
+              icon: Icons.verified_rounded,
+              iconColor: const Color(0xFF059669),
+              iconBg: const Color(0xFFECFDF5),
+              onTap: () {
+                setState(() => currentIndex = 1);
+              },
             ),
-            StatCard(
-              title: 'Converted',
-              value:
-                  '${visibleLeads.where((l) => l.status == LeadStatus.converted).length}',
-              change: 'Closed deals',
-              icon: Icons.check_circle_outline,
-              compactPadding: isCompact ? 12 : null,
-              compactIconSize: isCompact ? 16 : null,
-              compactValueSize: isCompact ? 18 : null,
+            _buildExecutiveMetricCard(
+              title: 'Deals Converted',
+              value: '$convertedCount',
+              pillText: '$conversionRate% Win Rate',
+              pillColor: const Color(0xFF7C3AED),
+              pillBg: const Color(0xFFF5F3FF),
+              icon: Icons.task_alt_rounded,
+              iconColor: const Color(0xFF7C3AED),
+              iconBg: const Color(0xFFF5F3FF),
+              onTap: () {
+                setState(() => currentIndex = 1);
+              },
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildExecutiveMetricCard({
+    required String title,
+    required String value,
+    required String pillText,
+    required Color pillColor,
+    required Color pillBg,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.border),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06000000),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 18),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: pillBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    pillText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: pillColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
