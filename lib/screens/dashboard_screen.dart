@@ -130,20 +130,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _fetchLeadsFromBackend();
     }
     try {
-      final res = await BackendService().getNotifications();
+      final res = await BackendService().getNotifications(
+        role: widget.user.isAdmin ? 'admin' : 'sales_agent',
+        userName: widget.user.name,
+      );
       final newUnreadCount = (res['unreadCount'] as int?) ?? 0;
       if (mounted && newUnreadCount > _unreadNotifCount) {
         final notifications = (res['data'] as List<dynamic>?) ?? [];
         final latest = notifications.isNotEmpty ? notifications.first as Map<String, dynamic> : null;
-        final leadTitle = latest?['title'] ?? 'New Lead Arrived';
-        final leadBody = latest?['body'] ?? 'A new Meta lead has been received';
+        final targetRole = latest?['targetRole']?.toString().toLowerCase();
+
+        // STRICT RBAC: Do not show admin alerts to non-admin sales agents
+        if (!widget.user.isAdmin && targetRole == 'admin') {
+          return;
+        }
+
+        final leadTitle = latest?['title'] ?? (widget.user.isAdmin ? 'New Lead Arrived' : 'New Lead Allotted');
+        final leadBody = latest?['body'] ?? 'A new lead update is available';
 
         setState(() {
           _unreadNotifCount = newUnreadCount;
         });
 
-        // Trigger in-app live alert banner with physical vibration for Admin
-        if (widget.user.isAdmin && mounted) {
+        // Trigger in-app live alert banner with physical vibration
+        if (mounted) {
           try {
             HapticFeedback.vibrate();
           } catch (_) {}
@@ -216,7 +226,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchUnreadNotificationCount() async {
-    final res = await BackendService().getNotifications();
+    final res = await BackendService().getNotifications(
+      role: widget.user.isAdmin ? 'admin' : 'sales_agent',
+      userName: widget.user.name,
+    );
     if (mounted) {
       setState(() {
         _unreadNotifCount = res['unreadCount'] ?? 0;

@@ -8,11 +8,16 @@ const NotificationController = {
    */
   async getNotifications(req, res) {
     try {
-      const { role, limit = 50, leadId } = req.query;
+      const role = req.query.role || req.headers['x-user-role'];
+      const userName = req.query.userName || req.query.name || req.headers['x-user-name'];
+      const userId = req.query.userId || req.headers['x-user-id'];
+      const { limit = 50, leadId } = req.query;
       const notifications = await firebaseService.getNotifications({
         role,
         limit: parseInt(limit, 10) || 50,
         leadId,
+        userName,
+        userId,
       });
 
       const unreadCount = notifications.filter((n) => !n.read).length;
@@ -48,8 +53,9 @@ const NotificationController = {
    */
   async markAllRead(req, res) {
     try {
-      const { role } = req.body;
-      await firebaseService.markAllNotificationsRead(role);
+      const role = req.body?.role || req.query?.role || req.headers['x-user-role'];
+      const userName = req.body?.userName || req.query?.userName || req.headers['x-user-name'];
+      await firebaseService.markAllNotificationsRead(role, userName);
       res.json({ success: true, message: 'All notifications marked as read' });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });

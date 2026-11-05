@@ -1,3 +1,4 @@
+import 'auth_service.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -138,6 +139,24 @@ class PushNotificationService {
   Future<void> _showForegroundNotification(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
+
+    // Strict role check: Do not show admin push alert on sales agent device
+    final targetRole = message.data['role']?.toString().toLowerCase();
+    final isAdmin = AuthService.instance.currentUser?.isAdmin ?? false;
+    if (targetRole == 'admin' && !isAdmin) {
+      debugPrint('🛡️ [PushNotificationService] Discarding admin push alert on sales agent device');
+      return;
+    }
+
+    // Assignee check: if targeted to a specific agent, ensure it matches current agent
+    final assignedTo = message.data['assignedTo']?.toString();
+    if (!isAdmin && assignedTo != null && assignedTo.isNotEmpty && assignedTo != 'Available for Claim' && assignedTo != 'Unassigned') {
+      final currentName = AuthService.instance.currentUser?.name.toLowerCase().trim() ?? '';
+      if (!assignedTo.toLowerCase().contains(currentName) && !currentName.contains(assignedTo.toLowerCase())) {
+        debugPrint('🛡️ [PushNotificationService] Discarding alert intended for another agent: $assignedTo');
+        return;
+      }
+    }
 
     // Deduplication check: extract unique lead identifier or payload signature
     final leadId = message.data['leadId']?.toString().trim();
@@ -322,9 +341,12 @@ class PushNotificationService {
       if (isAdmin) {
         // Subscribe to admin lead alerts topic
         await _fcm.subscribeToTopic('admin_leads');
+        await _fcm.unsubscribeFromTopic('sales_agents');
         debugPrint('✅ [PushNotificationService] Subscribed to topic: admin_leads');
       } else {
         await _fcm.unsubscribeFromTopic('admin_leads');
+        await _fcm.subscribeToTopic('sales_agents');
+        debugPrint('✅ [PushNotificationService] Subscribed to topic: sales_agents (unsubscribed from admin_leads)');
       }
 
       if (_cachedFcmToken != null && _cachedFcmToken!.isNotEmpty) {

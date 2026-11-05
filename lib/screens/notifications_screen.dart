@@ -35,7 +35,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: _isAdminUser ? 3 : 2, vsync: this);
     _loadNotifications();
   }
 
@@ -47,14 +47,41 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
-    final res = await _backend.getNotifications();
+    final res = await _backend.getNotifications(
+      role: _isAdminUser ? 'admin' : 'sales_agent',
+      userName: widget.currentUser?.name,
+    );
     if (mounted) {
-      final list = (res['data'] as List<dynamic>? ?? [])
+      final rawList = (res['data'] as List<dynamic>? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
+      // Strict client-side filter
+      final list = _isAdminUser
+          ? rawList
+          : rawList.where((n) {
+              final targetRole = n['targetRole']?.toString().toLowerCase();
+              if (targetRole == 'admin') return false;
+              if (targetRole == 'sales_agent' || targetRole == 'all' || targetRole == null) {
+                final assignedTo = (n['assignedTo'] ?? n['targetUserName'] ?? n['targetUserId'])?.toString();
+                if (assignedTo != null && 
+                    assignedTo != 'Available for Claim' && 
+                    assignedTo != 'Unassigned' && 
+                    assignedTo.isNotEmpty) {
+                  final currentName = widget.currentUser?.name.toLowerCase().trim() ?? '';
+                  final assignedLower = assignedTo.toLowerCase().trim();
+                  if (assignedLower != currentName && !assignedLower.contains(currentName) && !currentName.contains(assignedLower)) {
+                    return false;
+                  }
+                }
+                return true;
+              }
+              return false;
+            }).toList();
+
       setState(() {
         _allNotifications = list;
-        _unreadCount = res['unreadCount'] ?? list.where((n) => n['read'] != true).length;
+        _unreadCount = list.where((n) => n['read'] != true).length;
         _isLoading = false;
       });
     }
@@ -76,7 +103,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   Future<void> _markAllRead() async {
-    await _backend.markAllNotificationsRead();
+    await _backend.markAllNotificationsRead(role: _isAdminUser ? 'admin' : 'sales_agent', userName: widget.currentUser?.name);
     if (mounted) {
       setState(() {
         for (final n in _allNotifications) {
@@ -373,16 +400,13 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   Widget build(BuildContext context) {
     final adminNotifs = _allNotifications
-        .where((n) =>
-            n['targetRole'] == 'admin' ||
-            n['targetRole'] == 'all' ||
-            n['targetRole'] == null)
+        .where((n) => n['targetRole'] == 'admin')
         .toList();
     final salesNotifs = _allNotifications
-        .where((n) =>
-            n['targetRole'] == 'sales_agent' ||
-            n['targetRole'] == 'all' ||
-            n['targetRole'] == null)
+        .where((n) => n['targetRole'] == 'sales_agent' || n['targetRole'] == 'all' || n['targetRole'] == null)
+        .toList();
+    final unreadNotifs = _allNotifications
+        .where((n) => n['read'] != true)
         .toList();
 
     return Scaffold(
@@ -449,16 +473,17 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   ],
                 ),
               ),
-              const PopupMenuItem(
-                value: 'test_alert',
-                child: Row(
-                  children: [
-                    Icon(Icons.bolt, size: 18, color: Color(0xFF1877F2)),
-                    SizedBox(width: 10),
-                    Text('Send Test Lead Alert'),
-                  ],
+              if (_isAdminUser)
+                const PopupMenuItem(
+                  value: 'test_alert',
+                  child: Row(
+                    children: [
+                      Icon(Icons.bolt, size: 18, color: Color(0xFF1877F2)),
+                      SizedBox(width: 10),
+                      Text('Send Test Lead Alert'),
+                    ],
+                  ),
                 ),
-              ),
               if (_isAdminUser)
                 const PopupMenuItem(
                   value: 'clear_all',
@@ -479,22 +504,32 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           unselectedLabelColor: AppTheme.textSecondary,
           indicatorColor: AppTheme.primary,
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          tabs: [
-            Tab(text: 'All (${_allNotifications.length})'),
-            Tab(text: 'Admin (${adminNotifs.length})'),
-            Tab(text: 'Sales (${salesNotifs.length})'),
-          ],
+          tabs: _isAdminUser
+              ? [
+                  Tab(text: 'All (${_allNotifications.length})'),
+                  Tab(text: 'Admin (${adminNotifs.length})'),
+                  Tab(text: 'Sales (${salesNotifs.length})'),
+                ]
+              : [
+                  Tab(text: 'All Alerts (${_allNotifications.length})'),
+                  Tab(text: 'Unread (${unreadNotifs.length})'),
+                ],
         ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
               controller: _tabController,
-              children: [
-                _buildNotificationList(_allNotifications),
-                _buildNotificationList(adminNotifs, emptyLabel: 'No Admin alerts yet'),
-                _buildNotificationList(salesNotifs, emptyLabel: 'No Sales Agent alerts yet'),
-              ],
+              children: _isAdminUser
+                  ? [
+                      _buildNotificationList(_allNotifications),
+                      _buildNotificationList(adminNotifs, emptyLabel: 'No Admin alerts yet'),
+                      _buildNotificationList(salesNotifs, emptyLabel: 'No Sales Agent alerts yet'),
+                    ]
+                  : [
+                      _buildNotificationList(_allNotifications, emptyLabel: 'No notifications yet'),
+                      _buildNotificationList(unreadNotifs, emptyLabel: 'No unread notifications'),
+                    ],
             ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

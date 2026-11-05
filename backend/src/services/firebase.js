@@ -898,7 +898,7 @@ const FirebaseService = {
     return notification;
   },
 
-  async getNotifications({ limit = 50, role, leadId } = {}) {
+  async getNotifications({ limit = 50, role, leadId, userName, userId } = {}) {
     ensureLocalDb();
     let list = [];
 
@@ -907,7 +907,7 @@ const FirebaseService = {
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('RTDB query timeout')), 1500)
         );
-        const fetchPromise = rtdb.ref('notifications').limitToLast(limit).once('value');
+        const fetchPromise = rtdb.ref('notifications').limitToLast(limit * 3).once('value');
         const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
         const val = snapshot.val();
         if (val) {
@@ -922,9 +922,30 @@ const FirebaseService = {
       list = [...localStore.notifications];
     }
 
-    if (role) {
-      list = list.filter((n) => !n.targetRole || n.targetRole === role || n.targetRole === 'all');
+    const cleanRole = (role || '').toLowerCase();
+    if (cleanRole.includes('agent') || cleanRole.includes('executive') || cleanRole.includes('sales')) {
+      // STRICT: Sales agents MUST NEVER receive admin notifications
+      list = list.filter((n) => {
+        const tRole = (n.targetRole || '').toLowerCase();
+        if (tRole === 'admin') return false;
+        if (tRole === 'sales_agent' || tRole === 'all') {
+          if (userName) {
+            const assigned = (n.assignedTo || n.targetUserName || n.targetUserId || '').toLowerCase().trim();
+            const uName = userName.toLowerCase().trim();
+            if (assigned && assigned !== 'available for claim' && assigned !== 'unassigned') {
+              if (assigned !== uName && !assigned.includes(uName) && !uName.includes(assigned)) {
+                return false;
+              }
+            }
+          }
+          return true;
+        }
+        return false;
+      });
+    } else if (cleanRole === 'admin') {
+      list = list.filter((n) => !n.targetRole || n.targetRole === 'admin' || n.targetRole === 'all');
     }
+
     if (leadId) {
       list = list.filter((n) => n.leadId === leadId);
     }
@@ -944,10 +965,29 @@ const FirebaseService = {
     return true;
   },
 
-  async markAllNotificationsRead(role) {
+  async markAllNotificationsRead(role, userName) {
     ensureLocalDb();
+    const cleanRole = (role || '').toLowerCase();
     localStore.notifications.forEach((n) => {
-      if (!role || n.targetRole === role || n.targetRole === 'all') {
+      const tRole = (n.targetRole || '').toLowerCase();
+      if (cleanRole.includes('agent') || cleanRole.includes('executive') || cleanRole.includes('sales')) {
+        if (tRole === 'sales_agent' || tRole === 'all') {
+          if (userName) {
+            const assigned = (n.assignedTo || n.targetUserName || n.targetUserId || '').toLowerCase().trim();
+            const uName = userName.toLowerCase().trim();
+            if (assigned && assigned !== 'available for claim' && assigned !== 'unassigned') {
+              if (assigned !== uName && !assigned.includes(uName) && !uName.includes(assigned)) {
+                return;
+              }
+            }
+          }
+          n.read = true;
+        }
+      } else if (cleanRole === 'admin') {
+        if (tRole === 'admin' || tRole === 'all') {
+          n.read = true;
+        }
+      } else {
         n.read = true;
       }
     });

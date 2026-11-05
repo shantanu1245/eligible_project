@@ -1023,16 +1023,25 @@ class BackendService {
 
   // ===================== NOTIFICATIONS (ADMIN & SALES) =====================
 
-  /// Get notifications list from Firebase RTDB with unread count
-  Future<Map<String, dynamic>> getNotifications({String? role, int limit = 50}) async {
+  /// Get notifications list from Firebase RTDB with unread count (strictly filtered by role & user)
+  Future<Map<String, dynamic>> getNotifications({String? role, String? userName, int limit = 50}) async {
     try {
+      final effectiveRole = role ?? (AuthService.instance.currentUser?.isAdmin == true ? 'admin' : 'sales_agent');
+      final effectiveUserName = userName ?? AuthService.instance.currentUser?.name;
       final qParams = <String, String>{'limit': limit.toString()};
-      if (role != null) qParams['role'] = role;
+      qParams['role'] = effectiveRole;
+      if (effectiveUserName != null) qParams['userName'] = effectiveUserName;
 
       final uri = Uri.parse('$_baseUrl/notifications').replace(
         queryParameters: qParams,
       );
-      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      final res = await http.get(
+        uri,
+        headers: {
+          'x-user-role': effectiveRole,
+          if (effectiveUserName != null) 'x-user-name': effectiveUserName,
+        },
+      ).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -1056,15 +1065,22 @@ class BackendService {
   }
 
   /// Mark all notifications as read
-  Future<bool> markAllNotificationsRead({String? role}) async {
+  Future<bool> markAllNotificationsRead({String? role, String? userName}) async {
     try {
+      final effectiveRole = role ?? (AuthService.instance.currentUser?.isAdmin == true ? 'admin' : 'sales_agent');
+      final effectiveUserName = userName ?? AuthService.instance.currentUser?.name;
       final body = <String, dynamic>{};
-      if (role != null) body['role'] = role;
+      body['role'] = effectiveRole;
+      if (effectiveUserName != null) body['userName'] = effectiveUserName;
 
       final res = await http
           .post(
             Uri.parse('$_baseUrl/notifications/read-all'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-role': effectiveRole,
+              if (effectiveUserName != null) 'x-user-name': effectiveUserName,
+            },
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 4));
