@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 
@@ -205,6 +206,237 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   String? _selectedFormName;
   bool _isLoadingForms = false;
   final _customFormIdController = TextEditingController();
+  // Meta Ad Wallet Balance & Billing Gate
+  double _metaBalance = 0.0;
+  bool _isPrepaid = true;
+  bool _isLoadingBilling = true;
+  String _billingDisplay = 'Checking balance...';
+  String _billingUrl = 'https://adsmanager.facebook.com/adsmanager/manage/billing';
+
+  Future<void> _loadBillingStatus() async {
+    setState(() => _isLoadingBilling = true);
+    try {
+      final billing = await _backend.getMetaBilling();
+      if (mounted) {
+        setState(() {
+          _metaBalance = (billing['availableBalance'] as num?)?.toDouble() ?? 0.0;
+          _isPrepaid = billing['isPrepaid'] ?? true;
+          _billingDisplay = billing['displayString'] ?? '₹${_metaBalance.toStringAsFixed(2)}';
+          if (billing['billingUrl'] != null && billing['billingUrl'].toString().isNotEmpty) {
+            _billingUrl = billing['billingUrl'];
+          }
+          _isLoadingBilling = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingBilling = false);
+    }
+  }
+
+  void _showInsufficientBalanceDialog(double requiredBudget) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        contentPadding: const EdgeInsets.all(20),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 56,
+              width: 56,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFEE2E2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFDC2626), size: 30),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Insufficient Meta Ad Balance',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your current Meta Ad Wallet balance is ₹${_metaBalance.toStringAsFixed(2)}, but this campaign requires ₹${requiredBudget.toStringAsFixed(0)}/day.\n\nAs configured, campaigns will not be published until sufficient funds are available in your Meta Ad account.',
+              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Shortfall to recharge:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text(
+                    '₹${(requiredBudget - _metaBalance).clamp(0, 9999999).toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFDC2626)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0668E1),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final uri = Uri.parse(_billingUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                label: const Text('Add Funds via Meta (UPI/Card)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _loadBillingStatus();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Refresh Balance', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWalletBalanceCard() {
+    final budget = double.tryParse(_budgetController.text.trim()) ?? 1500.0;
+    final isSufficient = !_isPrepaid || _metaBalance >= budget;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isSufficient ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSufficient ? const Color(0xFF86EFAC) : const Color(0xFFFECACA),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isSufficient ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isSufficient ? Icons.account_balance_wallet_rounded : Icons.warning_amber_rounded,
+                  size: 20,
+                  color: isSufficient ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isSufficient ? 'Meta Ad Wallet Funded' : 'Insufficient Meta Ad Balance',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: isSufficient ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                      ),
+                    ),
+                    Text(
+                      _isLoadingBilling
+                          ? 'Checking live Meta wallet balance...'
+                          : 'Available: ${_billingDisplay.isNotEmpty ? _billingDisplay : "₹" + _metaBalance.toStringAsFixed(2)} • Required: ₹${budget.toStringAsFixed(0)}/day',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isSufficient ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: _isLoadingBilling
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.refresh, size: 18),
+                tooltip: 'Refresh Balance',
+                onPressed: _loadBillingStatus,
+              ),
+            ],
+          ),
+          if (!isSufficient) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Meta runs on a prepaid model in India (UPI/NetBanking/Cards). Unless you have at least ₹${budget.toStringAsFixed(0)} in your wallet, campaign publishing is blocked.',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF7F1D1D), height: 1.3),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 38),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () async {
+                      final uri = Uri.parse(_billingUrl);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.add_card_rounded, size: 16),
+                    label: const Text('Add Funds via Meta (UPI/Card)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
 
   @override
   void initState() {
@@ -294,11 +526,18 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   // PUBLISH ACTION
   // ---------------------------------------------------------------------------
   Future<void> _publishCampaign() async {
+    final budget = double.tryParse(_budgetController.text.trim()) ?? 1500.0;
+
+    // Strict balance check: Unless there is sufficient balance, do not publish
+    if (_isPrepaid && _metaBalance < budget) {
+      _showInsufficientBalanceDialog(budget);
+      return;
+    }
+
     setState(() => _isPublishing = true);
 
     try {
       final name = _campaignNameController.text.trim();
-      final budget = double.tryParse(_budgetController.text.trim()) ?? 1500.0;
 
       // Compile target location tags (combining Pincodes & Areas)
       final allLocations = [
@@ -431,6 +670,8 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
               ),
             ),
           );
+        } else if (res['code'] == 'INSUFFICIENT_FUNDS') {
+          _showInsufficientBalanceDialog(budget);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -910,6 +1151,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                 );
               }).toList(),
             ),
+            _buildWalletBalanceCard(),
             const SizedBox(height: 14),
             const Text('BID STRATEGY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
             const SizedBox(height: 6),

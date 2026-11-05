@@ -309,7 +309,81 @@ class MetaService {
   /**
    * Phase 3.A: Retrieve accessible Ad Accounts with full metadata, balance, and spend
    */
-  async getAdAccounts() {
+    /**
+   * Retrieve Ad Account live prepaid balance and billing delivery status
+   */
+  async getAdAccountBilling(adAccountId = this.adAccountId) {
+    if (!this.isConfigured()) {
+      return {
+        configured: false,
+        adAccountId: adAccountId || 'local',
+        currency: 'INR',
+        isPrepaid: true,
+        availableBalance: 0,
+        canDeliver: false,
+        displayString: 'Available balance (₹0.00 INR)',
+        billingUrl: 'https://adsmanager.facebook.com/adsmanager/manage/billing',
+      };
+    }
+
+    const formattedId = (adAccountId || this.adAccountId || '').trim();
+    const act = formattedId.startsWith('act_') ? formattedId : `act_${formattedId}`;
+
+    try {
+      const res = await this._request('GET', `/${act}`, null, {
+        fields: 'id,account_id,name,account_status,currency,spend_cap,amount_spent,balance,funding_source_details,disable_reason',
+      });
+
+      let availableBalance = 0;
+      let displayString = '';
+      let isPrepaid = false;
+
+      if (res.funding_source_details) {
+        displayString = res.funding_source_details.display_string || '';
+        isPrepaid = res.funding_source_details.type === 20 || displayString.toLowerCase().includes('available balance');
+        const match = displayString.match(/[\d,.]+/);
+        if (match) {
+          availableBalance = parseFloat(match[0].replace(/,/g, '')) || 0;
+        }
+      }
+
+      if (res.balance && availableBalance === 0) {
+        availableBalance = parseFloat(res.balance) / 100;
+      }
+
+      const spendCap = res.spend_cap ? parseFloat(res.spend_cap) / 100 : null;
+      const amountSpent = res.amount_spent ? parseFloat(res.amount_spent) / 100 : 0;
+      const isCapped = spendCap !== null && amountSpent >= spendCap;
+
+      return {
+        configured: true,
+        adAccountId: res.id,
+        name: res.name,
+        currency: res.currency || 'INR',
+        accountStatus: res.account_status,
+        isPrepaid,
+        availableBalance,
+        displayString: displayString || `₹${availableBalance.toFixed(2)}`,
+        spendCap,
+        amountSpent,
+        isCapped,
+        canDeliver: res.account_status === 1 && (!isPrepaid || availableBalance > 0) && !isCapped,
+        billingUrl: `https://adsmanager.facebook.com/adsmanager/manage/billing?act=${res.account_id || act.replace('act_', '')}`,
+      };
+    } catch (err) {
+      console.error('❌ [MetaService:getAdAccountBilling] error:', err.message);
+      return {
+        configured: true,
+        adAccountId: act,
+        error: err.message,
+        availableBalance: 0,
+        canDeliver: false,
+        billingUrl: `https://adsmanager.facebook.com/adsmanager/manage/billing?act=${act.replace('act_', '')}`,
+      };
+    }
+  }
+
+async getAdAccounts() {
     if (!this.isConfigured()) {
       return [];
     }
@@ -1376,6 +1450,20 @@ class MetaService {
     } = params;
 
     console.log(`🚀 [MetaService] Initiating campaign creation: "${name}" (Budget: ₹${dailyBudget}/day, Form: ${formId || 'none'})`);
+
+    // Verify sufficient balance before creating
+    if (this.isConfigured()) {
+      const billing = await this.getAdAccountBilling(params.adAccountId || this.adAccountId);
+      if (billing.isPrepaid && billing.availableBalance < Number(dailyBudget)) {
+        const err = new Error(
+          `Insufficient Meta Ad Account balance. Current available balance is ₹${billing.availableBalance.toFixed(2)}, but daily budget is ₹${dailyBudget}. Please recharge your Meta Wallet before publishing.`
+        );
+        err.statusCode = 402;
+        err.code = 'INSUFFICIENT_FUNDS';
+        err.billing = billing;
+        throw err;
+      }
+    }
 
     let campaignResult;
     try {

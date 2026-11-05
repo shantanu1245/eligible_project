@@ -4,6 +4,7 @@ const metaController = require('../controllers/metaController');
 
 // Status, Diagnostics, and Active Configuration
 router.get('/status', metaController.getStatus);
+router.get('/billing', metaController.getBilling);
 router.get('/diagnostics', metaController.getDiagnostics);
 router.get('/config', metaController.getConfig);
 router.post('/config', metaController.saveConfig);

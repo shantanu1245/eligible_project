@@ -7,7 +7,24 @@ const MetaController = {
    * GET /api/meta/status
    * Comprehensive status of Firebase & Meta Ads integrations
    */
-  async getStatus(req, res) {
+    /**
+   * GET /api/meta/billing
+   * Live prepaid balance, billing status, and funding details
+   */
+  async getBilling(req, res) {
+    try {
+      const { adAccountId } = req.query;
+      const billing = await metaService.getAdAccountBilling(adAccountId);
+      res.json({
+        success: true,
+        data: billing,
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+async getStatus(req, res) {
     const metaStatus = metaService.getStatus();
     const firebaseStatus = firebaseService.getStatus();
 
