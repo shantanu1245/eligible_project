@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
@@ -35,7 +36,9 @@ class _TeamScreenState extends State<TeamScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTeam();
+    if (AdminGuard.isCurrentAdmin) {
+      _loadTeam();
+    }
   }
 
   Future<void> _loadTeam() async {
@@ -58,7 +61,10 @@ class _TeamScreenState extends State<TeamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminGuard(
+      title: 'Team Management Restricted',
+      message: 'Managing sales executives and team members is restricted strictly to Administrators.',
+      child: Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text(
@@ -123,6 +129,7 @@ class _TeamScreenState extends State<TeamScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

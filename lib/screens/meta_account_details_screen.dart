@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
@@ -316,7 +317,10 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminGuard(
+      title: 'Meta Account Details Restricted',
+      message: 'Meta ad accounts, tokens, and configurations are restricted strictly to Administrators.',
+      child: Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: Column(
@@ -375,6 +379,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                 ],
               ),
             ),
+    ),
     );
   }
 

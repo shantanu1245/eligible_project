@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
@@ -25,7 +26,9 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchBinLeads();
+    if (AdminGuard.isCurrentAdmin) {
+      _fetchBinLeads();
+    }
   }
 
   Future<void> _fetchBinLeads() async {
@@ -227,7 +230,10 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminGuard(
+      title: 'Recycle Bin Restricted',
+      message: 'Viewing and restoring deleted leads is restricted strictly to Administrators.',
+      child: Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text('Recycle Bin', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -297,6 +303,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

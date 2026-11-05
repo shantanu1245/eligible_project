@@ -1,3 +1,4 @@
+import 'auth_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -193,7 +194,10 @@ class BackendService {
       final res = await http
           .post(
             Uri.parse('$_baseUrl/meta/upload-image'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-role': AuthService.instance.currentUser?.role.name ?? 'salesExecutive',
+            },
             body: jsonEncode({
               'imageBase64': base64String,
               'filename': filename,
@@ -243,7 +247,10 @@ class BackendService {
       final res = await http
           .post(
             Uri.parse('$_baseUrl/campaigns'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-role': AuthService.instance.currentUser?.role.name ?? 'salesExecutive',
+            },
             body: jsonEncode({
               'name': name,
               'dailyBudget': dailyBudget,

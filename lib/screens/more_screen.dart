@@ -27,6 +27,8 @@ class MoreScreen extends StatelessWidget {
     required this.onLeadsUpdated,
   });
 
+  UserModel get _activeUser => AuthService.instance.currentUser ?? user;
+
   int get _unassignedCount =>
       leads.where((l) => l.assignedTo.trim().isEmpty).length;
 
@@ -53,7 +55,7 @@ class MoreScreen extends StatelessWidget {
 
           _menuCard([
             // Administrator-only Add New Lead
-            if (user.isAdmin)
+            if (_activeUser.isAdmin)
               _MenuItem(
                 icon: Icons.person_add_alt_1_outlined,
                 title: 'Add New Lead',
@@ -91,7 +93,7 @@ class MoreScreen extends StatelessWidget {
               ),
 
             // Administrator-only Lead Allotment
-            if (user.isAdmin)
+            if (_activeUser.isAdmin)
               _MenuItem(
                 icon: Icons.assignment_ind_outlined,
                 title: 'Lead Allotment',
@@ -131,7 +133,7 @@ class MoreScreen extends StatelessWidget {
 
 
             // Administrator-only Team
-            if (user.isAdmin)
+            if (_activeUser.isAdmin)
               _MenuItem(
                 icon: Icons.people_outline,
                 title: 'Team',
@@ -147,7 +149,7 @@ class MoreScreen extends StatelessWidget {
               ),
 
             // Administrator-only Campaigns (Meta Ads Manager)
-            if (user.isAdmin)
+            if (_activeUser.isAdmin)
               _MenuItem(
                 icon: Icons.campaign_outlined,
                 title: 'Campaigns',
@@ -200,7 +202,7 @@ class MoreScreen extends StatelessWidget {
 
           ]),
 
-          if (user.isAdmin) ...[
+          if (_activeUser.isAdmin) ...[
             const SizedBox(height: 18),
 
             _sectionTitle('Meta & Integrations'),
@@ -328,7 +330,7 @@ class MoreScreen extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 26,
-              backgroundColor: user.isAdmin
+              backgroundColor: _activeUser.isAdmin
                   ? const Color(0xFFDBEAFE)
                   : const Color(0xFFDCFCE7),
               child: Text(
@@ -336,7 +338,7 @@ class MoreScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: user.isAdmin
+                  color: _activeUser.isAdmin
                       ? AppTheme.primary
                       : const Color(0xFF16A34A),
                 ),
@@ -361,12 +363,12 @@ class MoreScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: user.isAdmin
+                          color: _activeUser.isAdmin
                               ? const Color(0xFFEFF6FF)
                               : const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: user.isAdmin
+                            color: _activeUser.isAdmin
                                 ? const Color(0xFFBFDBFE)
                                 : const Color(0xFFBBF7D0),
                           ),
@@ -376,7 +378,7 @@ class MoreScreen extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: user.isAdmin
+                            color: _activeUser.isAdmin
                                 ? AppTheme.primary
                                 : const Color(0xFF16A34A),
                           ),

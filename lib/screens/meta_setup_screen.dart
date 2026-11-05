@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/backend_service.dart';
@@ -262,7 +263,10 @@ class _MetaSetupScreenState extends State<MetaSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminGuard(
+      title: 'Meta Setup Restricted',
+      message: 'Configuring Meta access tokens and integrations is restricted strictly to Administrators.',
+      child: Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text(
@@ -286,6 +290,7 @@ class _MetaSetupScreenState extends State<MetaSetupScreen> {
           _buildWebhookGuideCard(),
         ],
       ),
+    ),
     );
   }
 

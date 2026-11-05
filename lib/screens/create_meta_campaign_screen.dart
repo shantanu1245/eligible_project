@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -841,7 +842,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminGuard(
+      title: 'Create Campaign Restricted',
+      message: 'Creating Meta Ad campaigns and allocating ad spend is restricted strictly to Administrators.',
+      child: Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         titleSpacing: 0,
@@ -917,6 +921,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         ],
       ),
       bottomNavigationBar: _buildBottomNavActions(),
+    ),
     );
   }
 

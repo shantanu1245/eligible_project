@@ -45,6 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _dashboardCampaigns = [];
 
   Future<void> _fetchDashboardCampaigns() async {
+    if (!widget.user.isAdmin) return;
     try {
       final futures = await Future.wait([
         BackendService().getCampaigns(),
@@ -90,7 +91,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     leads = List.from(_demoLeads);
     _fetchLeadsFromBackend();
     _fetchUnreadNotificationCount();
-    _fetchDashboardCampaigns();
+    if (widget.user.isAdmin) {
+      _fetchDashboardCampaigns();
+    }
     _registerDeviceToken();
     _startLivePollingTimer();
 
@@ -521,10 +524,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 18),
 
-            // Meta Ad Campaigns Section
-            _buildMetaCampaignsDashboardCard(),
-
-            const SizedBox(height: 22),
+            // Meta Ad Campaigns Section (Strictly Administrator Only)
+            if (widget.user.isAdmin) ...[
+              _buildMetaCampaignsDashboardCard(),
+              const SizedBox(height: 22),
+            ],
 
             // Recent leads header
             _buildSectionHeader(),
@@ -625,7 +629,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Future.wait([
       _fetchLeadsFromBackend(),
       _fetchUnreadNotificationCount(),
-      _fetchDashboardCampaigns(),
+      if (widget.user.isAdmin) _fetchDashboardCampaigns(),
     ]);
     if (mounted) setState(() {});
   }
@@ -1469,6 +1473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ============================================================
 
   Widget _buildMetaCampaignsDashboardCard() {
+    if (!widget.user.isAdmin) return const SizedBox.shrink();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,

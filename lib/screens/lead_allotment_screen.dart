@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import '../models/lead.dart';
 import '../models/user.dart';
@@ -402,8 +403,12 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
   @override
   Widget build(BuildContext context) {
     final leads = _filteredLeads;
+    return AdminGuard(
+      title: 'Lead Allotment Restricted',
+      message: 'Allotting leads to sales executives is restricted strictly to Administrators.',
+      child: Scaffold(
 
-    return Scaffold(
+// Scaffold
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Column(
@@ -552,6 +557,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

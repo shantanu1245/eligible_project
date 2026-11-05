@@ -50,6 +50,14 @@ const CampaignController = {
    */
   async createCampaign(req, res) {
     try {
+      const userRole = (req.headers['x-user-role'] || req.body?.userRole || '').toLowerCase();
+      if (userRole.includes('executive') || userRole.includes('agent') || userRole.includes('sales')) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN',
+          message: 'Access Denied: Creating Meta campaigns is restricted to system administrators.',
+        });
+      }
       const {
         name,
         dailyBudget,
@@ -119,6 +127,14 @@ const CampaignController = {
    */
   async toggleCampaignStatus(req, res) {
     try {
+      const userRole = (req.headers['x-user-role'] || req.body?.userRole || '').toLowerCase();
+      if (userRole.includes('executive') || userRole.includes('agent') || userRole.includes('sales')) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN',
+          message: 'Access Denied: Modifying campaign status is restricted to system administrators.',
+        });
+      }
       const { id } = req.params;
       const { status } = req.body; // 'ACTIVE' or 'PAUSED'
 

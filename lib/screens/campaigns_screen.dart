@@ -1,3 +1,4 @@
+import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -50,7 +51,9 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_handleTabSelection);
-    _initializeData();
+    if (AdminGuard.isCurrentAdmin) {
+      _initializeData();
+    }
   }
 
   void _handleTabSelection() {
@@ -258,7 +261,10 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminGuard(
+      title: 'Campaign Manager Restricted',
+      message: 'Meta Ad campaigns, ad sets, and analytics are restricted strictly to Administrators.',
+      child: Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         titleSpacing: 16,
@@ -347,6 +353,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                 ],
               ),
             ),
+    ),
     );
   }
 

@@ -311,6 +311,14 @@ async getStatus(req, res) {
    */
   async saveConfig(req, res) {
     try {
+      const userRole = (req.headers['x-user-role'] || req.body?.userRole || '').toLowerCase();
+      if (userRole.includes('executive') || userRole.includes('agent') || userRole.includes('sales')) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN',
+          message: 'Access Denied: Modifying Meta configurations is restricted to system administrators.',
+        });
+      }
       const { accessToken, adAccountId, pageId, appSecret, pageName, adAccountName, appId } = req.body;
 
       if (!accessToken) {
@@ -455,6 +463,14 @@ async getStatus(req, res) {
    */
   async uploadImage(req, res) {
     try {
+      const userRole = (req.headers['x-user-role'] || req.body?.userRole || '').toLowerCase();
+      if (userRole.includes('executive') || userRole.includes('agent') || userRole.includes('sales')) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN',
+          message: 'Access Denied: Uploading ad creatives is restricted to system administrators.',
+        });
+      }
       const { imageBase64, filename } = req.body;
       if (!imageBase64) {
         return res.status(400).json({ success: false, message: 'imageBase64 is required' });
