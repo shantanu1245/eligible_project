@@ -660,102 +660,131 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAllotmentAlertCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFF1F2), Color(0xFFFEF2F2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openAllotmentScreen,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0AE11D48),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE11D48),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33E11D48),
-                  blurRadius: 6,
-                  offset: Offset(0, 2),
-                ),
-              ],
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFF1F2), Color(0xFFFEF2F2)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            child: const Icon(Icons.assignment_late_rounded, color: Colors.white, size: 22),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0AE11D48),
+                blurRadius: 10,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFE4E6),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'ACTION REQUIRED',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFFBE123C),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Top Alert Header: Badge + Unassigned Count
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE4E6),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFECDD3), width: 0.8),
                     ),
-                    const SizedBox(width: 6),
-                    Text(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE11D48),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Text(
+                          'ACTION REQUIRED',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFFBE123C),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE11D48),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
                       '$unassignedCount Unassigned',
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF881337),
+                        color: Colors.white,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Distribute incoming leads to sales executives',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: Color(0xFF9F1239),
-                    fontWeight: FontWeight.w500,
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Content Row: Icon + Description + Allot Now Action Button
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE4E6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.assignment_late_rounded, color: Color(0xFFE11D48), size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Distribute incoming leads to sales executives',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9F1239),
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE11D48),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      minimumSize: const Size(0, 34),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _openAllotmentScreen,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 13),
+                    label: const Text('Allot Now', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE11D48),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: _openAllotmentScreen,
-            icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-            label: const Text('Allot Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-          ),
-        ],
+        ),
       ),
     );
   }
