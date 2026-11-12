@@ -776,6 +776,7 @@ const FirebaseService = {
       id,
       name: memberData.name,
       email: memberData.email,
+      password: memberData.password || '',
       role: memberData.role || 'Sales Executive',
       initial: memberData.name ? memberData.name[0].toUpperCase() : 'U',
       allottedLeadsCount: 0,
@@ -798,6 +799,9 @@ const FirebaseService = {
       ...localStore.team[idx],
       name: updates.name ?? localStore.team[idx].name,
       email: updates.email ?? localStore.team[idx].email,
+      password: updates.password !== undefined && updates.password !== ''
+        ? updates.password
+        : (localStore.team[idx].password || ''),
       role: updates.role ?? localStore.team[idx].role,
       initial:
         updates.name != null && updates.name.length > 0

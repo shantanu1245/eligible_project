@@ -902,6 +902,34 @@ class BackendService {
     return [];
   }
 
+  Future<Map<String, dynamic>?> loginTeamMember({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/team/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email.trim(),
+              'password': password.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['user'] != null) {
+          return Map<String, dynamic>.from(data['user']);
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] loginTeamMember error: $e');
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>> saveTeamMember(Map<String, dynamic> member) async {
     try {
       final res = await http

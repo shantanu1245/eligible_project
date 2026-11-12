@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../screens/login_screen.dart';
+import 'backend_service.dart';
 
 class AuthService {
   static final AuthService instance = AuthService._internal();
@@ -27,8 +28,11 @@ class AuthService {
       if (isLoggedIn && userJsonStr != null && userJsonStr.isNotEmpty) {
         final Map<String, dynamic> userMap = jsonDecode(userJsonStr);
         final user = UserModel.fromJson(userMap);
-        // Only restore if matching the configured admin account
-        if (user.email.trim().toLowerCase() == 'admin@theligible.in') {
+        final cleanEmail = user.email.trim().toLowerCase();
+        // Accept Admin or any valid agent/executive
+        if (cleanEmail == 'admin@theligible.in' ||
+            user.isSalesExecutive ||
+            user.role == UserRole.salesExecutive) {
           _currentUser = user;
           debugPrint('🔐 [AuthService] Restored active session for: ${_currentUser?.name} (${_currentUser?.email})');
           return _currentUser;
@@ -67,11 +71,72 @@ class AuthService {
     final cleanEmail = email.trim().toLowerCase();
     final cleanPassword = password.trim();
 
-    // Authenticate Admin credentials
+    // 1. Authenticate Admin credentials
     if (cleanEmail == 'admin@theligible.in' && cleanPassword == 'eligible@098') {
       _currentUser = UserModel.admin;
       await saveUserSession(_currentUser!);
       return _currentUser;
+    }
+
+    // 2. Authenticate Team Member / Agent via backend
+    try {
+      final backendUser = await BackendService().loginTeamMember(
+        email: cleanEmail,
+        password: cleanPassword,
+      );
+
+      if (backendUser != null) {
+        final roleStr = backendUser['role']?.toString().toLowerCase() ?? '';
+        final role = (roleStr.contains('admin'))
+            ? UserRole.administrator
+            : UserRole.salesExecutive;
+
+        _currentUser = UserModel(
+          id: backendUser['id']?.toString() ?? 'U-${DateTime.now().millisecondsSinceEpoch}',
+          name: backendUser['name']?.toString() ?? 'Sales Agent',
+          email: backendUser['email']?.toString() ?? cleanEmail,
+          role: role,
+          initial: backendUser['initial']?.toString() ??
+              (backendUser['name'] != null && backendUser['name'].toString().isNotEmpty
+                  ? backendUser['name'].toString().substring(0, 1).toUpperCase()
+                  : 'A'),
+        );
+
+        await saveUserSession(_currentUser!);
+        return _currentUser;
+      }
+
+      // 3. Fallback: check getTeam directly in case backend is offline or locally cached
+      final team = await BackendService().getTeam();
+      final match = team.firstWhere(
+        (m) =>
+            m['email']?.toString().trim().toLowerCase() == cleanEmail &&
+            m['password']?.toString().trim() == cleanPassword,
+        orElse: () => {},
+      );
+
+      if (match.isNotEmpty) {
+        final roleStr = match['role']?.toString().toLowerCase() ?? '';
+        final role = (roleStr.contains('admin'))
+            ? UserRole.administrator
+            : UserRole.salesExecutive;
+
+        _currentUser = UserModel(
+          id: match['id']?.toString() ?? 'U-${DateTime.now().millisecondsSinceEpoch}',
+          name: match['name']?.toString() ?? 'Sales Agent',
+          email: match['email']?.toString() ?? cleanEmail,
+          role: role,
+          initial: match['initial']?.toString() ??
+              (match['name'] != null && match['name'].toString().isNotEmpty
+                  ? match['name'].toString().substring(0, 1).toUpperCase()
+                  : 'A'),
+        );
+
+        await saveUserSession(_currentUser!);
+        return _currentUser;
+      }
+    } catch (e) {
+      debugPrint('[AuthService] Agent login check error: $e');
     }
 
     return null;

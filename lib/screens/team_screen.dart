@@ -39,8 +39,9 @@ class _TeamScreenState extends State<TeamScreen> {
             'id': item['id']?.toString() ?? '',
             'name': item['name']?.toString() ?? '',
             'email': item['email']?.toString() ?? '',
+            'password': item['password']?.toString() ?? '',
             'role': item['role']?.toString() ?? 'Sales Executive',
-            'initial': item['initial']?.toString() ?? (item['name'] != null ? item['name'][0].toUpperCase() : 'U'),
+            'initial': item['initial']?.toString() ?? (item['name'] != null && item['name'].toString().isNotEmpty ? item['name'][0].toUpperCase() : 'U'),
           });
         }
       });
@@ -148,8 +149,10 @@ class _TeamScreenState extends State<TeamScreen> {
   void _showAddMemberDialog() {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
+    final passwordController = TextEditingController();
 
     String selectedRole = 'Sales Executive';
+    bool obscurePassword = true;
 
     showDialog(
       context: context,
@@ -157,20 +160,30 @@ class _TeamScreenState extends State<TeamScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text(
-                'Add Team Member',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primary, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Add Team Member',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
               ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     TextField(
                       controller: nameController,
                       decoration: const InputDecoration(
-                        labelText: 'Full Name',
+                        labelText: 'Full Name *',
+                        hintText: 'e.g. Rahul Sharma',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                     ),
@@ -181,8 +194,36 @@ class _TeamScreenState extends State<TeamScreen> {
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'Email Address / Login ID *',
+                        hintText: 'e.g. rahul@theligible.in',
                         prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Login Password *',
+                        hintText: 'At least 4 characters',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        helperText: 'Agent will use this password to sign in',
+                        helperMaxLines: 1,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscurePassword = !obscurePassword;
+                            });
+                          },
+                        ),
                       ),
                     ),
 
@@ -228,15 +269,34 @@ class _TeamScreenState extends State<TeamScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    if (nameController.text.trim().isEmpty ||
-                        emailController.text.trim().isEmpty) {
+                    final name = nameController.text.trim();
+                    final email = emailController.text.trim();
+                    final password = passwordController.text.trim();
+
+                    if (name.isEmpty || email.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter full name and email address.'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ),
+                      );
                       return;
                     }
 
-                    final name = nameController.text.trim();
+                    if (password.length < 4) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Password is required (minimum 4 characters).'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ),
+                      );
+                      return;
+                    }
+
                     final newMember = {
                       'name': name,
-                      'email': emailController.text.trim(),
+                      'email': email,
+                      'password': password,
                       'role': selectedRole,
                       'initial': name.substring(0, 1).toUpperCase(),
                     };
@@ -248,6 +308,14 @@ class _TeamScreenState extends State<TeamScreen> {
                     _backend.saveTeamMember(newMember);
 
                     Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Agent $name added! Login: $email (Pass: $password)'),
+                        backgroundColor: const Color(0xFF16A34A),
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
                   },
                   child: const Text('Add Member'),
                 ),
@@ -258,12 +326,15 @@ class _TeamScreenState extends State<TeamScreen> {
       },
     );
   }
+
   void _showEditMemberDialog(int index) {
     final member = _members[index];
     final nameController = TextEditingController(text: member['name'] ?? '');
     final emailController = TextEditingController(text: member['email'] ?? '');
+    final passwordController = TextEditingController(text: member['password'] ?? '');
 
     String selectedRole = member['role'] ?? 'Sales Executive';
+    bool obscurePassword = true;
 
     showDialog(
       context: context,
@@ -271,11 +342,19 @@ class _TeamScreenState extends State<TeamScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text(
-                'Edit Team Member',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.edit_note_rounded, color: AppTheme.primary, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Edit Team Member',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -284,7 +363,7 @@ class _TeamScreenState extends State<TeamScreen> {
                     TextField(
                       controller: nameController,
                       decoration: const InputDecoration(
-                        labelText: 'Full Name',
+                        labelText: 'Full Name *',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                     ),
@@ -295,8 +374,35 @@ class _TeamScreenState extends State<TeamScreen> {
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'Email Address / Login ID *',
                         prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Login Password',
+                        hintText: 'Enter new password or keep existing',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        helperText: 'Update login password for agent',
+                        helperMaxLines: 1,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscurePassword = !obscurePassword;
+                            });
+                          },
+                        ),
                       ),
                     ),
 
@@ -348,7 +454,14 @@ class _TeamScreenState extends State<TeamScreen> {
                   onPressed: () {
                     final name = nameController.text.trim();
                     final email = emailController.text.trim();
+                    final password = passwordController.text.trim();
                     if (name.isEmpty || email.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Full name and email are required.'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ),
+                      );
                       return;
                     }
 
@@ -356,6 +469,7 @@ class _TeamScreenState extends State<TeamScreen> {
                     final updated = {
                       'name': name,
                       'email': email,
+                      if (password.isNotEmpty) 'password': password,
                       'role': selectedRole,
                       'initial': name.substring(0, 1).toUpperCase(),
                     };
@@ -369,6 +483,13 @@ class _TeamScreenState extends State<TeamScreen> {
                     }
 
                     Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Updated $name successfully!'),
+                        backgroundColor: const Color(0xFF16A34A),
+                      ),
+                    );
                   },
                   child: const Text('Save Changes'),
                 ),
@@ -508,13 +629,44 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  member['role'] ?? '',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primary,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      member['role'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                    if (member['password'] != null && member['password']!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.key_rounded, size: 10, color: Color(0xFF64748B)),
+                            const SizedBox(width: 4),
+                            Text(
+                              member['password']!,
+                              style: const TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF334155),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
