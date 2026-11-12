@@ -46,43 +46,50 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
-    final res = await _backend.getNotifications(
-      role: _isAdminUser ? 'admin' : 'sales_agent',
-      userName: widget.currentUser?.name,
-    );
-    if (mounted) {
-      final rawList = (res['data'] as List<dynamic>? ?? [])
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+    try {
+      final res = await _backend.getNotifications(
+        role: _isAdminUser ? 'admin' : 'sales_agent',
+        userName: widget.currentUser?.name,
+      );
+      if (mounted) {
+        final rawList = (res['data'] as List<dynamic>? ?? [])
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
 
-      // Strict client-side filter
-      final list = _isAdminUser
-          ? rawList
-          : rawList.where((n) {
-              final targetRole = n['targetRole']?.toString().toLowerCase();
-              if (targetRole == 'admin') return false;
-              if (targetRole == 'sales_agent' || targetRole == 'all' || targetRole == null) {
-                final assignedTo = (n['assignedTo'] ?? n['targetUserName'] ?? n['targetUserId'])?.toString();
-                if (assignedTo != null && 
-                    assignedTo != 'Available for Claim' && 
-                    assignedTo != 'Unassigned' && 
-                    assignedTo.isNotEmpty) {
-                  final currentName = widget.currentUser?.name.toLowerCase().trim() ?? '';
-                  final assignedLower = assignedTo.toLowerCase().trim();
-                  if (assignedLower != currentName && !assignedLower.contains(currentName) && !currentName.contains(assignedLower)) {
-                    return false;
+        // Strict client-side filter
+        final list = _isAdminUser
+            ? rawList
+            : rawList.where((n) {
+                final targetRole = n['targetRole']?.toString().toLowerCase();
+                if (targetRole == 'admin') return false;
+                if (targetRole == 'sales_agent' || targetRole == 'all' || targetRole == null) {
+                  final assignedTo = (n['assignedTo'] ?? n['targetUserName'] ?? n['targetUserId'])?.toString();
+                  if (assignedTo != null && 
+                      assignedTo != 'Available for Claim' && 
+                      assignedTo != 'Unassigned' && 
+                      assignedTo.isNotEmpty) {
+                    final currentName = widget.currentUser?.name.toLowerCase().trim() ?? '';
+                    final assignedLower = assignedTo.toLowerCase().trim();
+                    if (assignedLower != currentName && !assignedLower.contains(currentName) && !currentName.contains(assignedLower)) {
+                      return false;
+                    }
                   }
+                  return true;
                 }
-                return true;
-              }
-              return false;
-            }).toList();
+                return false;
+              }).toList();
 
-      setState(() {
-        _allNotifications = list;
-        _unreadCount = list.where((n) => n['read'] != true).length;
-        _isLoading = false;
-      });
+        setState(() {
+          _allNotifications = list;
+          _unreadCount = list.where((n) => n['read'] != true).length;
+        });
+      }
+    } catch (e) {
+      debugPrint('[NotificationsScreen] _loadNotifications error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

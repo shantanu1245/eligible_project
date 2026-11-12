@@ -6,11 +6,13 @@ import '../widgets/skeleton_loading.dart';
 class AnalyticsScreen extends StatefulWidget {
   final List<Lead> leads;
   final bool isLoading;
+  final Future<void> Function()? onRefresh;
 
   const AnalyticsScreen({
     super.key,
     this.leads = const [],
     this.isLoading = false,
+    this.onRefresh,
   });
 
   @override
@@ -63,9 +65,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       ),
       body: widget.isLoading
           ? const AnalyticsScreenSkeleton()
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-              children: [
+          : RefreshIndicator(
+              onRefresh: widget.onRefresh ?? () async {},
+              color: AppTheme.primary,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                children: [
           _buildSummaryCards(totalCount, thisMonthCount, conversionRate),
 
           const SizedBox(height: 24),
@@ -170,7 +176,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildCategoryBreakdownCard(List<Lead> leads) {

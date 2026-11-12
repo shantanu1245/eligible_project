@@ -10,12 +10,14 @@ class FollowupsScreen extends StatefulWidget {
   final List<Lead> leads;
   final bool isLoading;
   final Function(Lead)? onLeadUpdated;
+  final Future<void> Function()? onRefresh;
 
   const FollowupsScreen({
     super.key,
     this.leads = const [],
     this.isLoading = false,
     this.onLeadUpdated,
+    this.onRefresh,
   });
 
   @override
@@ -271,31 +273,43 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
       ),
       body: widget.isLoading
           ? const FollowupsScreenSkeleton()
-          : followups.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.event_available_outlined,
-                          size: 48, color: AppTheme.textSecondary),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No follow-ups scheduled',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'All ${widget.leads.length} database leads are up to date',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppTheme.textSecondary),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                  children: [
+          : RefreshIndicator(
+              onRefresh: widget.onRefresh ?? () async {},
+              color: AppTheme.primary,
+              child: followups.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.55,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.event_available_outlined,
+                                    size: 48, color: AppTheme.textSecondary),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'No follow-ups scheduled',
+                                  style: TextStyle(
+                                      fontSize: 16, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'All ${widget.leads.length} database leads are up to date',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: AppTheme.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                      children: [
                     _buildSummary(
                       todayItems.length,
                       upcomingItems.length,
@@ -322,6 +336,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
                       ...displayedList.map((fup) => _followupCard(fup)),
                   ],
                 ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddFollowupDialog(context),
         backgroundColor: AppTheme.primary,

@@ -221,47 +221,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
 
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Flexible(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                height: 36,
-                                width: 36,
-                                child: Checkbox(
-                                  value: rememberMe,
-                                  visualDensity: VisualDensity.compact,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      rememberMe = value ?? false;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Flexible(
-                                child: Text(
-                                  'Remember me',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                        SizedBox(
+                          height: 36,
+                          width: 36,
+                          child: Checkbox(
+                            value: rememberMe,
+                            visualDensity: VisualDensity.compact,
+                            onChanged: (value) {
+                              setState(() {
+                                rememberMe = value ?? false;
+                              });
+                            },
                           ),
                         ),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Remember me',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
                           ),
-                          onPressed: () {},
-                          child: const Text('Forgot password?'),
                         ),
                       ],
                     ),

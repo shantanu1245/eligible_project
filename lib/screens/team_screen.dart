@@ -13,6 +13,7 @@ class TeamScreen extends StatefulWidget {
 
 class _TeamScreenState extends State<TeamScreen> {
   final BackendService _backend = BackendService();
+  bool _isLoading = true;
   final List<Map<String, String>> _members = [
     {
       'name': 'Admin',
@@ -27,25 +28,36 @@ class _TeamScreenState extends State<TeamScreen> {
     super.initState();
     if (AdminGuard.isCurrentAdmin) {
       _loadTeam();
+    } else {
+      _isLoading = false;
     }
   }
 
   Future<void> _loadTeam() async {
-    final raw = await _backend.getTeam();
-    if (mounted && raw.isNotEmpty) {
-      setState(() {
-        _members.clear();
-        for (final item in raw) {
-          _members.add({
-            'id': item['id']?.toString() ?? '',
-            'name': item['name']?.toString() ?? '',
-            'email': item['email']?.toString() ?? '',
-            'password': item['password']?.toString() ?? '',
-            'role': item['role']?.toString() ?? 'Sales Executive',
-            'initial': item['initial']?.toString() ?? (item['name'] != null && item['name'].toString().isNotEmpty ? item['name'][0].toUpperCase() : 'U'),
-          });
-        }
-      });
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final raw = await _backend.getTeam();
+      if (mounted && raw.isNotEmpty) {
+        setState(() {
+          _members.clear();
+          for (final item in raw) {
+            _members.add({
+              'id': item['id']?.toString() ?? '',
+              'name': item['name']?.toString() ?? '',
+              'email': item['email']?.toString() ?? '',
+              'password': item['password']?.toString() ?? '',
+              'role': item['role']?.toString() ?? 'Sales Executive',
+              'initial': item['initial']?.toString() ?? (item['name'] != null && item['name'].toString().isNotEmpty ? item['name'][0].toUpperCase() : 'U'),
+            });
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('[TeamScreen] _loadTeam error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -70,54 +82,80 @@ class _TeamScreenState extends State<TeamScreen> {
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('Add Member'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          10,
-          16,
-          100,
-        ),
-        children: [
-          _buildTeamSummary(),
-
-          const SizedBox(height: 20),
-
-          const Text(
-            'Team Members',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          ..._members.asMap().entries.map(
-            (entry) {
-              final index = entry.key;
-              final member = entry.value;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _MemberCard(
-                  member: member,
-                  onEdit: () => _showEditMemberDialog(index),
-                  onDelete: index == 0
-                      ? null
-                      : () {
-                          final memberId = member['id'] ?? member['name'] ?? '';
-                          if (memberId.isNotEmpty) {
-                            _backend.deleteTeamMember(memberId);
-                          }
-                          setState(() {
-                            _members.removeAt(index);
-                          });
-                        },
+      body: RefreshIndicator(
+        onRefresh: _loadTeam,
+        color: AppTheme.primary,
+        child: _isLoading
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 14),
+                      Text(
+                        'Loading team roster...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
-        ],
+              )
+            : ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  16,
+                  10,
+                  16,
+                  100,
+                ),
+                children: [
+                  _buildTeamSummary(),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    'Team Members',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ..._members.asMap().entries.map(
+                    (entry) {
+                      final index = entry.key;
+                      final member = entry.value;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _MemberCard(
+                          member: member,
+                          onEdit: () => _showEditMemberDialog(index),
+                          onDelete: index == 0
+                              ? null
+                              : () {
+                                  final memberId = member['id'] ?? member['name'] ?? '';
+                                  if (memberId.isNotEmpty) {
+                                    _backend.deleteTeamMember(memberId);
+                                  }
+                                  setState(() {
+                                    _members.removeAt(index);
+                                  });
+                                },
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
       ),
     ),
     );

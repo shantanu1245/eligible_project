@@ -43,10 +43,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _pollingTimer;
   bool _hasCheckedDailyBriefing = false;
   List<Map<String, dynamic>> _dashboardCampaigns = [];
+  bool _isLoadingCampaigns = false;
 
   Future<void> _fetchDashboardCampaigns() async {
     if (!widget.user.isAdmin) return;
     try {
+      if (mounted && _dashboardCampaigns.isEmpty) {
+        setState(() => _isLoadingCampaigns = true);
+      }
       final futures = await Future.wait([
         BackendService().getCampaigns(),
         BackendService().getMetaCampaigns(datePreset: 'maximum'),
@@ -81,6 +85,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } catch (e) {
       debugPrint('[Dashboard] _fetchDashboardCampaigns error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingCampaigns = false);
+      }
     }
   }
 
@@ -92,6 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchLeadsFromBackend();
     _fetchUnreadNotificationCount();
     if (widget.user.isAdmin) {
+      _isLoadingCampaigns = true;
       _fetchDashboardCampaigns();
     }
     _registerDeviceToken();
@@ -340,6 +349,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onLeadAdded: _handleLeadAdded,
         onLeadsDeleted: _handleLeadsDeleted,
         onOpenAllotment: widget.user.isAdmin ? _openAllotmentScreen : null,
+        onRefresh: _refreshDashboard,
       );
     }
 
@@ -359,6 +369,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           leads: visibleLeads,
           isLoading: _isLoading,
           onLeadUpdated: _handleLeadUpdated,
+          onRefresh: _refreshDashboard,
         ),
         bottomNavigationBar: AppBottomNavigation(
           currentIndex: currentIndex,
@@ -382,6 +393,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         body: AnalyticsScreen(
           leads: visibleLeads,
           isLoading: _isLoading,
+          onRefresh: _refreshDashboard,
         ),
         bottomNavigationBar: AppBottomNavigation(
           currentIndex: currentIndex,
@@ -523,11 +535,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
-                  // Administrator Executive Welcome & Live Pulse Banner
-                  if (widget.user.isAdmin) ...[
-                    _buildAdminHeaderBanner(),
-                    const SizedBox(height: 16),
-                  ],
+
 
                   // Administrator Unassigned Leads Allotment Alert Banner
                   if (widget.user.isAdmin && unassignedCount > 0) ...[
@@ -786,241 +794,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  // ============================================================
-  // ADMIN EXECUTIVE WELCOME & LIVE PULSE BANNER
-  // ============================================================
-  Widget _buildAdminHeaderBanner() {
-    final now = DateTime.now();
-    final hour = now.hour;
-    final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
-
-    // Total pipeline requested loan calculation
-    double totalRequested = 0;
-    for (final l in leads) {
-      if (l.requiredLoan != null && l.requiredLoan! > 0) {
-        totalRequested += l.requiredLoan!;
-      }
-    }
-    String pipelineStr = '₹2.8 Cr';
-    if (totalRequested > 0) {
-      if (totalRequested >= 10000000) {
-        pipelineStr = '₹${(totalRequested / 10000000).toStringAsFixed(1)} Cr';
-      } else if (totalRequested >= 100000) {
-        pipelineStr = '₹${(totalRequested / 100000).toStringAsFixed(1)} L';
-      }
-    }
-
-    final todayCount = leads.where((l) =>
-      l.createdAt.year == now.year &&
-      l.createdAt.month == now.month &&
-      l.createdAt.day == now.day
-    ).length;
-
-    final convertedCount = leads.where((l) => l.status == LeadStatus.converted).length;
-    final conversionRate = leads.isNotEmpty ? ((convertedCount / leads.length) * 100).toStringAsFixed(0) : '0';
-
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final dateStr = '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F0F172A),
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x333B82F6),
-                      blurRadius: 8,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    widget.user.initial,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '$greeting, ${widget.user.name}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E3A8A),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFF3B82F6), width: 0.8),
-                          ),
-                          child: const Text(
-                            'ADMIN',
-                            style: TextStyle(
-                              color: Color(0xFF93C5FD),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      dateStr,
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0x2210B981),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.fiber_manual_record, color: Color(0xFF34D399), size: 10),
-                    SizedBox(width: 4),
-                    Text(
-                      'Live CRM',
-                      style: TextStyle(color: Color(0xFF34D399), fontSize: 10, fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-            decoration: BoxDecoration(
-              color: const Color(0x33334155),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0x33475569)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildHeaderMetric(
-                  label: 'Pipeline Value',
-                  value: pipelineStr,
-                  icon: Icons.currency_rupee_rounded,
-                  iconColor: const Color(0xFF38BDF8),
-                ),
-                Container(width: 1, height: 28, color: const Color(0x33475569)),
-                _buildHeaderMetric(
-                  label: "Today's Intake",
-                  value: '+$todayCount',
-                  icon: Icons.trending_up_rounded,
-                  iconColor: const Color(0xFF4ADE80),
-                ),
-                Container(width: 1, height: 28, color: const Color(0x33475569)),
-                _buildHeaderMetric(
-                  label: 'Conversion',
-                  value: '$conversionRate%',
-                  icon: Icons.verified_rounded,
-                  iconColor: const Color(0xFFA78BFA),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeaderMetric({
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color iconColor,
-  }) {
-    return Column(
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: iconColor, size: 14),
-            const SizedBox(width: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF94A3B8),
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
     );
   }
 
@@ -2065,7 +1838,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Divider(height: 1, color: AppTheme.border),
 
           // Campaigns List or Empty State
-          if (_dashboardCampaigns.isNotEmpty) ...[
+          if (_isLoadingCampaigns) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: Color(0xFF0668E1),
+                  ),
+                ),
+              ),
+            ),
+          ] else if (_dashboardCampaigns.isNotEmpty) ...[
             ..._dashboardCampaigns.take(2).map((camp) {
               final name = camp['name']?.toString() ?? 'Loan Campaign';
               final status = (camp['effectiveStatus'] ?? camp['status'] ?? 'ACTIVE').toString().toUpperCase();

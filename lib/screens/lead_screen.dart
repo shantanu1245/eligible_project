@@ -19,6 +19,7 @@ class LeadsScreen extends StatefulWidget {
   final Function(Lead)? onLeadAdded;
   final Function(List<String>)? onLeadsDeleted;
   final VoidCallback? onOpenAllotment;
+  final Future<void> Function()? onRefresh;
 
   const LeadsScreen({
     super.key,
@@ -30,6 +31,7 @@ class LeadsScreen extends StatefulWidget {
     this.onLeadAdded,
     this.onLeadsDeleted,
     this.onOpenAllotment,
+    this.onRefresh,
   });
 
   @override
@@ -796,17 +798,30 @@ class _LeadsScreenState extends State<LeadsScreen> {
           Expanded(
             child: widget.isLoading
                 ? const LeadsScreenSkeleton()
-                : leads.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(0, 4, 0, 90),
-                        itemCount: leads.length,
-                        itemBuilder: (context, index) {
-                          final lead = leads[index];
-                          final isSelected = selectedLeadIds.contains(lead.id);
-                          return _buildLeadListTile(lead, isSelected);
-                        },
-                      ),
+                : RefreshIndicator(
+                    onRefresh: widget.onRefresh ?? () async {},
+                    color: AppTheme.primary,
+                    child: leads.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: MediaQuery.of(context).size.height * 0.5,
+                                child: _buildEmptyState(),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(0, 4, 0, 90),
+                            itemCount: leads.length,
+                            itemBuilder: (context, index) {
+                              final lead = leads[index];
+                              final isSelected = selectedLeadIds.contains(lead.id);
+                              return _buildLeadListTile(lead, isSelected);
+                            },
+                          ),
+                  ),
           ),
         ],
       ),

@@ -92,8 +92,8 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
 
   Future<void> _loadAllData() async {
     setState(() => _isLoading = true);
-
-    final futures = await Future.wait([
+    try {
+      final futures = await Future.wait([
       _backend.getMetaCampaigns(
         adAccountId: _selectedAdAccountId,
         datePreset: _selectedDatePreset,
@@ -160,10 +160,16 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
         _ads = adsData;
         _insightsSummary = (insightsData['summary'] as Map<String, dynamic>?) ?? {};
         _syncStatus = syncData;
-        _isLoading = false;
       });
     }
+  } catch (e) {
+    debugPrint('[CampaignsScreen] _loadAllData error: $e');
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
+}
 
   Future<void> _syncLeads() async {
     setState(() => _isSyncing = true);
