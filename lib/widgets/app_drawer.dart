@@ -44,7 +44,7 @@ class AppDrawer extends StatelessWidget {
             // Navigation Items
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 children: [
                   _drawerItem(
                     context: context,
@@ -138,7 +138,7 @@ class AppDrawer extends StatelessWidget {
                   // Admin-Only Workspace Tools
                   if (user.isAdmin) ...[
                     const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
+                      padding: EdgeInsets.fromLTRB(14, 10, 14, 4),
                       child: Text(
                         'ADMIN TOOLS',
                         style: TextStyle(
@@ -220,7 +220,7 @@ class AppDrawer extends StatelessWidget {
                     ),
                   ],
 
-                  const Divider(height: 16, color: AppTheme.border),
+                  const Divider(height: 10, color: AppTheme.border),
 
                   _drawerItem(
                     context: context,
@@ -240,20 +240,26 @@ class AppDrawer extends StatelessWidget {
             // Logout Footer
             const Divider(height: 1, color: AppTheme.border),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: ListTile(
+                dense: true,
+                visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                minLeadingWidth: 26,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
                 leading: const Icon(
                   Icons.logout_rounded,
                   color: Color(0xFFDC2626),
+                  size: 21,
                 ),
                 title: const Text(
                   'Logout',
                   style: TextStyle(
                     color: Color(0xFFDC2626),
                     fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
                   ),
                 ),
                 onTap: () async {
@@ -335,9 +341,9 @@ class AppDrawer extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           const Divider(height: 1, color: AppTheme.border),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           // User Info
           Row(
@@ -418,23 +424,27 @@ class AppDrawer extends StatelessWidget {
     Color? badgeColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 1),
       child: Material(
         color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: ListTile(
+        dense: true,
+        visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        minLeadingWidth: 26,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
         leading: Icon(
           isSelected ? selectedIcon : icon,
           color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
-          size: 22,
+          size: 21,
         ),
         title: Text(
           title,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13.5,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
           ),

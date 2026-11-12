@@ -989,6 +989,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 36),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 icon: _isSyncing

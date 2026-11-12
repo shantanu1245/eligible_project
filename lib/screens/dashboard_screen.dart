@@ -747,6 +747,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               backgroundColor: const Color(0xFFE11D48),
               foregroundColor: Colors.white,
               elevation: 0,
+              minimumSize: const Size(0, 36),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -1761,6 +1762,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 backgroundColor: const Color(0xFFDC2626),
                 foregroundColor: Colors.white,
                 elevation: 0,
+                minimumSize: const Size(0, 36),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () async {
