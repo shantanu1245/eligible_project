@@ -26,9 +26,17 @@ class AuthService {
 
       if (isLoggedIn && userJsonStr != null && userJsonStr.isNotEmpty) {
         final Map<String, dynamic> userMap = jsonDecode(userJsonStr);
-        _currentUser = UserModel.fromJson(userMap);
-        debugPrint('🔐 [AuthService] Restored active session for: ${_currentUser?.name} (${_currentUser?.roleDisplayName})');
-        return _currentUser;
+        final user = UserModel.fromJson(userMap);
+        // Only restore if matching the configured admin account
+        if (user.email.trim().toLowerCase() == 'admin@theligible.in') {
+          _currentUser = user;
+          debugPrint('🔐 [AuthService] Restored active session for: ${_currentUser?.name} (${_currentUser?.email})');
+          return _currentUser;
+        } else {
+          // Clear legacy demo session so user logs in with new credentials
+          await logout();
+          return null;
+        }
       }
     } catch (e) {
       debugPrint('⚠️ [AuthService] Error restoring user session: $e');
@@ -54,27 +62,19 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 300));
 
     final cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail.isEmpty || password.length < 4) {
-      return null;
-    }
+    final cleanPassword = password.trim();
 
-    if (cleanEmail.contains('amit')) {
-      _currentUser = UserModel.executiveAmit;
-    } else if (cleanEmail.contains('priya')) {
-      _currentUser = UserModel.executivePriya;
-    } else {
-      // Default to Administrator
+    // Authenticate Admin credentials
+    if (cleanEmail == 'admin@theligible.in' && cleanPassword == 'eligible@098') {
       _currentUser = UserModel.admin;
-    }
-
-    if (_currentUser != null) {
       await saveUserSession(_currentUser!);
+      return _currentUser;
     }
 
-    return _currentUser;
+    return null;
   }
 
   /// Direct login as a selected user and persist session.

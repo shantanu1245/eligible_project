@@ -118,7 +118,7 @@ class MockLeads {
       estimatedHigh: 550000,
       status: LeadStatus.contacted,
       createdAt: DateTime(2026, 9, 19, 17, 25),
-      assignedTo: 'Amit Patil',
+      assignedTo: '',
     ),
   ];
 }

@@ -52,10 +52,8 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
       bool matchesFilter = true;
       if (_selectedFilter == 'Unassigned') {
         matchesFilter = lead.assignedTo.trim().isEmpty;
-      } else if (_selectedFilter == 'Amit Patil') {
-        matchesFilter = lead.assignedTo.toLowerCase().contains('amit');
-      } else if (_selectedFilter == 'Priya Shah') {
-        matchesFilter = lead.assignedTo.toLowerCase().contains('priya');
+      } else if (_selectedFilter == 'Assigned') {
+        matchesFilter = lead.assignedTo.trim().isNotEmpty;
       }
 
       final matchesCategory = _selectedCategoryFilter == null ||
@@ -67,12 +65,8 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
 
   int get _unassignedCount =>
       _currentLeads.where((l) => l.assignedTo.trim().isEmpty).length;
-  int get _amitCount => _currentLeads
-      .where((l) => l.assignedTo.toLowerCase().contains('amit'))
-      .length;
-  int get _priyaCount => _currentLeads
-      .where((l) => l.assignedTo.toLowerCase().contains('priya'))
-      .length;
+  int get _assignedCount =>
+      _currentLeads.where((l) => l.assignedTo.trim().isNotEmpty).length;
 
   int _categoryCount(String key) =>
       _currentLeads.where((l) => l.categoryKey == key).length;
@@ -579,19 +573,19 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: _buildMetricTile(
-              label: 'Amit Patil',
-              value: '$_amitCount',
-              color: AppTheme.primary,
-              bgColor: const Color(0xFFEFF6FF),
+              label: 'Assigned',
+              value: '$_assignedCount',
+              color: const Color(0xFF16A34A),
+              bgColor: const Color(0xFFF0FDF4),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _buildMetricTile(
-              label: 'Priya Shah',
-              value: '$_priyaCount',
-              color: const Color(0xFF7C3AED),
-              bgColor: const Color(0xFFF5F3FF),
+              label: 'Total Leads',
+              value: '${_currentLeads.length}',
+              color: AppTheme.primary,
+              bgColor: const Color(0xFFEFF6FF),
             ),
           ),
         ],
@@ -645,8 +639,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
     final filters = [
       {'label': 'Unassigned', 'count': _unassignedCount},
       {'label': 'All', 'count': _currentLeads.length},
-      {'label': 'Amit Patil', 'count': _amitCount},
-      {'label': 'Priya Shah', 'count': _priyaCount},
+      {'label': 'Assigned', 'count': _assignedCount},
     ];
 
     final categories = [
@@ -737,7 +730,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
 
   void _showCategoryBatchAllotmentModal() {
     String selectedCatKey = 'salary';
-    UserModel selectedExec = UserModel.salesExecutives.first;
+    UserModel selectedExec = UserModel.salesExecutives.isNotEmpty ? UserModel.salesExecutives.first : UserModel.admin;
 
     showModalBottomSheet(
       context: context,

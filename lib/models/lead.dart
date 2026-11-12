@@ -270,7 +270,14 @@ class Lead {
       campaign: campaign,
       ad: json['ad']?.toString(),
       status: parseStatus(json['status']),
-      assignedTo: json['assignedTo']?.toString() ?? '',
+      assignedTo: () {
+        final raw = json['assignedTo']?.toString().trim() ?? '';
+        final lower = raw.toLowerCase();
+        if (lower.contains('amit') || lower.contains('priya')) {
+          return '';
+        }
+        return raw;
+      }(),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),

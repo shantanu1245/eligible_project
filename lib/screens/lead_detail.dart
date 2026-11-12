@@ -860,7 +860,7 @@ class _LeadDetailsScreenState
           _timelineItem(
             icon: Icons.person_outline,
             title: 'Lead assigned',
-            subtitle: 'Assigned to Shantanu',
+            subtitle: widget.lead.assignedTo.trim().isNotEmpty ? 'Assigned to ${widget.lead.assignedTo}' : 'Lead unassigned',
             time: 'Today, 8:45 PM',
           ),
           _timelineItem(

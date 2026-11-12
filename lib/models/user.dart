@@ -65,52 +65,19 @@ class UserModel {
 
   static const UserModel admin = UserModel(
     id: 'U-001',
-    name: 'Shantanu',
-    email: 'admin@eligiblecrm.com',
+    name: 'Admin',
+    email: 'admin@theligible.in',
     role: UserRole.administrator,
-    initial: 'S',
-  );
-
-  static const UserModel executiveAmit = UserModel(
-    id: 'U-002',
-    name: 'Amit Patil',
-    email: 'amit@eligiblecrm.com',
-    role: UserRole.salesExecutive,
     initial: 'A',
-  );
-
-  static const UserModel executivePriya = UserModel(
-    id: 'U-003',
-    name: 'Priya Shah',
-    email: 'priya@eligiblecrm.com',
-    role: UserRole.salesExecutive,
-    initial: 'P',
-  );
-
-  static const UserModel executiveSneha = UserModel(
-    id: 'U-004',
-    name: 'Sneha Deshmukh',
-    email: 'sneha.d@eligiblecrm.com',
-    role: UserRole.salesExecutive,
-    initial: 'S',
   );
 
   static const List<UserModel> demoUsers = [
     admin,
-    executiveAmit,
-    executivePriya,
   ];
 
-  static const List<UserModel> salesExecutives = [
-    executiveAmit,
-    executivePriya,
-    executiveSneha,
-  ];
+  static const List<UserModel> salesExecutives = [];
 
   static const List<UserModel> teamMembers = [
     admin,
-    executiveAmit,
-    executivePriya,
-    executiveSneha,
   ];
 }

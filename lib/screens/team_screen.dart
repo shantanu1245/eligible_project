@@ -14,22 +14,10 @@ class _TeamScreenState extends State<TeamScreen> {
   final BackendService _backend = BackendService();
   final List<Map<String, String>> _members = [
     {
-      'name': 'Kunal',
-      'email': 'admin@eligiblecrm.com',
+      'name': 'Admin',
+      'email': 'admin@theligible.in',
       'role': 'Administrator',
-      'initial': 'S',
-    },
-    {
-      'name': 'Amit Patil',
-      'email': 'amit@eligiblecrm.com',
-      'role': 'Sales Executive',
       'initial': 'A',
-    },
-    {
-      'name': 'Priya Shah',
-      'email': 'priya@eligiblecrm.com',
-      'role': 'Sales Executive',
-      'initial': 'P',
     },
   ];
 

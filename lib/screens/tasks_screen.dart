@@ -15,7 +15,7 @@ class _TasksScreenState extends State<TasksScreen> {
     {
       'title': 'Follow up with Rahul Patil',
       'description': 'Call the lead regarding property enquiry.',
-      'assignee': 'Amit Patil',
+      'assignee': 'Admin',
       'priority': 'High',
       'status': 'Pending',
       'dueDate': 'Today',
@@ -23,7 +23,7 @@ class _TasksScreenState extends State<TasksScreen> {
     {
       'title': 'Contact new Meta leads',
       'description': 'Call all new leads received from Meta Ads.',
-      'assignee': 'Priya Shah',
+      'assignee': 'Admin',
       'priority': 'Medium',
       'status': 'Pending',
       'dueDate': 'Tomorrow',
@@ -31,7 +31,7 @@ class _TasksScreenState extends State<TasksScreen> {
     {
       'title': 'Update campaign lead status',
       'description': 'Review and update qualified leads.',
-      'assignee': 'Amit Patil',
+      'assignee': 'Admin',
       'priority': 'Low',
       'status': 'Completed',
       'dueDate': 'Yesterday',
@@ -39,9 +39,9 @@ class _TasksScreenState extends State<TasksScreen> {
   ];
 
   final List<String> _teamMembers = [
-    'Amit Patil',
-    'Priya Shah',
-    'Shantanu',
+    'Admin',
+
+
   ];
 
   String _filter = 'All';
