@@ -27,10 +27,40 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  List<UserModel> _availableTeam = [UserModel.admin];
+
   @override
   void initState() {
     super.initState();
     _currentLeads = List.from(widget.leads);
+    _loadAvailableTeam();
+  }
+
+  Future<void> _loadAvailableTeam() async {
+    try {
+      final teamData = await BackendService().getTeam();
+      if (mounted && teamData.isNotEmpty) {
+        final List<UserModel> loaded = [];
+        for (final m in teamData) {
+          final roleStr = m['role']?.toString().toLowerCase() ?? '';
+          final role = roleStr.contains('admin')
+              ? UserRole.administrator
+              : UserRole.salesExecutive;
+          loaded.add(UserModel(
+            id: m['id']?.toString() ?? 'U-${m['name']}',
+            name: m['name']?.toString() ?? 'Member',
+            email: m['email']?.toString() ?? '',
+            role: role,
+            initial: m['initial']?.toString() ?? (m['name'] != null && m['name'].toString().isNotEmpty ? m['name'][0].toUpperCase() : 'U'),
+          ));
+        }
+        if (loaded.isNotEmpty) {
+          setState(() {
+            _availableTeam = loaded;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -229,7 +259,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                ...UserModel.teamMembers.map((exec) {
+                ..._availableTeam.map((exec) {
                   final isCurrentlyAssigned =
                       lead.assignedTo.toLowerCase().contains(exec.name.toLowerCase().split(' ').first);
                   final execCount = _currentLeads
@@ -342,7 +372,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                ...UserModel.teamMembers.map((exec) {
+                ..._availableTeam.map((exec) {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
@@ -730,7 +760,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
 
   void _showCategoryBatchAllotmentModal() {
     String selectedCatKey = 'salary';
-    UserModel selectedExec = UserModel.salesExecutives.isNotEmpty ? UserModel.salesExecutives.first : UserModel.admin;
+    UserModel selectedExec = _availableTeam.firstWhere((m) => m.isSalesExecutive, orElse: () => _availableTeam.first);
 
     showModalBottomSheet(
       context: context,
@@ -878,7 +908,7 @@ class _LeadAllotmentScreenState extends State<LeadAllotmentScreen> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: UserModel.teamMembers.map((exec) {
+                      children: _availableTeam.map((exec) {
                         final isExecSelected = selectedExec.id == exec.id;
                         final cardWidth =
                             (MediaQuery.of(context).size.width - 48) / 2;
