@@ -2,6 +2,7 @@ import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
+import 'add_agent_screen.dart';
 
 class TeamScreen extends StatefulWidget {
   const TeamScreen({super.key});
@@ -64,7 +65,7 @@ class _TeamScreenState extends State<TeamScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddMemberDialog,
+        onPressed: _openAddAgentScreen,
         backgroundColor: AppTheme.primary,
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('Add Member'),
@@ -146,185 +147,30 @@ class _TeamScreenState extends State<TeamScreen> {
     );
   }
 
-  void _showAddMemberDialog() {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-
-    String selectedRole = 'Sales Executive';
-    bool obscurePassword = true;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primary, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'Add Team Member',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Full Name *',
-                        hintText: 'e.g. Rahul Sharma',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email Address / Login ID *',
-                        hintText: 'e.g. rahul@theligible.in',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: passwordController,
-                      obscureText: obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Login Password *',
-                        hintText: 'At least 4 characters',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        helperText: 'Agent will use this password to sign in',
-                        helperMaxLines: 1,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            setDialogState(() {
-                              obscurePassword = !obscurePassword;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    DropdownButtonFormField<String>(
-                      value: selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        prefixIcon: Icon(Icons.badge_outlined),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'Sales Executive',
-                          child: Text('Sales Executive'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Manager',
-                          child: Text('Manager'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Viewer',
-                          child: Text('Viewer'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() {
-                            selectedRole = value;
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final name = nameController.text.trim();
-                    final email = emailController.text.trim();
-                    final password = passwordController.text.trim();
-
-                    if (name.isEmpty || email.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter full name and email address.'),
-                          backgroundColor: Color(0xFFDC2626),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (password.length < 4) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Password is required (minimum 4 characters).'),
-                          backgroundColor: Color(0xFFDC2626),
-                        ),
-                      );
-                      return;
-                    }
-
-                    final newMember = {
-                      'name': name,
-                      'email': email,
-                      'password': password,
-                      'role': selectedRole,
-                      'initial': name.substring(0, 1).toUpperCase(),
-                    };
-
-                    setState(() {
-                      _members.add(newMember);
-                    });
-
-                    _backend.saveTeamMember(newMember);
-
-                    Navigator.pop(dialogContext);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Agent $name added! Login: $email (Pass: $password)'),
-                        backgroundColor: const Color(0xFF16A34A),
-                        duration: const Duration(seconds: 4),
-                      ),
-                    );
-                  },
-                  child: const Text('Add Member'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  Future<void> _openAddAgentScreen() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddAgentScreen(),
+      ),
     );
+
+    if (result != null && mounted) {
+      setState(() {
+        _members.add({
+          'id': result['id']?.toString() ?? '',
+          'name': result['name']?.toString() ?? '',
+          'email': result['email']?.toString() ?? '',
+          'password': result['password']?.toString() ?? '',
+          'role': result['role']?.toString() ?? 'Sales Executive',
+          'initial': result['initial']?.toString() ??
+              (result['name'] != null && result['name'].toString().isNotEmpty
+                  ? result['name'][0].toUpperCase()
+                  : 'U'),
+        });
+      });
+      _loadTeam();
+    }
   }
 
   void _showEditMemberDialog(int index) {
