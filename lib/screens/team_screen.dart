@@ -216,6 +216,8 @@ class _TeamScreenState extends State<TeamScreen> {
     final nameController = TextEditingController(text: member['name'] ?? '');
     final emailController = TextEditingController(text: member['email'] ?? '');
     final passwordController = TextEditingController(text: member['password'] ?? '');
+    final phoneController = TextEditingController(text: member['phone'] ?? '');
+    final cityController = TextEditingController(text: member['city'] ?? member['branch'] ?? '');
 
     String selectedRole = member['role'] ?? 'Sales Executive';
     bool obscurePassword = true;
@@ -225,106 +227,229 @@ class _TeamScreenState extends State<TeamScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final screenWidth = MediaQuery.of(context).size.width;
+            final screenHeight = MediaQuery.of(context).size.height;
+            // Generous width up to 580px on wide screens and 95% on mobile
+            final dialogWidth = (screenWidth * 0.95).clamp(320.0, 580.0);
+
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 12),
+              contentPadding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+              actionsPadding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
+              title: Row(
                 children: [
-                  Icon(Icons.edit_note_rounded, color: AppTheme.primary, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'Edit Team Member',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        member['initial'] ?? (member['name'] != null && member['name']!.isNotEmpty ? member['name']![0].toUpperCase() : 'U'),
+                        style: const TextStyle(
+                          color: AppTheme.primary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 19,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Edit Team Member',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 19,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Update agent credentials, contact details, and role',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Full Name *',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email Address / Login ID *',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: passwordController,
-                      obscureText: obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Login Password',
-                        hintText: 'Enter new password or keep existing',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        helperText: 'Update login password for agent',
-                        helperMaxLines: 1,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 20,
+              content: SizedBox(
+                width: dialogWidth,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: screenHeight * 0.75,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Full Name *',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: nameController,
+                          decoration: const InputDecoration(
+                            hintText: 'e.g. Rahul Sharma',
+                            prefixIcon: Icon(Icons.person_outline, size: 20),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                           ),
-                          onPressed: () {
-                            setDialogState(() {
-                              obscurePassword = !obscurePassword;
-                            });
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        const Text(
+                          'Email Address / Login ID *',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            hintText: 'agent@theligible.in',
+                            prefixIcon: Icon(Icons.email_outlined, size: 20),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        const Text(
+                          'Login Password',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: passwordController,
+                          obscureText: obscurePassword,
+                          decoration: InputDecoration(
+                            hintText: 'Enter new password or leave current',
+                            prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                            helperText: 'Agent will use this password to sign in',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setDialogState(() {
+                                  obscurePassword = !obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Contact Phone',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: phoneController,
+                                    keyboardType: TextInputType.phone,
+                                    decoration: const InputDecoration(
+                                      hintText: '9876543210',
+                                      prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Branch / City',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: cityController,
+                                    decoration: const InputDecoration(
+                                      hintText: 'e.g. Pune',
+                                      prefixIcon: Icon(Icons.location_city_outlined, size: 20),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        const Text(
+                          'Assigned Role',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                        ),
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          value: selectedRole,
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.badge_outlined, size: 20),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'Administrator',
+                              child: Text('Administrator'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Sales Executive',
+                              child: Text('Sales Executive'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Manager',
+                              child: Text('Manager'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Viewer',
+                              child: Text('Viewer'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() {
+                                selectedRole = value;
+                              });
+                            }
                           },
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    DropdownButtonFormField<String>(
-                      value: selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        prefixIcon: Icon(Icons.badge_outlined),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'Administrator',
-                          child: Text('Administrator'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Sales Executive',
-                          child: Text('Sales Executive'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Manager',
-                          child: Text('Manager'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Viewer',
-                          child: Text('Viewer'),
-                        ),
                       ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() {
-                            selectedRole = value;
-                          });
-                        }
-                      },
                     ),
-                  ],
+                  ),
                 ),
               ),
               actions: [
@@ -332,13 +457,18 @@ class _TeamScreenState extends State<TeamScreen> {
                   onPressed: () {
                     Navigator.pop(dialogContext);
                   },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  ),
                   child: const Text('Cancel'),
                 ),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () {
                     final name = nameController.text.trim();
                     final email = emailController.text.trim();
                     final password = passwordController.text.trim();
+                    final phone = phoneController.text.trim();
+                    final city = cityController.text.trim();
                     if (name.isEmpty || email.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -354,6 +484,8 @@ class _TeamScreenState extends State<TeamScreen> {
                       'name': name,
                       'email': email,
                       if (password.isNotEmpty) 'password': password,
+                      if (phone.isNotEmpty) 'phone': phone,
+                      if (city.isNotEmpty) 'city': city,
                       'role': selectedRole,
                       'initial': name.substring(0, 1).toUpperCase(),
                     };
@@ -370,12 +502,32 @@ class _TeamScreenState extends State<TeamScreen> {
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Updated $name successfully!'),
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Member "$name" updated successfully.',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
                         backgroundColor: const Color(0xFF16A34A),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     );
                   },
-                  child: const Text('Save Changes'),
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('Save Changes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ],
             );
