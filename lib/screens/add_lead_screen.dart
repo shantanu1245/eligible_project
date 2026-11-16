@@ -200,7 +200,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
           'Add New Lead',
           style: TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 19,
+            fontSize: 17,
           ),
         ),
       ),

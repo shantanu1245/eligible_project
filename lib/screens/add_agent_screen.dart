@@ -119,7 +119,7 @@ class _AddAgentScreenState extends State<AddAgentScreen> {
             children: [
               Text(
                 'Add Sales Agent',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
               ),
               Text(
                 'Create agent login credentials & workspace',

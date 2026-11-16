@@ -572,7 +572,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               ),
               title: Text(
                 '${selectedLeadIds.length} Selected',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               actions: [
                 IconButton(
@@ -596,7 +596,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   Text(
                     _isAdmin ? 'All Leads' : 'My Leads',
                     style: const TextStyle(
-                      fontSize: 19,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

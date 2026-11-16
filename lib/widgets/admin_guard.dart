@@ -25,7 +25,7 @@ class AdminGuard extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Access Restricted', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text('Access Restricted', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).maybePop(),

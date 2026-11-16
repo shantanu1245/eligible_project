@@ -95,7 +95,7 @@ class _LeadDetailsScreenState
           lead.name.isNotEmpty ? lead.name : 'Lead Details',
           style: const TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 18,
+            fontSize: 16,
           ),
         ),
         actions: [

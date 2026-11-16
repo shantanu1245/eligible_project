@@ -272,7 +272,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             const Flexible(
               child: Text(
                 'Notifications',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

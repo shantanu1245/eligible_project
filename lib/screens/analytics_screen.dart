@@ -50,7 +50,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               'Analytics',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 19,
+                fontSize: 17,
               ),
             ),
             Text(

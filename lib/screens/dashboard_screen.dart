@@ -457,7 +457,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text(
               widget.user.isAdmin ? 'Admin Dashboard' : 'Executive Dashboard',
               style: const TextStyle(
-                fontSize: 19,
+                fontSize: 17,
                 fontWeight: FontWeight.w800,
                 color: AppTheme.textPrimary,
               ),

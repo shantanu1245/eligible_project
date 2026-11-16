@@ -282,7 +282,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
               'Meta Ads Manager',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 19,
+                fontSize: 17,
               ),
             ),
             Text(

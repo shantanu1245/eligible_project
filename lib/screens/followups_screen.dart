@@ -258,7 +258,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
               'Follow-ups',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 19,
+                fontSize: 17,
               ),
             ),
             Text(

@@ -31,7 +31,7 @@ class AppTheme {
       actionsPadding: EdgeInsets.only(right: 8),
       titleTextStyle: TextStyle(
         color: textPrimary,
-        fontSize: 19,
+        fontSize: 17,
         fontWeight: FontWeight.w800,
       ),
     ),

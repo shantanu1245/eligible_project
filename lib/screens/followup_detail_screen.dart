@@ -193,7 +193,7 @@ class _FollowupDetailScreenState extends State<FollowupDetailScreen> {
         title: Text(
           'Follow-up #${currentFollowup.followupNumber}',
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.w800,
             color: AppTheme.textPrimary,
           ),

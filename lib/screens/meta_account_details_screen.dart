@@ -327,7 +327,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Meta Account Details', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            const Text('Meta Account Details', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             Text(
               'Official Meta Graph API • ${_diagnostics['user']?['name'] ?? 'Connected'}',
               style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.normal),

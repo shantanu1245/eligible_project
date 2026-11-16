@@ -903,7 +903,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                 const Flexible(
                   child: Text(
                     'Ads Manager • Create Ad',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
