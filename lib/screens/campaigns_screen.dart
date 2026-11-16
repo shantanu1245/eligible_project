@@ -296,18 +296,26 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
         ),
         actions: [
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+            splashRadius: 18,
             icon: _isSyncing
                 ? const SizedBox(
-                    width: 18,
-                    height: 18,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.sync_rounded),
+                : const Icon(Icons.sync_rounded, size: 21),
             onPressed: _isSyncing ? null : _syncLeads,
             tooltip: 'Sync Meta Leads',
           ),
           IconButton(
-            icon: const Icon(Icons.analytics_outlined),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+            splashRadius: 18,
+            icon: const Icon(Icons.analytics_outlined, size: 21),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => MetaAccountDetailsScreen(initialAdAccountId: _selectedAdAccountId)),
@@ -315,18 +323,27 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
             tooltip: 'Meta Account Details',
           ),
           IconButton(
-            icon: const Icon(Icons.shield_outlined),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+            splashRadius: 18,
+            icon: const Icon(Icons.shield_outlined, size: 21),
             onPressed: _showDiagnosticsModal,
             tooltip: 'Meta Token & Permissions',
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+            splashRadius: 18,
+            icon: const Icon(Icons.settings_outlined, size: 21),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const MetaSetupScreen()),
             ),
             tooltip: 'Meta Setup',
           ),
+          const SizedBox(width: 8),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -557,8 +574,8 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF16A34A),
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () {
@@ -570,17 +587,19 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                       currencySymbol: currencySymbol,
                     );
                   },
-                  icon: const Icon(Icons.add_card_rounded, size: 16),
+                  icon: const Icon(Icons.add_card_rounded, size: 15),
                   label: const Text('Add Funds / Recharge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               IconButton.filledTonal(
                 style: IconButton.styleFrom(
                   backgroundColor: const Color(0xFF334155),
                   foregroundColor: const Color(0xFF93C5FD),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  minimumSize: const Size(38, 38),
+                  minimumSize: const Size(36, 36),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
                 ),
                 onPressed: () => MetaBillingRedirectHelper.openMetaDevelopers(),
                 icon: const Icon(Icons.code_rounded, size: 18),
@@ -591,15 +610,15 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white70,
                   side: const BorderSide(color: Color(0xFF475569)),
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () async {
                   setState(() => _isLoading = true);
                   await _initializeData();
                 },
-                icon: const Icon(Icons.refresh_rounded, size: 16),
+                icon: const Icon(Icons.refresh_rounded, size: 15),
                 label: const Text('Refresh', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               ),
             ],

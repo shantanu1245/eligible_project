@@ -336,18 +336,27 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+            splashRadius: 18,
+            icon: const Icon(Icons.refresh, size: 21),
             onPressed: () => _loadAllAccountData(forceRefresh: true),
             tooltip: 'Refresh All Meta Data',
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+            splashRadius: 18,
+            icon: const Icon(Icons.settings_outlined, size: 21),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const MetaSetupScreen()),
             ),
             tooltip: 'Meta Setup',
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _isLoading
@@ -444,7 +453,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
@@ -579,11 +588,11 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text('• Currency: $currency', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Flexible(
                   child: Text('Lifetime Spent: ₹$spendFormatted', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primary)),
                 ),
@@ -611,7 +620,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               OutlinedButton.icon(
                 onPressed: () => MetaBillingRedirectHelper.openMetaDevelopers(),
                 icon: const Icon(Icons.code_rounded, size: 16),
@@ -691,7 +700,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                         ),
                         child: const Icon(Icons.facebook, color: Colors.white, size: 16),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,7 +722,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               // Instagram
               Expanded(
                 child: Container(
@@ -737,7 +746,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                         ),
                         child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1435,7 +1444,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                     child: Row(
                       children: [
                         const Icon(Icons.description_outlined, size: 18, color: AppTheme.primary),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(child: Text(f['name'] ?? 'Lead Form', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
                         Text('${f['leadsCount'] ?? 0} leads', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                       ],
