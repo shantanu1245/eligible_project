@@ -3,27 +3,25 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class MetaBillingRedirectHelper {
+  // Default Meta Ad Account ID configured in backend
+  static const String defaultAdAccountId = '1593227015623724';
+
   static String cleanAdAccountId(String? rawId) {
-    if (rawId == null || rawId.trim().isEmpty) return '';
-    return rawId.trim().replaceAll('act_', '');
+    if (rawId == null || rawId.trim().isEmpty) return defaultAdAccountId;
+    final cleaned = rawId.trim().replaceAll('act_', '');
+    return cleaned.isNotEmpty ? cleaned : defaultAdAccountId;
   }
 
   /// Direct URL to Add Funds into the specific Meta Ad Account
   static String getAddFundsUrl(String? adAccountId) {
     final cleaned = cleanAdAccountId(adAccountId);
-    if (cleaned.isNotEmpty) {
-      return 'https://adsmanager.facebook.com/adsmanager/manage/billing?act=$cleaned';
-    }
-    return 'https://adsmanager.facebook.com/billing';
+    return 'https://adsmanager.facebook.com/adsmanager/manage/billing?act=$cleaned';
   }
 
   /// Direct URL to Meta Business Billing & Payment Methods (UPI, Cards, GST)
   static String getPaymentSettingsUrl(String? adAccountId) {
     final cleaned = cleanAdAccountId(adAccountId);
-    if (cleaned.isNotEmpty) {
-      return 'https://business.facebook.com/billing_hub/payment_settings?act=$cleaned';
-    }
-    return 'https://business.facebook.com/billing_hub/payment_settings';
+    return 'https://business.facebook.com/billing_hub/payment_settings?act=$cleaned';
   }
 
   /// Direct URL to Meta for Developers Portal
@@ -34,50 +32,122 @@ class MetaBillingRedirectHelper {
   /// Direct URL to Meta Business Suite Ad Account Settings
   static String getBusinessSettingsUrl(String? adAccountId) {
     final cleaned = cleanAdAccountId(adAccountId);
-    if (cleaned.isNotEmpty) {
-      return 'https://business.facebook.com/settings/ad-accounts/$cleaned';
-    }
-    return 'https://business.facebook.com/settings/ad-accounts';
+    return 'https://business.facebook.com/settings/ad-accounts/$cleaned';
   }
 
-  /// Directly launch Add Funds for this ad account in browser/Meta app
-  static Future<bool> openAddFunds({String? adAccountId}) async {
-    final url = getAddFundsUrl(adAccountId);
-    final uri = Uri.parse(url);
-    try {
-      if (await canLaunchUrl(uri)) {
-        return await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('[MetaBilling] openAddFunds error: $e');
+  /// Bulletproof URL launcher with multi-tier fallback (external app -> platform default -> in-app browser)
+  static Future<bool> openUrl(String urlString, {BuildContext? context, String? label}) async {
+    final uri = Uri.parse(urlString);
+    debugPrint('[MetaBilling] Launching URL ($label): $urlString');
+
+    if (context != null && context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Opening ${label ?? "Meta Portal"} in browser...',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF0F172A),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     }
-    return false;
+
+    bool launched = false;
+
+    // 1. Primary Attempt: External browser application
+    try {
+      launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      debugPrint('[MetaBilling] externalApplication launch result: $launched');
+    } catch (e) {
+      debugPrint('[MetaBilling] externalApplication failed: $e');
+    }
+
+    // 2. Secondary Attempt: Platform default handler
+    if (!launched) {
+      try {
+        launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        debugPrint('[MetaBilling] platformDefault launch result: $launched');
+      } catch (e) {
+        debugPrint('[MetaBilling] platformDefault failed: $e');
+      }
+    }
+
+    // 3. Tertiary Attempt: In-App Browser View
+    if (!launched) {
+      try {
+        launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+        debugPrint('[MetaBilling] inAppBrowserView launch result: $launched');
+      } catch (e) {
+        debugPrint('[MetaBilling] inAppBrowserView failed: $e');
+      }
+    }
+
+    // 4. Fallback if browser failed to open
+    if (!launched) {
+      await Clipboard.setData(ClipboardData(text: urlString));
+      if (context != null && context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not auto-open browser. Link copied to clipboard:\n$urlString',
+              style: const TextStyle(fontSize: 12),
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    }
+
+    return launched;
+  }
+
+  /// Directly launch Add Funds for this ad account
+  static Future<bool> openAddFunds({String? adAccountId, BuildContext? context}) async {
+    final url = getAddFundsUrl(adAccountId);
+    return await openUrl(url, context: context, label: 'Meta Add Funds');
   }
 
   /// Directly launch Meta for Developers Portal
-  static Future<bool> openMetaDevelopers() async {
-    final uri = Uri.parse(getMetaDevelopersUrl());
-    try {
-      if (await canLaunchUrl(uri)) {
-        return await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('[MetaBilling] openMetaDevelopers error: $e');
-    }
-    return false;
+  static Future<bool> openMetaDevelopers({BuildContext? context}) async {
+    final url = getMetaDevelopersUrl();
+    return await openUrl(url, context: context, label: 'Meta for Developers');
   }
 
   /// Directly launch Payment Settings
-  static Future<bool> openPaymentSettings({String? adAccountId}) async {
-    final uri = Uri.parse(getPaymentSettingsUrl(adAccountId));
-    try {
-      if (await canLaunchUrl(uri)) {
-        return await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('[MetaBilling] openPaymentSettings error: $e');
-    }
-    return false;
+  static Future<bool> openPaymentSettings({String? adAccountId, BuildContext? context}) async {
+    final url = getPaymentSettingsUrl(adAccountId);
+    return await openUrl(url, context: context, label: 'Meta Payment Settings');
+  }
+
+  /// Directly launch Meta Business Settings
+  static Future<bool> openBusinessSettings({String? adAccountId, BuildContext? context}) async {
+    final url = getBusinessSettingsUrl(adAccountId);
+    return await openUrl(url, context: context, label: 'Meta Business Settings');
   }
 
   /// Display comprehensive Meta Billing & Developer Redirection Modal Sheet
@@ -90,7 +160,7 @@ class MetaBillingRedirectHelper {
   }) {
     HapticFeedback.mediumImpact();
     final cleanedId = cleanAdAccountId(adAccountId);
-    final formattedAct = cleanedId.isNotEmpty ? 'act_$cleanedId' : 'Default Account';
+    final formattedAct = 'act_$cleanedId';
 
     showModalBottomSheet(
       context: context,
@@ -241,7 +311,7 @@ class MetaBillingRedirectHelper {
                   badgeColor: const Color(0xFF16A34A),
                   onTap: () {
                     Navigator.pop(ctx);
-                    openAddFunds(adAccountId: cleanedId);
+                    openAddFunds(adAccountId: cleanedId, context: context);
                   },
                 ),
 
@@ -257,7 +327,7 @@ class MetaBillingRedirectHelper {
                   badgeColor: const Color(0xFF7C3AED),
                   onTap: () {
                     Navigator.pop(ctx);
-                    openMetaDevelopers();
+                    openMetaDevelopers(context: context);
                   },
                 ),
 
@@ -273,7 +343,7 @@ class MetaBillingRedirectHelper {
                   badgeColor: null,
                   onTap: () {
                     Navigator.pop(ctx);
-                    openPaymentSettings(adAccountId: cleanedId);
+                    openPaymentSettings(adAccountId: cleanedId, context: context);
                   },
                 ),
 
@@ -289,7 +359,7 @@ class MetaBillingRedirectHelper {
                   badgeColor: null,
                   onTap: () {
                     Navigator.pop(ctx);
-                    openBusinessSettings(adAccountId: cleanedId);
+                    openBusinessSettings(adAccountId: cleanedId, context: context);
                   },
                 ),
               ],
@@ -298,18 +368,6 @@ class MetaBillingRedirectHelper {
         );
       },
     );
-  }
-
-  static Future<bool> openBusinessSettings({String? adAccountId}) async {
-    final uri = Uri.parse(getBusinessSettingsUrl(adAccountId));
-    try {
-      if (await canLaunchUrl(uri)) {
-        return await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('[MetaBilling] openBusinessSettings error: $e');
-    }
-    return false;
   }
 
   static Widget _buildActionTile({
@@ -408,4 +466,3 @@ class MetaBillingRedirectHelper {
     );
   }
 }
-
