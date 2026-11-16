@@ -369,6 +369,9 @@ class MetaService {
         isCapped,
         canDeliver: res.account_status === 1 && (!isPrepaid || availableBalance > 0) && !isCapped,
         billingUrl: `https://adsmanager.facebook.com/adsmanager/manage/billing?act=${res.account_id || act.replace('act_', '')}`,
+        paymentSettingsUrl: `https://business.facebook.com/billing_hub/payment_settings?act=${res.account_id || act.replace('act_', '')}`,
+        developersUrl: 'https://developers.facebook.com/apps/',
+        businessUrl: `https://business.facebook.com/settings/ad-accounts/${res.account_id || act.replace('act_', '')}`,
       };
     } catch (err) {
       console.error('❌ [MetaService:getAdAccountBilling] error:', err.message);

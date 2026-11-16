@@ -4,6 +4,7 @@ import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'meta_setup_screen.dart';
 import 'campaigns_screen.dart';
+import '../widgets/meta_billing_sheet.dart';
 
 class MetaAccountDetailsScreen extends StatefulWidget {
   final String? initialAdAccountId;
@@ -588,6 +589,41 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => MetaBillingRedirectHelper.showBillingOptions(
+                    context,
+                    adAccountId: acc['id']?.toString() ?? _selectedAdAccountId,
+                    accountName: name,
+                    currencySymbol: currency == 'INR' ? '₹' : '$currency ',
+                  ),
+                  icon: const Icon(Icons.add_card_rounded, size: 16),
+                  label: const Text('Add Funds / Recharge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 38),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => MetaBillingRedirectHelper.openMetaDevelopers(),
+                icon: const Icon(Icons.code_rounded, size: 16),
+                label: const Text('Meta Developers', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0F172A),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  minimumSize: const Size(0, 38),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
           ),
         ],
       ),

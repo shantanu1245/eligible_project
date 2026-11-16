@@ -1,12 +1,12 @@
 import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'meta_setup_screen.dart';
 import 'meta_account_details_screen.dart';
 import 'create_meta_campaign_screen.dart';
+import '../widgets/meta_billing_sheet.dart';
 
 class CampaignsScreen extends StatefulWidget {
   const CampaignsScreen({super.key});
@@ -561,17 +561,32 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: () async {
-                    final uri = Uri.parse('https://adsmanager.facebook.com/billing');
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    }
+                  onPressed: () {
+                    MetaBillingRedirectHelper.showBillingOptions(
+                      context,
+                      adAccountId: _selectedAdAccountId ?? account['id']?.toString(),
+                      accountName: account['name']?.toString(),
+                      currentBalance: balance,
+                      currencySymbol: currencySymbol,
+                    );
                   },
                   icon: const Icon(Icons.add_card_rounded, size: 16),
                   label: const Text('Add Funds / Recharge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(width: 8),
+              IconButton.filledTonal(
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF334155),
+                  foregroundColor: const Color(0xFF93C5FD),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  minimumSize: const Size(38, 38),
+                ),
+                onPressed: () => MetaBillingRedirectHelper.openMetaDevelopers(),
+                icon: const Icon(Icons.code_rounded, size: 18),
+                tooltip: 'Meta for Developers Portal',
+              ),
+              const SizedBox(width: 6),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white70,

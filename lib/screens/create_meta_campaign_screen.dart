@@ -3,9 +3,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/meta_billing_sheet.dart';
 
 class CreateMetaCampaignScreen extends StatefulWidget {
   final Function(Map<String, dynamic>)? onCampaignCreated;
@@ -210,10 +210,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   final _customFormIdController = TextEditingController();
   // Meta Ad Wallet Balance & Billing Gate
   double _metaBalance = 0.0;
+  String? _adAccountId;
   bool _isPrepaid = true;
   bool _isLoadingBilling = true;
   String _billingDisplay = 'Checking balance...';
-  String _billingUrl = 'https://adsmanager.facebook.com/adsmanager/manage/billing';
 
   Future<void> _loadBillingStatus() async {
     setState(() => _isLoadingBilling = true);
@@ -222,11 +222,9 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       if (mounted) {
         setState(() {
           _metaBalance = (billing['availableBalance'] as num?)?.toDouble() ?? 0.0;
+          _adAccountId = billing['adAccountId']?.toString();
           _isPrepaid = billing['isPrepaid'] ?? true;
           _billingDisplay = billing['displayString'] ?? '₹${_metaBalance.toStringAsFixed(2)}';
-          if (billing['billingUrl'] != null && billing['billingUrl'].toString().isNotEmpty) {
-            _billingUrl = billing['billingUrl'];
-          }
           _isLoadingBilling = false;
         });
       }
@@ -295,15 +293,35 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   minimumSize: const Size(0, 44),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: () async {
+                onPressed: () {
                   Navigator.pop(ctx);
-                  final uri = Uri.parse(_billingUrl);
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
+                  MetaBillingRedirectHelper.showBillingOptions(
+                    context,
+                    adAccountId: _adAccountId,
+                    currentBalance: _metaBalance,
+                    currencySymbol: '₹',
+                  );
                 },
-                icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                label: const Text('Add Funds via Meta (UPI/Card)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                icon: const Icon(Icons.add_card_rounded, size: 16),
+                label: const Text('Add Funds to Meta Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF64748B),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  minimumSize: const Size(0, 40),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  MetaBillingRedirectHelper.openMetaDevelopers();
+                },
+                icon: const Icon(Icons.code_rounded, size: 16),
+                label: const Text('Open Meta for Developers Portal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
               ),
             ),
             const SizedBox(height: 8),
@@ -421,15 +439,29 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                       minimumSize: const Size(0, 38),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    onPressed: () async {
-                      final uri = Uri.parse(_billingUrl);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
+                    onPressed: () {
+                      MetaBillingRedirectHelper.showBillingOptions(
+                        context,
+                        adAccountId: _adAccountId,
+                        currentBalance: _metaBalance,
+                        currencySymbol: '₹',
+                      );
                     },
                     icon: const Icon(Icons.add_card_rounded, size: 16),
                     label: const Text('Add Funds via Meta (UPI/Card)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F172A),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    minimumSize: const Size(0, 38),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => MetaBillingRedirectHelper.openMetaDevelopers(),
+                  icon: const Icon(Icons.code_rounded, size: 15),
+                  label: const Text('Developers', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
