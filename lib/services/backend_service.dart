@@ -387,10 +387,12 @@ class BackendService {
   }
 
   /// Retrieve Live Meta Ad Account Prepaid Balance & Billing Details
-  Future<Map<String, dynamic>> getMetaBilling({String? adAccountId}) async {
+  Future<Map<String, dynamic>> getMetaBilling({String? adAccountId, bool forceRefresh = false}) async {
     try {
-      final query = adAccountId != null ? {'adAccountId': adAccountId} : null;
-      final res = await _safeGet('meta/billing', query: query, timeout: const Duration(seconds: 8));
+      final query = <String, String>{};
+      if (adAccountId != null) query['adAccountId'] = adAccountId;
+      if (forceRefresh) query['refresh'] = 'true';
+      final res = await _safeGet('meta/billing', query: query.isNotEmpty ? query : null, timeout: const Duration(seconds: 8));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return Map<String, dynamic>.from(data['data'] ?? {});

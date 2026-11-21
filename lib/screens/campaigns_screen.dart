@@ -34,6 +34,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
   List<Map<String, dynamic>> _ads = [];
   Map<String, dynamic> _insightsSummary = {};
   Map<String, dynamic> _syncStatus = {};
+  Map<String, dynamic> _billingInfo = {};
 
   String? _selectedCampaignFilterId;
 
@@ -74,8 +75,8 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
   Future<void> _initializeData() async {
     setState(() => _isLoading = true);
 
-    // 1. Fetch accessible Ad Accounts
-    final accounts = await _backend.getMetaAccounts();
+    // 1. Fetch accessible Ad Accounts with live data
+    final accounts = await _backend.getMetaAccounts(forceRefresh: true);
     if (mounted) {
       setState(() {
         _adAccounts = accounts;
@@ -94,82 +95,93 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     setState(() => _isLoading = true);
     try {
       final futures = await Future.wait([
-      _backend.getMetaCampaigns(
-        adAccountId: _selectedAdAccountId,
-        datePreset: _selectedDatePreset,
-        forceRefresh: true,
-      ),
-      _backend.getMetaAdSets(
-        adAccountId: _selectedAdAccountId,
-        campaignId: _selectedCampaignFilterId,
-        datePreset: _selectedDatePreset,
-      ),
-      _backend.getMetaAds(
-        adAccountId: _selectedAdAccountId,
-        campaignId: _selectedCampaignFilterId,
-        datePreset: _selectedDatePreset,
-      ),
-      _backend.getMetaInsights(
-        adAccountId: _selectedAdAccountId,
-        datePreset: _selectedDatePreset,
-      ),
-      _backend.getMetaSyncStatus(),
-      _backend.getCampaigns(),
-    ]);
+        _backend.getMetaCampaigns(
+          adAccountId: _selectedAdAccountId,
+          datePreset: _selectedDatePreset,
+          forceRefresh: true,
+        ),
+        _backend.getMetaAdSets(
+          adAccountId: _selectedAdAccountId,
+          campaignId: _selectedCampaignFilterId,
+          datePreset: _selectedDatePreset,
+          forceRefresh: true,
+        ),
+        _backend.getMetaAds(
+          adAccountId: _selectedAdAccountId,
+          campaignId: _selectedCampaignFilterId,
+          datePreset: _selectedDatePreset,
+          forceRefresh: true,
+        ),
+        _backend.getMetaInsights(
+          adAccountId: _selectedAdAccountId,
+          datePreset: _selectedDatePreset,
+          forceRefresh: true,
+        ),
+        _backend.getMetaSyncStatus(forceRefresh: true),
+        _backend.getCampaigns(),
+        _backend.getMetaBilling(adAccountId: _selectedAdAccountId, forceRefresh: true),
+        _backend.getMetaAccounts(forceRefresh: true),
+      ]);
 
-    if (mounted) {
-      final metaCampaignsData = futures[0] as List<Map<String, dynamic>>;
-      final adSetsData = futures[1] as List<Map<String, dynamic>>;
-      final adsData = futures[2] as List<Map<String, dynamic>>;
-      final insightsData = futures[3] as Map<String, dynamic>;
-      final syncData = futures[4] as Map<String, dynamic>;
-      final dbCampaignsData = futures[5] as List<Map<String, dynamic>>;
+      if (mounted) {
+        final metaCampaignsData = futures[0] as List<Map<String, dynamic>>;
+        final adSetsData = futures[1] as List<Map<String, dynamic>>;
+        final adsData = futures[2] as List<Map<String, dynamic>>;
+        final insightsData = futures[3] as Map<String, dynamic>;
+        final syncData = futures[4] as Map<String, dynamic>;
+        final dbCampaignsData = futures[5] as List<Map<String, dynamic>>;
+        final billingData = futures[6] as Map<String, dynamic>;
+        final refreshedAccounts = futures[7] as List<Map<String, dynamic>>;
 
-      // Merge backend campaigns, live Meta campaigns, and currently held campaigns
-      final Map<String, Map<String, dynamic>> combined = {};
+        // Merge backend campaigns, live Meta campaigns, and currently held campaigns
+        final Map<String, Map<String, dynamic>> combined = {};
 
-      for (final c in dbCampaignsData) {
-        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
-        if (id != null) combined[id] = Map<String, dynamic>.from(c);
-      }
-      for (final c in metaCampaignsData) {
-        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
-        if (id != null) {
-          final existing = combined[id] ?? {};
-          combined[id] = {...existing, ...c};
+        for (final c in dbCampaignsData) {
+          final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+          if (id != null) combined[id] = Map<String, dynamic>.from(c);
         }
-      }
-      // Preserve any campaign that was just published during this session
-      for (final c in _campaigns) {
-        final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
-        if (id != null && !combined.containsKey(id)) {
-          combined[id] = c;
+        for (final c in metaCampaignsData) {
+          final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+          if (id != null) {
+            final existing = combined[id] ?? {};
+            combined[id] = {...existing, ...c};
+          }
         }
+        // Preserve any campaign that was just published during this session
+        for (final c in _campaigns) {
+          final id = c['id']?.toString() ?? c['meta_campaign_id']?.toString();
+          if (id != null && !combined.containsKey(id)) {
+            combined[id] = c;
+          }
+        }
+
+        final mergedList = combined.values.toList();
+        mergedList.sort((a, b) {
+          final tA = DateTime.tryParse(a['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+          final tB = DateTime.tryParse(b['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+          return tB.compareTo(tA);
+        });
+
+        setState(() {
+          _campaigns = mergedList;
+          _adSets = adSetsData;
+          _ads = adsData;
+          _insightsSummary = (insightsData['summary'] as Map<String, dynamic>?) ?? {};
+          _syncStatus = syncData;
+          _billingInfo = billingData;
+          if (refreshedAccounts.isNotEmpty) {
+            _adAccounts = refreshedAccounts;
+          }
+        });
       }
-
-      final mergedList = combined.values.toList();
-      mergedList.sort((a, b) {
-        final tA = DateTime.tryParse(a['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
-        final tB = DateTime.tryParse(b['created_time']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
-        return tB.compareTo(tA);
-      });
-
-      setState(() {
-        _campaigns = mergedList;
-        _adSets = adSetsData;
-        _ads = adsData;
-        _insightsSummary = (insightsData['summary'] as Map<String, dynamic>?) ?? {};
-        _syncStatus = syncData;
-      });
-    }
-  } catch (e) {
-    debugPrint('[CampaignsScreen] _loadAllData error: $e');
-  } finally {
-    if (mounted) {
-      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('[CampaignsScreen] _loadAllData error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
-}
 
   Future<void> _syncLeads() async {
     setState(() => _isSyncing = true);
@@ -477,11 +489,21 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     final account = _currentAccount;
     if (account == null) return const SizedBox();
 
-    final currency = account['currency'] ?? 'INR';
+    final currency = account['currency'] ?? _billingInfo['currency'] ?? 'INR';
     final currencySymbol = currency == 'INR' ? '₹' : '$currency ';
-    final balance = (account['balance'] as num?)?.toDouble() ?? 0.0;
-    final amountSpent = (account['amountSpent'] as num?)?.toDouble() ?? 0.0;
-    final status = (account['status'] ?? 'ACTIVE').toString().toUpperCase();
+    
+    // Check live billing info first (highest accuracy), then account fields
+    final double balance = (_billingInfo['availableBalance'] as num?)?.toDouble() ??
+        (account['availableBalance'] as num?)?.toDouble() ??
+        (account['balance'] as num?)?.toDouble() ??
+        0.0;
+        
+    final amountSpent = (_billingInfo['amountSpent'] as num?)?.toDouble() ??
+        (account['amountSpent'] as num?)?.toDouble() ??
+        0.0;
+        
+    final isPrepaid = _billingInfo['isPrepaid'] == true || account['isPrepaid'] == true || balance > 0;
+    final status = (account['status'] ?? _billingInfo['accountStatus'] ?? 'ACTIVE').toString().toUpperCase();
 
     return Container(
       margin: const EdgeInsets.only(top: 10),
@@ -540,11 +562,18 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('CURRENT DUE / BALANCE', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w700)),
+                    Text(
+                      isPrepaid ? 'AVAILABLE PREPAID FUNDS' : 'CURRENT DUE / BALANCE',
+                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       '$currencySymbol${balance.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: balance > 0 ? const Color(0xFF4ADE80) : Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ],
                 ),

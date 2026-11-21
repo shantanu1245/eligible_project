@@ -107,6 +107,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
           _backend.getMetaAds(adAccountId: _selectedAdAccountId, forceRefresh: forceRefresh),
           _backend.getMetaInsights(adAccountId: _selectedAdAccountId, datePreset: _selectedDatePreset, forceRefresh: forceRefresh),
           _backend.getMetaLeadForms(forceRefresh: forceRefresh),
+          _backend.getMetaBilling(adAccountId: _selectedAdAccountId, forceRefresh: forceRefresh),
         ]);
 
         _campaigns = results[0] as List<Map<String, dynamic>>;
@@ -114,6 +115,16 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
         _ads = results[2] as List<Map<String, dynamic>>;
         _insights = results[3] as Map<String, dynamic>;
         _leadForms = results[4] as List<Map<String, dynamic>>;
+        final billing = results[5] as Map<String, dynamic>;
+        if (billing.containsKey('availableBalance') && _selectedAccount != null) {
+          _selectedAccount = {
+            ..._selectedAccount!,
+            'availableBalance': billing['availableBalance'],
+            'isPrepaid': billing['isPrepaid'],
+            'displayString': billing['displayString'],
+            if (billing['amountSpent'] != null) 'amountSpent': billing['amountSpent'],
+          };
+        }
       }
     } catch (e) {
       debugPrint('[MetaAccountDetailsScreen] Error loading account data: $e');
@@ -262,7 +273,9 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                             itemBuilder: (context, idx) {
                               final acc = filtered[idx];
                               final isSelected = acc['id'] == _selectedAdAccountId;
-                              final spend = (double.tryParse('${acc['amountSpent'] ?? 0}') ?? 0) / 100;
+                              final spend = double.tryParse('${acc['amountSpent'] ?? 0}') ?? 0;
+                              final balance = (acc['availableBalance'] as num?)?.toDouble() ??
+                                  (acc['balance'] as num?)?.toDouble() ?? 0.0;
 
                               return ListTile(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -288,7 +301,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                                   ),
                                 ),
                                 subtitle: Text(
-                                  '${acc['id']} • ${acc['currency'] ?? 'INR'} • ₹${spend.toStringAsFixed(2)} spent',
+                                  '${acc['id']} • Funds: ₹${balance.toStringAsFixed(2)} • Spent: ₹${spend.toStringAsFixed(2)}',
                                   style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                                 ),
                                 trailing: isSelected
@@ -517,6 +530,9 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     final status = acc['status'] == 1 || acc['status'] == 'ACTIVE' ? 'ACTIVE' : 'INACTIVE';
     final rawSpend = double.tryParse('${acc['amountSpent'] ?? 0}') ?? 0;
     final spendFormatted = rawSpend > 0 ? rawSpend.toStringAsFixed(2) : '0.00';
+    final rawBalance = (acc['availableBalance'] as num?)?.toDouble() ??
+        (acc['balance'] as num?)?.toDouble() ?? 0.0;
+    final balanceFormatted = rawBalance.toStringAsFixed(2);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -588,13 +604,29 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Text('• Currency: $currency', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    'Available Funds: ₹$balanceFormatted',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF16A34A),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 6),
-                Flexible(
-                  child: Text('Lifetime Spent: ₹$spendFormatted', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primary)),
+                Text(
+                  'Spent: ₹$spendFormatted',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ],
             ),
