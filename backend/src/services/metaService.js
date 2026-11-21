@@ -341,9 +341,9 @@ class MetaService {
       if (res.funding_source_details) {
         displayString = res.funding_source_details.display_string || '';
         isPrepaid = res.funding_source_details.type === 20 || displayString.toLowerCase().includes('available balance');
-        const match = displayString.match(/[\d,.]+/);
+        const match = displayString.match(/([\d,]+(?:\.\d+)?)/);
         if (match) {
-          availableBalance = parseFloat(match[0].replace(/,/g, '')) || 0;
+          availableBalance = parseFloat(match[1].replace(/,/g, '')) || 0;
         }
       }
 
@@ -393,7 +393,7 @@ async getAdAccounts() {
 
     try {
       const res = await this._request('GET', '/me/adaccounts', null, {
-        fields: 'id,account_id,name,account_status,currency,timezone_name,spend_cap,amount_spent,balance,created_time,business_name',
+        fields: 'id,account_id,name,account_status,currency,timezone_name,spend_cap,amount_spent,balance,funding_source_details,created_time,business_name',
         limit: 50,
       });
 
@@ -409,6 +409,26 @@ async getAdAccounts() {
           101: 'CLOSED',
         };
 
+        let availableBalance = 0;
+        let displayString = '';
+        let isPrepaid = false;
+
+        if (a.funding_source_details) {
+          displayString = a.funding_source_details.display_string || '';
+          isPrepaid = a.funding_source_details.type === 20 || displayString.toLowerCase().includes('available balance');
+          const match = displayString.match(/([\d,]+(?:\.\d+)?)/);
+          if (match) {
+            availableBalance = parseFloat(match[1].replace(/,/g, '')) || 0;
+          }
+        }
+
+        const billableBalance = a.balance ? parseFloat(a.balance) / 100 : 0;
+        if (availableBalance === 0 && billableBalance > 0) {
+          availableBalance = billableBalance;
+        }
+
+        const finalBalance = availableBalance > 0 ? availableBalance : billableBalance;
+
         const id = a.id.startsWith('act_') ? a.id : `act_${a.id}`;
         return {
           id,
@@ -420,7 +440,11 @@ async getAdAccounts() {
           timezone: a.timezone_name || 'UTC',
           amountSpent: a.amount_spent ? parseFloat(a.amount_spent) / 100 : 0, // In currency units
           spendCap: a.spend_cap ? parseFloat(a.spend_cap) / 100 : null,
-          balance: a.balance ? parseFloat(a.balance) / 100 : 0,
+          balance: finalBalance,
+          availableBalance,
+          billableBalance,
+          isPrepaid,
+          fundingDisplayString: displayString,
           businessName: a.business_name || null,
           createdTime: a.created_time || null,
         };
