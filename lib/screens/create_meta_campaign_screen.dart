@@ -1,8 +1,10 @@
 import '../widgets/admin_guard.dart';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/meta_billing_sheet.dart';
@@ -208,6 +210,254 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   String? _selectedFormName;
   bool _isLoadingForms = false;
   final _customFormIdController = TextEditingController();
+
+  // ---------------------------------------------------------------------------
+  // DRAFT STATE & AUTOMATIC PERSISTENCE
+  // ---------------------------------------------------------------------------
+  static const String _draftStorageKey = 'meta_campaign_draft_v1';
+  bool _isDraftSaved = false;
+  DateTime? _draftSavedAt;
+
+  Future<void> _saveDraftAutomatically() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draftData = {
+        'campaignName': _campaignNameController.text,
+        'selectedObjective': _selectedObjective,
+        'specialAdCategory': _specialAdCategory,
+        'budgetType': _budgetType,
+        'budget': _budgetController.text,
+        'bidStrategy': _bidStrategy,
+        'isCboEnabled': _isCboEnabled,
+        'adSetName': _adSetNameController.text,
+        'conversionLocation': _conversionLocation,
+        'locationStatus': _locationStatus,
+        'targetedPincodes': _targetedPincodes,
+        'targetedAreas': _targetedAreas,
+        'excludedAreas': _excludedAreas,
+        'dropPinRadiusKm': _dropPinRadiusKm,
+        'minAge': _minAge,
+        'maxAge': _maxAge,
+        'gender': _selectedGender,
+        'interests': _selectedInterests.toList(),
+        'useAdvantagePlacements': _useAdvantagePlacements,
+        'placementFacebook': _placementFacebook,
+        'placementInstagram': _placementInstagram,
+        'adFormat': _adFormat,
+        'selectedCreativePresetIndex': _selectedCreativePresetIndex,
+        'primaryText': _primaryTextController.text,
+        'headline': _headlineController.text,
+        'description': _descriptionController.text,
+        'selectedCta': _selectedCta,
+        'formQuestions': _formQuestions.toList(),
+        'selectedFormId': _selectedFormId,
+        'selectedFormName': _selectedFormName,
+        'customFormId': _customFormIdController.text,
+        'savedAt': DateTime.now().toIso8601String(),
+      };
+      await prefs.setString(_draftStorageKey, jsonEncode(draftData));
+      if (mounted) {
+        setState(() {
+          _isDraftSaved = true;
+          _draftSavedAt = DateTime.now();
+        });
+      }
+    } catch (e) {
+      debugPrint('[DraftSave] Failed to save draft: $e');
+    }
+  }
+
+  void _applyDraftData(Map<String, dynamic> data) {
+    if (!mounted) return;
+    setState(() {
+      if (data['campaignName'] != null) _campaignNameController.text = data['campaignName'];
+      if (data['selectedObjective'] != null) _selectedObjective = data['selectedObjective'];
+      if (data['specialAdCategory'] != null) _specialAdCategory = data['specialAdCategory'];
+      if (data['budgetType'] != null) _budgetType = data['budgetType'];
+      if (data['budget'] != null) _budgetController.text = data['budget'];
+      if (data['bidStrategy'] != null) _bidStrategy = data['bidStrategy'];
+      if (data['isCboEnabled'] != null) _isCboEnabled = data['isCboEnabled'] as bool;
+      if (data['adSetName'] != null) _adSetNameController.text = data['adSetName'];
+      if (data['conversionLocation'] != null) _conversionLocation = data['conversionLocation'];
+      if (data['locationStatus'] != null) _locationStatus = data['locationStatus'];
+      if (data['targetedPincodes'] is List) {
+        _targetedPincodes.clear();
+        _targetedPincodes.addAll((data['targetedPincodes'] as List).map((e) => e.toString()));
+      }
+      if (data['targetedAreas'] is List) {
+        _targetedAreas.clear();
+        _targetedAreas.addAll((data['targetedAreas'] as List).map((e) => e.toString()));
+      }
+      if (data['excludedAreas'] is List) {
+        _excludedAreas.clear();
+        _excludedAreas.addAll((data['excludedAreas'] as List).map((e) => e.toString()));
+      }
+      if (data['dropPinRadiusKm'] != null) _dropPinRadiusKm = (data['dropPinRadiusKm'] as num).toDouble();
+      if (data['minAge'] != null) _minAge = (data['minAge'] as num).toDouble();
+      if (data['maxAge'] != null) _maxAge = (data['maxAge'] as num).toDouble();
+      if (data['gender'] != null) _selectedGender = data['gender'];
+      if (data['interests'] is List) {
+        _selectedInterests.clear();
+        _selectedInterests.addAll((data['interests'] as List).map((e) => e.toString()));
+      }
+      if (data['useAdvantagePlacements'] != null) _useAdvantagePlacements = data['useAdvantagePlacements'] as bool;
+      if (data['placementFacebook'] != null) _placementFacebook = data['placementFacebook'] as bool;
+      if (data['placementInstagram'] != null) _placementInstagram = data['placementInstagram'] as bool;
+      if (data['adFormat'] != null) _adFormat = data['adFormat'];
+      if (data['selectedCreativePresetIndex'] != null) {
+        _selectedCreativePresetIndex = (data['selectedCreativePresetIndex'] as num).toInt();
+      }
+      if (data['primaryText'] != null) _primaryTextController.text = data['primaryText'];
+      if (data['headline'] != null) _headlineController.text = data['headline'];
+      if (data['description'] != null) _descriptionController.text = data['description'];
+      if (data['selectedCta'] != null) _selectedCta = data['selectedCta'];
+      if (data['formQuestions'] is List) {
+        _formQuestions.clear();
+        _formQuestions.addAll((data['formQuestions'] as List).map((e) => e.toString()));
+      }
+      if (data['selectedFormId'] != null) _selectedFormId = data['selectedFormId'];
+      if (data['selectedFormName'] != null) _selectedFormName = data['selectedFormName'];
+      if (data['customFormId'] != null) _customFormIdController.text = data['customFormId'];
+      if (data['savedAt'] != null) _draftSavedAt = DateTime.tryParse(data['savedAt']);
+      _isDraftSaved = true;
+    });
+  }
+
+  Future<void> _checkAndPromptDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_draftStorageKey);
+      if (raw == null || raw.isEmpty) return;
+
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final campaignName = data['campaignName']?.toString() ?? 'Pune & PCMC High Intent Loan Campaign';
+      final savedAtStr = data['savedAt']?.toString();
+      DateTime? savedAt = savedAtStr != null ? DateTime.tryParse(savedAtStr) : null;
+      final now = DateTime.now();
+      String timeFormatted = 'recently';
+      if (savedAt != null) {
+        final isToday = savedAt.year == now.year && savedAt.month == now.month && savedAt.day == now.day;
+        final hourStr = savedAt.hour.toString().padLeft(2, '0');
+        final minStr = savedAt.minute.toString().padLeft(2, '0');
+        timeFormatted = isToday ? 'Today at $hourStr:$minStr' : '${savedAt.day}/${savedAt.month}/${savedAt.year} at $hourStr:$minStr';
+      }
+
+      if (!mounted) return;
+
+      final bool? resume = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          contentPadding: const EdgeInsets.all(20),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 52,
+                width: 52,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEFF6FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.restore_page_rounded, color: Color(0xFF0668E1), size: 28),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Resume Saved Campaign?',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'A saved draft was found:\n"$campaignName"\nSaved: $timeFormatted.\n\nWould you like to resume this draft or create a new campaign from scratch?',
+                style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0668E1),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                  label: const Text('Use Saved Draft', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFDC2626),
+                    side: const BorderSide(color: Color(0xFFFECACA)),
+                    minimumSize: const Size(0, 42),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                  label: const Text('Create New Campaign', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (resume == true) {
+        _applyDraftData(data);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Draft resumed successfully'),
+              backgroundColor: Color(0xFF16A34A),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else if (resume == false) {
+        await _clearDraft();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Starting fresh campaign with defaults'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[DraftPrompt] Error: $e');
+    }
+  }
+
+  Future<void> _clearDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftStorageKey);
+      if (mounted) {
+        setState(() {
+          _isDraftSaved = false;
+          _draftSavedAt = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('[DraftClear] Failed: $e');
+    }
+  }
+
+  void _goToStep(int index) {
+    setState(() => _currentStep = index);
+    if (index == 3) {
+      _saveDraftAutomatically();
+    }
+  }
+
   // Meta Ad Wallet Balance & Billing Gate
   double _metaBalance = 0.0;
   String? _adAccountId;
@@ -215,14 +465,14 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   bool _isLoadingBilling = true;
   String _billingDisplay = 'Checking balance...';
 
-  Future<void> _loadBillingStatus() async {
+  Future<void> _loadBillingStatus({bool force = true}) async {
     setState(() => _isLoadingBilling = true);
     try {
-      final billing = await _backend.getMetaBilling();
+      final billing = await _backend.getMetaBilling(adAccountId: _adAccountId, forceRefresh: force);
       if (mounted) {
         setState(() {
           _metaBalance = (billing['availableBalance'] as num?)?.toDouble() ?? 0.0;
-          _adAccountId = billing['adAccountId']?.toString();
+          _adAccountId = billing['adAccountId']?.toString() ?? _adAccountId;
           _isPrepaid = billing['isPrepaid'] ?? true;
           _billingDisplay = billing['displayString'] ?? '₹${_metaBalance.toStringAsFixed(2)}';
           _isLoadingBilling = false;
@@ -331,7 +581,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   child: OutlinedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _loadBillingStatus();
+                      _loadBillingStatus(force: true);
                     },
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(0, 40),
@@ -476,6 +726,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   void initState() {
     super.initState();
     _loadMetaLeadForms();
+    _loadBillingStatus(force: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndPromptDraft();
+    });
   }
 
   Future<void> _loadMetaLeadForms() async {
@@ -562,6 +816,11 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
   Future<void> _publishCampaign() async {
     final budget = double.tryParse(_budgetController.text.trim()) ?? 1500.0;
 
+    // Refresh live balance if current state is 0 or less than budget
+    if (_isPrepaid && _metaBalance < budget) {
+      await _loadBillingStatus(force: true);
+    }
+
     // Strict balance check: Unless there is sufficient balance, do not publish
     if (_isPrepaid && _metaBalance < budget) {
       _showInsufficientBalanceDialog(budget);
@@ -632,6 +891,8 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
         if (res['success'] == true) {
           final campaignData = Map<String, dynamic>.from(res['data'] ?? {});
           widget.onCampaignCreated?.call(campaignData);
+          await _clearDraft();
+          if (!mounted) return;
 
           await showDialog(
             context: context,
@@ -923,16 +1184,27 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
             margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF3C7),
+              color: _isDraftSaved ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFDE68A)),
+              border: Border.all(color: _isDraftSaved ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A)),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.edit_note_rounded, size: 14, color: Color(0xFFD97706)),
-                SizedBox(width: 4),
-                Text('Draft', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB45309))),
+                Icon(
+                  _isDraftSaved ? Icons.check_circle_rounded : Icons.edit_note_rounded,
+                  size: 14,
+                  color: _isDraftSaved ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isDraftSaved ? 'Draft Saved' : 'Draft',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _isDraftSaved ? const Color(0xFF166534) : const Color(0xFFB45309),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1007,7 +1279,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                 final step = steps[index];
 
                 return GestureDetector(
-                  onTap: () => setState(() => _currentStep = index),
+                  onTap: () => _goToStep(index),
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -2241,6 +2513,68 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Auto-Saved Draft Indicator Banner
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF86EFAC)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFDCFCE7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF16A34A)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Draft Automatically Saved',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                    Text(
+                      _draftSavedAt != null
+                          ? 'Saved at ${_draftSavedAt!.hour.toString().padLeft(2, '0')}:${_draftSavedAt!.minute.toString().padLeft(2, '0')}. All targeting and creatives preserved.'
+                          : 'All campaign settings, targeting, and creatives are safely saved as draft.',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFDC2626),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () async {
+                  await _clearDraft();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Draft cleared')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.delete_outline_rounded, size: 14),
+                label: const Text('Reset', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+          ),
+        ),
+
         // Real-Time Estimated Daily Results Card
         Container(
           padding: const EdgeInsets.all(16),
@@ -2391,7 +2725,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: _isPublishing ? null : () => setState(() => _currentStep--),
+                onPressed: _isPublishing ? null : () => _goToStep(_currentStep - 1),
                 icon: const Icon(Icons.arrow_back_rounded, size: 16),
                 label: const Text('Back', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
@@ -2411,7 +2745,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
                       ? null
                       : () {
                           if (_currentStep < 3) {
-                            setState(() => _currentStep++);
+                            _goToStep(_currentStep + 1);
                           } else {
                             _publishCampaign();
                           }
