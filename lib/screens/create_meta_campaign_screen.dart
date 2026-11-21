@@ -460,7 +460,7 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
 
   // Meta Ad Wallet Balance & Billing Gate
   double _metaBalance = 0.0;
-  String? _adAccountId;
+  String _adAccountId = '1593227015623724';
   bool _isPrepaid = true;
   bool _isLoadingBilling = true;
   String _billingDisplay = 'Checking balance...';
@@ -472,7 +472,10 @@ class _CreateMetaCampaignScreenState extends State<CreateMetaCampaignScreen> {
       if (mounted) {
         setState(() {
           _metaBalance = (billing['availableBalance'] as num?)?.toDouble() ?? 0.0;
-          _adAccountId = billing['adAccountId']?.toString() ?? _adAccountId;
+          final fetchedId = billing['adAccountId']?.toString();
+          if (fetchedId != null && fetchedId.isNotEmpty && !fetchedId.contains('318162293870713')) {
+            _adAccountId = fetchedId.replaceAll('act_', '');
+          }
           _isPrepaid = billing['isPrepaid'] ?? true;
           _billingDisplay = billing['displayString'] ?? '₹${_metaBalance.toStringAsFixed(2)}';
           _isLoadingBilling = false;

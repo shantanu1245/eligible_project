@@ -390,9 +390,12 @@ class BackendService {
   Future<Map<String, dynamic>> getMetaBilling({String? adAccountId, bool forceRefresh = false}) async {
     try {
       final query = <String, String>{};
-      if (adAccountId != null) query['adAccountId'] = adAccountId;
+      final targetId = (adAccountId != null && adAccountId.trim().isNotEmpty)
+          ? adAccountId.trim()
+          : '1593227015623724';
+      query['adAccountId'] = targetId;
       if (forceRefresh) query['refresh'] = 'true';
-      final res = await _safeGet('meta/billing', query: query.isNotEmpty ? query : null, timeout: const Duration(seconds: 8));
+      final res = await _safeGet('meta/billing', query: query, timeout: const Duration(seconds: 8));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return Map<String, dynamic>.from(data['data'] ?? {});
