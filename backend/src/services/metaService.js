@@ -326,7 +326,18 @@ class MetaService {
       };
     }
 
-    const formattedId = (adAccountId || this.adAccountId || '').trim();
+    let formattedId = (adAccountId || '').trim();
+    if (!formattedId || formattedId.includes('318162293870713')) {
+      try {
+        const accounts = await this.getAdAccounts();
+        if (accounts && accounts.length > 0) {
+          formattedId = accounts[0].id || accounts[0].accountId || '';
+        }
+      } catch (_) {}
+      if (!formattedId || formattedId.includes('318162293870713')) {
+        formattedId = (this.adAccountId && !this.adAccountId.includes('318162293870713')) ? this.adAccountId : 'act_1593227015623724';
+      }
+    }
     const act = formattedId.startsWith('act_') ? formattedId : `act_${formattedId}`;
 
     try {

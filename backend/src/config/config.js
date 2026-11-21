@@ -30,11 +30,11 @@ const config = {
     appId: process.env.META_APP_ID || '',
     appSecret: process.env.META_APP_SECRET || '',
     accessToken: process.env.META_ACCESS_TOKEN || '',
-    adAccountId: process.env.META_AD_ACCOUNT_ID
+    adAccountId: (process.env.META_AD_ACCOUNT_ID && !process.env.META_AD_ACCOUNT_ID.includes('318162293870713'))
       ? (process.env.META_AD_ACCOUNT_ID.startsWith('act_')
           ? process.env.META_AD_ACCOUNT_ID
           : `act_${process.env.META_AD_ACCOUNT_ID}`)
-      : '',
+      : 'act_1593227015623724',
     pageId: process.env.META_PAGE_ID || '',
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || 'eligible_crm_secure_verify_token_2026',
     baseUrl: `https://graph.facebook.com/${process.env.META_API_VERSION || 'v21.0'}`,
