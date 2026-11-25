@@ -495,13 +495,15 @@ async getAdAccounts() {
           'budget_remaining',
           'created_time',
           'updated_time',
-          `insights.date_preset(${datePreset}){spend,impressions,clicks,reach,frequency,cpc,cpm,ctr,actions,cost_per_action_type}`,
+          `insights.date_preset(${datePreset}){spend,impressions,clicks,reach,frequency,cpc,cpm,ctr,unique_clicks,inline_link_clicks,actions,cost_per_action_type}`,
         ].join(','),
         limit: 100,
       };
 
       if (options.status) {
         params.effective_status = JSON.stringify([options.status]);
+      } else {
+        params.effective_status = JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES']);
       }
 
       const res = await this._request('GET', `/${formattedAccountId}/campaigns`, null, params);
@@ -510,17 +512,34 @@ async getAdAccounts() {
         const actions = insights.actions || [];
         const costPerAction = insights.cost_per_action_type || [];
 
-        // Extract lead count from actions array
+        // Extract lead count from actions array (including WhatsApp messaging leads)
         const leadAction = actions.find(
-          (a) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped' || a.action_type === 'offsite_conversion.fb_pixel_lead'
+          (a) =>
+            a.action_type === 'lead' ||
+            a.action_type === 'onsite_conversion.lead_grouped' ||
+            a.action_type === 'offsite_conversion.fb_pixel_lead' ||
+            a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+            a.action_type === 'onsite_conversion.total_messaging_connection'
         );
         const leadsCount = leadAction ? parseInt(leadAction.value, 10) : 0;
 
-        // Extract cost per lead
+        // Extract cost per lead / cost per conversation
         const cplAction = costPerAction.find(
-          (a) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped'
+          (a) =>
+            a.action_type === 'lead' ||
+            a.action_type === 'onsite_conversion.lead_grouped' ||
+            a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+            a.action_type === 'onsite_conversion.total_messaging_connection'
         );
-        const costPerLead = cplAction ? parseFloat(cplAction.value) : 0;
+        const costPerLead = cplAction
+          ? parseFloat(cplAction.value)
+          : leadsCount > 0 && insights.spend
+          ? parseFloat(insights.spend) / leadsCount
+          : 0;
+
+        // WhatsApp conversation leads specific count
+        const waConvAction = actions.find((a) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d');
+        const conversationsStarted = waConvAction ? parseInt(waConvAction.value, 10) : 0;
 
         // Format budget in main currency (Meta reports budget in cents/sub-units)
         const dailyBudget = c.daily_budget ? parseFloat(c.daily_budget) / 100 : null;
@@ -549,8 +568,12 @@ async getAdAccounts() {
           ctr: insights.ctr ? parseFloat(insights.ctr) : 0,
           cpc: insights.cpc ? parseFloat(insights.cpc) : 0,
           cpm: insights.cpm ? parseFloat(insights.cpm) : 0,
+          uniqueClicks: insights.unique_clicks ? parseInt(insights.unique_clicks, 10) : 0,
+          inlineLinkClicks: insights.inline_link_clicks ? parseInt(insights.inline_link_clicks, 10) : 0,
+          conversationsStarted,
           leadsCount,
           costPerLead,
+          actions,
         };
       });
 
@@ -574,6 +597,7 @@ async getAdAccounts() {
     try {
       const endpoint = options.campaignId ? `/${options.campaignId}/adsets` : `/${formattedAccountId}/adsets`;
       const params = {
+        effective_status: options.status ? JSON.stringify([options.status]) : JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES']),
         fields: [
           'id',
           'name',
@@ -587,7 +611,7 @@ async getAdAccounts() {
           'targeting',
           'optimization_goal',
           'billing_event',
-          `insights.date_preset(${datePreset}){spend,impressions,clicks,reach,frequency,cpc,cpm,ctr,actions,cost_per_action_type}`,
+          `insights.date_preset(${datePreset}){spend,impressions,clicks,reach,frequency,cpc,cpm,ctr,unique_clicks,inline_link_clicks,actions,cost_per_action_type}`,
         ].join(','),
         limit: 100,
       };
@@ -653,6 +677,7 @@ async getAdAccounts() {
       }
 
       const params = {
+        effective_status: options.status ? JSON.stringify([options.status]) : JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES']),
         fields: [
           'id',
           'name',
@@ -662,6 +687,7 @@ async getAdAccounts() {
           'effective_status',
           'created_time',
           'creative{id,name,title,body,image_url,thumbnail_url,object_story_spec}',
+          'preview_shareable_link',
           `insights.date_preset(${datePreset}){spend,impressions,clicks,reach,cpc,cpm,ctr,actions,cost_per_action_type}`,
         ].join(','),
         limit: 100,
@@ -687,6 +713,7 @@ async getAdAccounts() {
           status: ad.status,
           effectiveStatus: ad.effective_status,
           createdTime: ad.created_time || null,
+          previewShareableLink: ad.preview_shareable_link || null,
           creative: {
             id: creative.id,
             name: creative.name,
