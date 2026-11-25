@@ -507,7 +507,7 @@ async getStatus(req, res) {
    */
   async getLiveSync(req, res) {
     try {
-      const { adAccountId, datePreset = 'last_30d', forceRefresh = 'true' } = req.query;
+      const { adAccountId, datePreset = 'maximum', forceRefresh = 'true' } = req.query;
       const isForce = forceRefresh === 'true' || forceRefresh === true;
       const targetAccountId = (adAccountId || config.meta.adAccountId || 'act_1593227015623724').trim();
 

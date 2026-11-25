@@ -298,7 +298,7 @@ class BackendService {
   }
 
   /// Safe HTTP GET with auto-discovery and seamless host fallback (Local <-> Cloud)
-  Future<http.Response?> _safeGet(String path, {Map<String, String>? query, Duration timeout = const Duration(seconds: 5)}) async {
+  Future<http.Response?> _safeGet(String path, {Map<String, String>? query, Duration timeout = const Duration(seconds: 15)}) async {
     final cleanPath = path.startsWith('/') ? path.substring(1) : path;
     final uri = Uri.parse('$_baseUrl/$cleanPath').replace(queryParameters: query?.isNotEmpty == true ? query : null);
     try {
@@ -315,7 +315,7 @@ class BackendService {
 
     try {
       final altUri = Uri.parse('$alternate/$cleanPath').replace(queryParameters: query?.isNotEmpty == true ? query : null);
-      final altRes = await http.get(altUri).timeout(const Duration(seconds: 3));
+      final altRes = await http.get(altUri).timeout(const Duration(seconds: 4));
       if (altRes.statusCode == 200) {
         _baseUrl = alternate;
         debugPrint('[BackendService] 🔄 Auto-switched to active backend: $_baseUrl');
@@ -354,7 +354,7 @@ class BackendService {
   /// Consolidated real-time snapshot of Meta campaigns, ad sets, ads, billing, and insights
   Future<Map<String, dynamic>> getMetaLiveSync({
     String? adAccountId,
-    String datePreset = 'last_30d',
+    String datePreset = 'maximum',
     bool forceRefresh = true,
   }) async {
     try {
@@ -363,7 +363,7 @@ class BackendService {
         'datePreset': datePreset,
         'forceRefresh': forceRefresh.toString(),
       };
-      final res = await _safeGet('meta/live-sync', query: query, timeout: const Duration(seconds: 12));
+      final res = await _safeGet('meta/live-sync', query: query, timeout: const Duration(seconds: 20));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['data'] is Map<String, dynamic>) {
@@ -395,7 +395,7 @@ class BackendService {
       if (status != null) query['status'] = status;
       if (forceRefresh) query['refresh'] = 'true';
 
-      final res = await _safeGet('meta/campaigns', query: query);
+      final res = await _safeGet('meta/campaigns', query: query, timeout: const Duration(seconds: 15));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
@@ -420,7 +420,7 @@ class BackendService {
           : '1593227015623724';
       query['adAccountId'] = targetId;
       if (forceRefresh) query['refresh'] = 'true';
-      final res = await _safeGet('meta/billing', query: query, timeout: const Duration(seconds: 8));
+      final res = await _safeGet('meta/billing', query: query, timeout: const Duration(seconds: 15));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return Map<String, dynamic>.from(data['data'] ?? {});
@@ -452,7 +452,7 @@ class BackendService {
       if (status != null) query['status'] = status;
       if (forceRefresh) query['refresh'] = 'true';
 
-      final res = await _safeGet('meta/adsets', query: query);
+      final res = await _safeGet('meta/adsets', query: query, timeout: const Duration(seconds: 15));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
@@ -491,7 +491,7 @@ class BackendService {
       if (status != null) query['status'] = status;
       if (forceRefresh) query['refresh'] = 'true';
 
-      final res = await _safeGet('meta/ads', query: query);
+      final res = await _safeGet('meta/ads', query: query, timeout: const Duration(seconds: 15));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['data'] as List<dynamic>?;
@@ -512,7 +512,7 @@ class BackendService {
     String? adAccountId,
     String level = 'account',
     String? id,
-    String datePreset = 'last_30d',
+    String datePreset = 'maximum',
     String? timeIncrement,
     bool forceRefresh = false,
   }) async {
@@ -531,7 +531,7 @@ class BackendService {
       if (timeIncrement != null) query['timeIncrement'] = timeIncrement;
       if (forceRefresh) query['refresh'] = 'true';
 
-      final res = await _safeGet('meta/insights', query: query);
+      final res = await _safeGet('meta/insights', query: query, timeout: const Duration(seconds: 15));
       if (res != null && res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final result = Map<String, dynamic>.from(data['data'] ?? {});

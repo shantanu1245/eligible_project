@@ -41,12 +41,10 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
   String? _selectedCampaignFilterId;
 
   final List<Map<String, String>> _datePresets = [
+    {'key': 'maximum', 'label': 'All Time'},
     {'key': 'today', 'label': 'Today'},
     {'key': 'yesterday', 'label': 'Yesterday'},
     {'key': 'last_7d', 'label': 'Last 7 Days'},
-    {'key': 'last_30d', 'label': 'Last 30 Days'},
-    {'key': 'this_month', 'label': 'This Month'},
-    {'key': 'maximum', 'label': 'All Time'},
   ];
 
   Timer? _liveSyncTimer;
