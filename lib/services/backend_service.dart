@@ -351,6 +351,31 @@ class BackendService {
     return [];
   }
 
+  /// Consolidated real-time snapshot of Meta campaigns, ad sets, ads, billing, and insights
+  Future<Map<String, dynamic>> getMetaLiveSync({
+    String? adAccountId,
+    String datePreset = 'last_30d',
+    bool forceRefresh = true,
+  }) async {
+    try {
+      final query = <String, String>{
+        if (adAccountId != null && adAccountId.isNotEmpty) 'adAccountId': adAccountId,
+        'datePreset': datePreset,
+        'forceRefresh': forceRefresh.toString(),
+      };
+      final res = await _safeGet('meta/live-sync', query: query, timeout: const Duration(seconds: 12));
+      if (res != null && res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['data'] is Map<String, dynamic>) {
+          return Map<String, dynamic>.from(data['data']);
+        }
+      }
+    } catch (e) {
+      debugPrint('[BackendService] getMetaLiveSync error: $e');
+    }
+    return {};
+  }
+
   /// Retrieve Meta Campaigns with live metrics & date filters with client caching
   Future<List<Map<String, dynamic>>> getMetaCampaigns({
     String? adAccountId,

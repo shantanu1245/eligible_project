@@ -986,6 +986,21 @@ async getAdAccounts() {
     });
   }
 
+  async getPages() {
+    if (!this.isConfigured()) return [];
+    try {
+      const pagesRes = await this._request('GET', '/me/accounts', null, {
+        fields: 'id,name,category,access_token',
+      });
+      return (pagesRes.data || []).map((p) => ({
+        id: p.id,
+        name: p.name,
+      }));
+    } catch (_) {
+      return [];
+    }
+  }
+
   /**
    * Phase 4: Paginated Lead Import & Deduplication Orchestrator
    */
@@ -1002,6 +1017,16 @@ async getAdAccounts() {
       targetForms = [{ id: formId, name: `Form ${formId}` }];
     } else if (pageId) {
       targetForms = await this.getLeadForms(pageId);
+    } else {
+      try {
+        const pages = await this.getPages();
+        for (const p of pages) {
+          const forms = await this.getLeadForms(p.id);
+          targetForms.push(...forms);
+        }
+      } catch (err) {
+        console.warn('⚠️ [MetaService:syncAllLeads] Could not fetch pages for auto lead sync:', err.message);
+      }
     }
 
     let totalImported = 0;

@@ -500,6 +500,43 @@ async getStatus(req, res) {
     metaService.clearCache();
     res.json({ success: true, message: 'Meta cache cleared successfully' });
   },
+
+  /**
+   * GET /api/meta/live-sync
+   * Unified real-time sync endpoint for campaigns, adsets, ads, billing, and insights
+   */
+  async getLiveSync(req, res) {
+    try {
+      const { adAccountId, datePreset = 'last_30d', forceRefresh = 'true' } = req.query;
+      const isForce = forceRefresh === 'true' || forceRefresh === true;
+      const targetAccountId = (adAccountId || config.meta.adAccountId || 'act_1593227015623724').trim();
+
+      const [campaignsRes, adSetsRes, adsRes, billingRes, insightsRes, syncStatusRes] = await Promise.allSettled([
+        metaService.getCampaigns(targetAccountId, { forceRefresh: isForce, datePreset }),
+        metaService.getAdSets(targetAccountId, { forceRefresh: isForce, datePreset }),
+        metaService.getAds(targetAccountId, { forceRefresh: isForce, datePreset }),
+        metaService.getAdAccountBilling(targetAccountId),
+        metaService.getInsights({ adAccountId: targetAccountId, forceRefresh: isForce, datePreset }),
+        Promise.resolve(metaService.getSyncStatus()),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          campaigns: campaignsRes.status === 'fulfilled' ? campaignsRes.value : [],
+          adSets: adSetsRes.status === 'fulfilled' ? adSetsRes.value : [],
+          ads: adsRes.status === 'fulfilled' ? adsRes.value : [],
+          billing: billingRes.status === 'fulfilled' ? billingRes.value : {},
+          insights: insightsRes.status === 'fulfilled' ? insightsRes.value : {},
+          syncStatus: syncStatusRes.status === 'fulfilled' ? syncStatusRes.value : {},
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      console.error('❌ [LiveSync Error]:', err.message);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
 };
 
 module.exports = MetaController;

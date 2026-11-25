@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import '../services/backend_service.dart';
@@ -48,6 +49,8 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     {'key': 'this_month', 'label': 'This Month'},
   ];
 
+  Timer? _liveSyncTimer;
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +58,15 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     _tabController.addListener(_handleTabSelection);
     _selectedAdAccountId = widget.initialAdAccountId;
     _loadAllAccountData();
+    _startLivePolling();
+  }
+
+  void _startLivePolling() {
+    _liveSyncTimer?.cancel();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (!mounted) return;
+      _loadAllAccountData(forceRefresh: true, silent: true);
+    });
   }
 
   void _handleTabSelection() {
@@ -67,13 +79,16 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadAllAccountData({bool forceRefresh = false}) async {
-    setState(() => _isLoading = true);
+  Future<void> _loadAllAccountData({bool forceRefresh = false, bool silent = false}) async {
+    if (!silent) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       // 1. Diagnostics, accessible ad accounts & sync status in parallel
@@ -129,7 +144,7 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
     } catch (e) {
       debugPrint('[MetaAccountDetailsScreen] Error loading account data: $e');
     } finally {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
     }
@@ -340,7 +355,43 @@ class _MetaAccountDetailsScreenState extends State<MetaAccountDetailsScreen> wit
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Meta Account Details', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            Row(
+              children: [
+                const Text('Meta Account Details', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: Color(0xFF10B981),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 9,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             Text(
               'Official Meta Graph API • ${_diagnostics['user']?['name'] ?? 'Connected'}',
               style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.normal),

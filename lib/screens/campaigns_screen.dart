@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../widgets/admin_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +48,8 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     {'key': 'maximum', 'label': 'All Time'},
   ];
 
+  Timer? _liveSyncTimer;
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +57,17 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     _tabController.addListener(_handleTabSelection);
     if (AdminGuard.isCurrentAdmin) {
       _initializeData();
+      _startLiveSyncTimer();
     }
+  }
+
+  void _startLiveSyncTimer() {
+    _liveSyncTimer?.cancel();
+    // Real-Time silent auto-sync every 10 seconds without manual refresh
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      _loadAllData(silent: true);
+    });
   }
 
   void _handleTabSelection() {
@@ -67,6 +80,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
     super.dispose();
@@ -91,48 +105,77 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     await _loadAllData();
   }
 
-  Future<void> _loadAllData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadAllData({bool silent = false}) async {
+    if (!silent) {
+      setState(() => _isLoading = true);
+    }
     try {
-      final futures = await Future.wait([
-        _backend.getMetaCampaigns(
-          adAccountId: _selectedAdAccountId,
-          datePreset: _selectedDatePreset,
-          forceRefresh: true,
-        ),
-        _backend.getMetaAdSets(
-          adAccountId: _selectedAdAccountId,
-          campaignId: _selectedCampaignFilterId,
-          datePreset: _selectedDatePreset,
-          forceRefresh: true,
-        ),
-        _backend.getMetaAds(
-          adAccountId: _selectedAdAccountId,
-          campaignId: _selectedCampaignFilterId,
-          datePreset: _selectedDatePreset,
-          forceRefresh: true,
-        ),
-        _backend.getMetaInsights(
-          adAccountId: _selectedAdAccountId,
-          datePreset: _selectedDatePreset,
-          forceRefresh: true,
-        ),
-        _backend.getMetaSyncStatus(forceRefresh: true),
-        _backend.getCampaigns(),
-        _backend.getMetaBilling(adAccountId: _selectedAdAccountId, forceRefresh: true),
-        _backend.getMetaAccounts(forceRefresh: true),
-      ]);
+      // 1. Try unified high-speed live sync endpoint
+      final liveSync = await _backend.getMetaLiveSync(
+        adAccountId: _selectedAdAccountId,
+        datePreset: _selectedDatePreset,
+        forceRefresh: true,
+      );
+
+      List<Map<String, dynamic>> metaCampaignsData = [];
+      List<Map<String, dynamic>> adSetsData = [];
+      List<Map<String, dynamic>> adsData = [];
+      Map<String, dynamic> insightsData = {};
+      Map<String, dynamic> syncData = {};
+      Map<String, dynamic> billingData = {};
+      List<Map<String, dynamic>> dbCampaignsData = [];
+      List<Map<String, dynamic>> refreshedAccounts = [];
+
+      if (liveSync.isNotEmpty) {
+        metaCampaignsData = List<Map<String, dynamic>>.from(liveSync['campaigns'] ?? []);
+        adSetsData = List<Map<String, dynamic>>.from(liveSync['adSets'] ?? []);
+        adsData = List<Map<String, dynamic>>.from(liveSync['ads'] ?? []);
+        insightsData = Map<String, dynamic>.from(liveSync['insights'] ?? {});
+        syncData = Map<String, dynamic>.from(liveSync['syncStatus'] ?? {});
+        billingData = Map<String, dynamic>.from(liveSync['billing'] ?? {});
+        dbCampaignsData = await _backend.getCampaigns();
+      } else {
+        // Fallback to individual parallel requests
+        final futures = await Future.wait([
+          _backend.getMetaCampaigns(
+            adAccountId: _selectedAdAccountId,
+            datePreset: _selectedDatePreset,
+            forceRefresh: true,
+          ),
+          _backend.getMetaAdSets(
+            adAccountId: _selectedAdAccountId,
+            campaignId: _selectedCampaignFilterId,
+            datePreset: _selectedDatePreset,
+            forceRefresh: true,
+          ),
+          _backend.getMetaAds(
+            adAccountId: _selectedAdAccountId,
+            campaignId: _selectedCampaignFilterId,
+            datePreset: _selectedDatePreset,
+            forceRefresh: true,
+          ),
+          _backend.getMetaInsights(
+            adAccountId: _selectedAdAccountId,
+            datePreset: _selectedDatePreset,
+            forceRefresh: true,
+          ),
+          _backend.getMetaSyncStatus(forceRefresh: true),
+          _backend.getCampaigns(),
+          _backend.getMetaBilling(adAccountId: _selectedAdAccountId, forceRefresh: true),
+          _backend.getMetaAccounts(forceRefresh: true),
+        ]);
+
+        metaCampaignsData = futures[0] as List<Map<String, dynamic>>;
+        adSetsData = futures[1] as List<Map<String, dynamic>>;
+        adsData = futures[2] as List<Map<String, dynamic>>;
+        insightsData = futures[3] as Map<String, dynamic>;
+        syncData = futures[4] as Map<String, dynamic>;
+        dbCampaignsData = futures[5] as List<Map<String, dynamic>>;
+        billingData = futures[6] as Map<String, dynamic>;
+        refreshedAccounts = futures[7] as List<Map<String, dynamic>>;
+      }
 
       if (mounted) {
-        final metaCampaignsData = futures[0] as List<Map<String, dynamic>>;
-        final adSetsData = futures[1] as List<Map<String, dynamic>>;
-        final adsData = futures[2] as List<Map<String, dynamic>>;
-        final insightsData = futures[3] as Map<String, dynamic>;
-        final syncData = futures[4] as Map<String, dynamic>;
-        final dbCampaignsData = futures[5] as List<Map<String, dynamic>>;
-        final billingData = futures[6] as Map<String, dynamic>;
-        final refreshedAccounts = futures[7] as List<Map<String, dynamic>>;
-
         // Merge backend campaigns, live Meta campaigns, and currently held campaigns
         final Map<String, Map<String, dynamic>> combined = {};
 
@@ -177,7 +220,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
     } catch (e) {
       debugPrint('[CampaignsScreen] _loadAllData error: $e');
     } finally {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
     }
@@ -290,12 +333,48 @@ class _CampaignsScreenState extends State<CampaignsScreen> with SingleTickerProv
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Meta Ads Manager',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-              ),
+            Row(
+              children: [
+                const Text(
+                  'Meta Ads Manager',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: Color(0xFF10B981),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 9,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             Text(
               _selectedAdAccountName ?? 'Account Overview & Leads',

@@ -141,6 +141,22 @@ const server = app.listen(config.port, () => {
     console.log('🔔 [Realtime Listener] Active for incoming leads in Firebase Realtime Database.');
   }
 
+  // Automatic Real-Time Periodic Sync for Meta Leads (Every 30 seconds)
+  let isSyncingLeads = false;
+  setInterval(async () => {
+    if (isSyncingLeads) return;
+    try {
+      if (metaService.isConfigured()) {
+        isSyncingLeads = true;
+        await metaService.syncAllLeads({ firebaseService });
+      }
+    } catch (err) {
+      console.warn('⚠️ [Background Meta Lead Sync]:', err.message);
+    } finally {
+      isSyncingLeads = false;
+    }
+  }, 30000);
+
   // Start Live Server Keep-Alive Pinger to keep Render instance awake
   keepAliveService.start();
 });

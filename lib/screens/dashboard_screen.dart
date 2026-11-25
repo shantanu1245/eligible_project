@@ -133,10 +133,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _checkNewDataAndNotifyAdmin() async {
     _pollTick++;
-    // Refresh the leads list every 5 polls (60s) so new website leads appear
-    // automatically even without a notification change.
-    if (_pollTick % 5 == 0) {
+    // Real-Time silent auto-sync: refresh leads every 24s (2 polls)
+    if (_pollTick % 2 == 0) {
       _fetchLeadsFromBackend();
+    }
+    // Real-Time silent auto-sync: refresh active Meta campaigns & spend every 12s
+    if (widget.user.isAdmin) {
+      _fetchDashboardCampaigns();
     }
     try {
       final res = await BackendService().getNotifications(
